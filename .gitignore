@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.log
+server.out.log
+server.err.log
+detached-server.log
+trace-exit.log
+.tmp-render-*/
+marketpro-render-ready.zip
+Marketpro/

@@ -1,0 +1,1616 @@
+﻿const app = document.querySelector("#app");
+
+const getSessionId = () => {
+  const existing = localStorage.getItem("marketSessionId");
+  if (existing) return existing;
+  const created = `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  localStorage.setItem("marketSessionId", created);
+  return created;
+};
+
+const categories = [
+  "Todo",
+  "Vehiculos",
+  "Inmuebles",
+  "Electronica",
+  "Ropa",
+  "Hogar",
+  "Deportes",
+  "Juguetes",
+  "Entretenimiento"
+];
+
+const safetyRules = [
+  "Habla siempre dentro del chat de la app.",
+  "Revisa perfil, fotos, precio y descripcion antes de coordinar.",
+  "Encuentro en lugar publico o punto seguro.",
+  "No compartas codigos, claves, documentos ni datos bancarios.",
+  "Paga solo cuando hayas visto el articulo."
+];
+
+const fraudScenarios = [
+  {
+    title: "Producto distinto al publicado",
+    text: "El vendedor debe mantener fotos, descripcion y evidencia de empaque. Si el comprador reporta diferencia, el pago queda retenido."
+  },
+  {
+    title: "No envio o falsa entrega",
+    text: "Cada orden genera un codigo unico. Sin codigo confirmado por el comprador, el dinero no se libera."
+  },
+  {
+    title: "Identidad falsa",
+    text: "Para vender se exige registro, documento, selfie/foto y ubicacion. El admin revisa antes de aprobar publicaciones."
+  },
+  {
+    title: "Pago por fuera de la app",
+    text: "La app avisa que cualquier pago externo pierde proteccion. El chat y la orden quedan como evidencia."
+  },
+  {
+    title: "Cambio de precio o condiciones",
+    text: "La compra congela precio, publicacion, vendedor, comprador y condiciones al crear la orden."
+  },
+  {
+    title: "Disputa por estado del articulo",
+    text: "El comprador tiene ventana de disputa; el pago queda retenido hasta decision del admin."
+  }
+];
+
+const state = {
+  products: [],
+  conversations: [],
+  view: "feed",
+  selectedProductId: null,
+  selectedChatId: null,
+  checkoutOrder: null,
+  paymentMethod: "mercadopago",
+  galleryIndex: 0,
+  query: "",
+  filters: {
+    category: "Todo",
+    minPrice: "",
+    maxPrice: "",
+    distance: "50",
+    condition: "Todas"
+  },
+  filtersOpen: JSON.parse(localStorage.getItem("marketFiltersOpen") ?? "true"),
+  profileTab: "active",
+  user: JSON.parse(localStorage.getItem("marketUser")) || null,
+  sessionId: getSessionId(),
+  viewKey: 0,
+  sellerDashboard: null,
+  socket: null
+};
+
+const money = (value) =>
+  new Intl.NumberFormat("es-UY", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
+  }).format(value || 0);
+
+const escapeHtml = (value = "") =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
+const selectedProduct = () => state.products.find((item) => item.id === state.selectedProductId);
+
+const trustScore = (item) => {
+  let score = 55;
+  if (item.images?.length > 1) score += 10;
+  if (item.description?.length > 70) score += 10;
+  if (item.seller?.rating >= 4.8) score += 15;
+  if (item.condition) score += 5;
+  if (item.location) score += 5;
+  return Math.min(score, 98);
+};
+
+const filteredProducts = () => {
+  const query = state.query.trim().toLowerCase();
+  return state.products.filter((item) => {
+    const text = [item.title, item.location, item.category, item.description].join(" ").toLowerCase();
+    const textMatch = !query || text.includes(query);
+    const categoryMatch = state.filters.category === "Todo" || item.category === state.filters.category;
+    const minMatch = !state.filters.minPrice || item.price >= Number(state.filters.minPrice);
+    const maxMatch = !state.filters.maxPrice || item.price <= Number(state.filters.maxPrice);
+    const distanceMatch = item.distance <= Number(state.filters.distance || 50);
+    const conditionMatch = state.filters.condition === "Todas" || item.condition === state.filters.condition;
+    return textMatch && categoryMatch && minMatch && maxMatch && distanceMatch && conditionMatch;
+  });
+};
+
+const currentIdentity = () => {
+  const name = state.user?.name || `Visitante ${state.sessionId.slice(-4).toUpperCase()}`;
+  return {
+    id: state.user?.email || state.sessionId,
+    name,
+    email: state.user?.email || "",
+    avatar: state.user ? `/api/avatar/${encodeURIComponent(state.user.name)}.svg` : `/api/avatar/${encodeURIComponent(name)}.svg`
+  };
+};
+
+const hasCompleteAccess = (user = state.user) =>
+  Boolean(
+    user?.authComplete &&
+      user?.hasPassword &&
+      user?.email &&
+      user?.phone &&
+      user?.cedula &&
+      user?.exactLocation &&
+      user?.profilePhoto &&
+      user?.documentPhoto
+  );
+
+const canShowAdminEntry = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("admin") === "1" || window.location.hash === "#admin" || Boolean(sessionStorage.getItem("mpAdminToken"));
+};
+
+const scrollToTop = () => {
+  requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "smooth" }));
+};
+
+const isMyMessage = (message) => {
+  if (message.senderId) return message.senderId === currentIdentity().id;
+  return message.from === "me";
+};
+
+const navigate = (view, payload = {}) => {
+  const changed = state.view !== view;
+  state.view = view;
+  Object.assign(state, payload);
+  if (changed) state.viewKey += 1;
+  render();
+  scrollToTop();
+};
+
+const api = async (path, options = {}) => {
+  const identity = currentIdentity();
+  const headers = {
+    "Content-Type": "application/json",
+    "X-User-Id": identity.id,
+    "X-User-Name": encodeURIComponent(identity.name),
+    "X-User-Email": identity.email,
+    ...(options.headers || {})
+  };
+  const response = await fetch(path, {
+    ...options,
+    headers
+  });
+  return response.json();
+};
+
+const loadData = async () => {
+  const [products, conversations, savedUser] = await Promise.all([
+    api("/api/products"),
+    api("/api/conversations"),
+    api("/api/user")
+  ]);
+  state.products = products.map(normalizeProduct);
+  state.conversations = conversations;
+  if (!hasCompleteAccess(state.user) && hasCompleteAccess(savedUser)) {
+    state.user = savedUser;
+    localStorage.setItem("marketUser", JSON.stringify(savedUser));
+  }
+  if (state.user) {
+    state.sellerDashboard = await api("/api/seller-dashboard");
+  }
+  state.selectedChatId = conversations[0]?.id || null;
+  connectSocket();
+  render();
+};
+
+const normalizeProduct = (item) => ({
+  ...item,
+  category: item.category === "Ropa y accesorios" ? "Ropa" : item.category === "Hogar y jardin" ? "Hogar" : item.category,
+  verified: item.verified ?? true,
+  safeMeetup: item.safeMeetup ?? true,
+  reportCount: item.reportCount ?? 0
+});
+
+const isVerifiedSeller = () => Boolean(state.user?.verified);
+
+const refreshSellerDashboard = async () => {
+  state.sellerDashboard = await api("/api/seller-dashboard");
+};
+
+const connectSocket = () => {
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  if (state.socket?.readyState === WebSocket.OPEN || state.socket?.readyState === WebSocket.CONNECTING) return;
+  state.socket = new WebSocket(`${protocol}://${location.host}`);
+  state.socket.addEventListener("open", () => {
+    state.socket.send(JSON.stringify({ type: "hello", identity: currentIdentity() }));
+  });
+  state.socket.addEventListener("message", (event) => {
+    const payload = JSON.parse(event.data);
+    if (payload.type !== "message") return;
+    state.conversations = state.conversations.map((chat) => {
+      if (chat.id !== payload.chatId) return chat;
+      const exists = chat.messages.some((msg) =>
+        payload.message.id ? msg.id === payload.message.id : msg.text === payload.message.text && msg.time === payload.message.time
+      );
+      return exists ? chat : { ...chat, messages: [...chat.messages, payload.message] };
+    });
+    render();
+  });
+  state.socket.addEventListener("close", () => {
+    state.socket = null;
+    setTimeout(connectSocket, 1600);
+  });
+};
+
+const topbar = () => `
+  <header class="topbar">
+    <button class="brand" data-view="feed" title="Inicio">
+      <img class="brand-logo" src="/mp-logo.svg" alt="MP" />
+      <span>MarketPro</span>
+    </button>
+    <div class="searchbox">
+      <span>Todo</span>
+      <input id="globalSearch" value="${escapeHtml(state.query)}" placeholder="Busca articulos, barrios o categorias" />
+    </div>
+    <div class="top-actions">
+      <button class="nav-btn ${state.view === "profile" ? "active" : ""}" data-view="profile">Mi cuenta</button>
+      <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
+      <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
+      <button class="cart-btn ${state.view === "profile" ? "active" : ""}" data-view="profile">0</button>
+      <button class="avatar-btn ${state.view === "profile" ? "active" : ""}" data-view="profile" title="Perfil">${state.user ? state.user.name[0] : "E"}</button>
+    </div>
+  </header>
+  <div class="category-strip">
+    ${categories.map((category) => `<button data-category="${category}">${escapeHtml(category)}</button>`).join("")}
+  </div>
+  <nav class="mobile-tabs">
+    <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed">Inicio</button>
+    <button class="${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
+    <button class="${state.view === "messages" ? "active" : ""}" data-view="messages">Chats</button>
+    <button class="${state.view === "profile" ? "active" : ""}" data-view="profile">Perfil</button>
+  </nav>
+`;
+
+const sidebar = () => `
+  <aside class="sidebar ${state.filtersOpen ? "open" : ""}">
+    <div class="side-block">
+      <h2>Departamentos</h2>
+      <div class="category-list">
+        ${categories
+          .map(
+            (category) => `
+            <button class="category-btn ${state.filters.category === category ? "active" : ""}" data-category="${category}">
+              <span>${escapeHtml(category)}</span>
+            </button>`
+          )
+          .join("")}
+      </div>
+    </div>
+    <div class="side-block">
+      <h2>Filtros</h2>
+      <div class="filters">
+        <div class="field">
+          <label>Precio minimo</label>
+          <input id="minPrice" type="number" min="0" value="${escapeHtml(state.filters.minPrice)}" placeholder="0" />
+        </div>
+        <div class="field">
+          <label>Precio maximo</label>
+          <input id="maxPrice" type="number" min="0" value="${escapeHtml(state.filters.maxPrice)}" placeholder="Sin limite" />
+        </div>
+        <div class="field">
+          <label>Distancia: ${state.filters.distance} km</label>
+          <input id="distance" type="range" min="1" max="50" value="${state.filters.distance}" />
+        </div>
+        <div class="field">
+          <label>Condicion</label>
+          <select id="condition">
+            ${["Todas", "Nuevo", "Usado"]
+              .map((condition) => `<option ${state.filters.condition === condition ? "selected" : ""}>${condition}</option>`)
+              .join("")}
+          </select>
+        </div>
+        <button class="secondary-btn" id="clearFilters">Limpiar</button>
+      </div>
+    </div>
+    <div class="safety-card compact">
+      <strong>Compra protegida</strong>
+      <span>Chat interno, punto publico y pago solo al verificar el articulo.</span>
+    </div>
+  </aside>
+`;
+
+const trustBadge = (item) => `
+  <span class="trust-badge">Verificado ${trustScore(item)}%</span>
+`;
+
+const sellerReliability = (item) => [
+  "Identidad validada",
+  `${item.seller?.rating || 4.8}/5 reputacion`,
+  "Chat auditado",
+  "Pago protegido"
+];
+
+const securityLedger = (item) => {
+  const score = trustScore(item);
+  return `
+    <section class="security-ledger">
+      <div>
+        <span>MP Shield</span>
+        <strong>${score}%</strong>
+        <small>Indice de proteccion</small>
+      </div>
+      <ul>
+        <li>Publicacion congelada al comprar</li>
+        <li>Pago procesado por Mercado Pago vinculado</li>
+        <li>Chat monitoreado contra fraude</li>
+        <li>Disputa bloquea retiro del vendedor</li>
+      </ul>
+    </section>
+  `;
+};
+
+const deliveryWorkflow = (order) => {
+  if (!order) return "";
+  const proof = order.delivery?.sellerProof;
+  const inspection = order.delivery?.buyerInspection;
+  const hasOpenDispute = order.disputes?.some((dispute) => dispute.status !== "Cerrada");
+  return `
+    <section class="delivery-workflow">
+      <div class="delivery-status">
+        <span>Entrega protegida</span>
+        <strong>${escapeHtml(order.delivery.status)}</strong>
+        <small>${hasOpenDispute ? "Disputa abierta: cierre bloqueado" : "Checklist anti-estafa activo"}</small>
+      </div>
+      <div class="delivery-steps">
+        <span class="${proof ? "done" : ""}">1. Evidencia vendedor</span>
+        <span class="${order.delivery.tracking ? "done" : ""}">2. Despacho</span>
+        <span class="${inspection ? "done" : ""}">3. Recepcion</span>
+        <span class="${hasOpenDispute ? "danger" : inspection ? "done" : ""}">4. Cierre</span>
+      </div>
+      ${proof ? `
+        <div class="proof-summary">
+          <strong>Evidencia cargada</strong>
+          <span>${escapeHtml(proof.packageNotes)} - ${escapeHtml(proof.serialOrMark)} - ${escapeHtml(proof.accessories)}</span>
+        </div>
+      ` : `
+        <form class="secure-subform" id="sellerProofForm">
+          <strong>Evidencia antes de entregar</strong>
+          <input name="packageNotes" required placeholder="Estado del empaque y articulo" />
+          <input name="serialOrMark" required placeholder="Serie, IMEI, marca unica o detalle identificable" />
+          <input name="accessories" required placeholder="Accesorios incluidos" />
+          <input name="photos" type="file" accept="image/*" multiple />
+          <button class="secondary-btn" type="submit">Cargar evidencia</button>
+        </form>
+      `}
+      ${proof && !order.delivery.tracking ? `
+        <form class="secure-subform" id="markTransitForm">
+          <strong>Marcar entrega en camino</strong>
+          <input name="carrier" placeholder="Repartidor, empresa o entrega personal" />
+          <input name="trackingCode" placeholder="Codigo de seguimiento opcional" />
+          <input name="note" placeholder="Nota de traslado" />
+          <button class="secondary-btn" type="submit">Marcar en camino</button>
+        </form>
+      ` : ""}
+      <form class="secure-subform" id="deliveryConfirmForm">
+        <strong>Confirmar recepcion segura</strong>
+        <input name="code" required placeholder="Codigo recibido al entregar" />
+        <label class="check-row"><input type="checkbox" name="identityMatched" required /> La persona o envio coincide con la orden.</label>
+        <label class="check-row"><input type="checkbox" name="packageIntact" required /> El empaque no muestra manipulacion sospechosa.</label>
+        <label class="check-row"><input type="checkbox" name="itemMatches" required /> El articulo coincide con fotos y descripcion.</label>
+        <label class="check-row"><input type="checkbox" name="accessoriesMatch" required /> Accesorios y piezas coinciden.</label>
+        <label class="check-row"><input type="checkbox" name="conditionAccepted" required /> Estado aceptado luego de revisar.</label>
+        <input name="conditionNote" placeholder="Observacion final de recepcion" />
+        <button class="buy-action" type="submit">Confirmar entrega</button>
+      </form>
+      <form class="secure-subform dispute-form" id="disputeForm">
+        <strong>Abrir disputa</strong>
+        <select name="reason" required>
+          <option value="">Motivo</option>
+          <option>Producto distinto al publicado</option>
+          <option>Faltan accesorios</option>
+          <option>Producto danado o manipulado</option>
+          <option>No entregado / falsa entrega</option>
+          <option>Presion para entregar codigo</option>
+        </select>
+        <input name="description" required placeholder="Describe que paso" />
+        <input name="evidence" type="file" accept="image/*" multiple />
+        <button class="danger-btn" type="submit">Bloquear y revisar</button>
+      </form>
+    </section>
+  `;
+};
+
+const ratingStars = (rating = 4.7) => {
+  const rounded = Math.round(rating);
+  return "*****".slice(0, rounded) + "-----".slice(0, 5 - rounded);
+};
+
+const productCard = (item) => `
+  <button class="product-card" data-product="${item.id}">
+    <div class="card-image">
+      <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" />
+      ${trustBadge(item)}
+    </div>
+    <div class="card-body">
+      <div class="card-kicker">${escapeHtml(item.category)} / ${escapeHtml(item.condition)}</div>
+      <div class="card-title">${escapeHtml(item.title)}</div>
+      <div class="rating-line"><span>${ratingStars(item.seller.rating)}</span><small>${item.seller.rating}</small></div>
+      <div class="price">${money(item.price)}</div>
+      <div class="security-strip">
+        <span>Pago protegido</span>
+        <span>Vendedor verificado</span>
+      </div>
+      <div class="card-meta">${escapeHtml(item.location)}</div>
+      <div class="card-foot">
+        <span>Compra segura</span>
+        <strong>Ver datos</strong>
+      </div>
+    </div>
+  </button>
+`;
+
+const featured = () => state.products.slice(0, 3);
+const heroFeature = () => state.products[2] || state.products[0];
+
+const heroVisual = () => {
+  const item = heroFeature();
+  if (!item) return "";
+  return `
+    <aside class="hero-visual" data-product="${item.id}">
+      <div class="hero-visual-frame">
+        <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" />
+      </div>
+      <div class="hero-visual-card">
+        <span>Featured asset</span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <b>${money(item.price)}</b>
+      </div>
+    </aside>
+  `;
+};
+
+const commandBar = () => `
+  <section class="command-bar">
+    <div>
+      <span>Identidad</span>
+      <strong>Vendedores revisados antes de publicar</strong>
+    </div>
+    <div>
+      <span>Pago</span>
+      <strong>Pago con Mercado Pago y orden protegida</strong>
+    </div>
+    <div>
+      <span>Operacion</span>
+      <strong>Orden, chat y entrega en un solo flujo</strong>
+    </div>
+  </section>
+`;
+
+const securityProtocol = () => `
+  <section class="security-protocol">
+    <div>
+      <p class="eyebrow">Compra protegida</p>
+      <h2>Operaciones con control antes, durante y despues de la entrega.</h2>
+      <p>MarketPro prioriza identidad, trazabilidad y pago vinculado con Mercado Pago. El comprador recibe informacion clara antes de pagar y el vendedor opera con reglas verificables para reducir disputas.</p>
+    </div>
+    <div class="fraud-grid">
+      ${fraudScenarios.map((scenario) => `<article><strong>${escapeHtml(scenario.title)}</strong><span>${escapeHtml(scenario.text)}</span></article>`).join("")}
+    </div>
+  </section>
+`;
+
+const offerSummary = () => `
+  <section class="offer-summary">
+    <p class="eyebrow">MarketPro</p>
+    <h2>Un MarketPro sobrio para comprar y vender con respaldo.</h2>
+    <p>Publicaciones cuidadas, vendedores verificados, chat integrado, checkout interno y confirmacion de entrega. La experiencia esta pensada para operaciones claras, rapidas y con menos friccion.</p>
+  </section>
+`;
+
+const featuredRail = () => `
+  <section class="featured-rail">
+    <div>
+      <p class="eyebrow">Seleccion curada</p>
+      <h2>Destacados de la semana</h2>
+    </div>
+    <div class="featured-items">
+      ${featured()
+        .map(
+          (item) => `
+          <button class="featured-item" data-product="${item.id}">
+            <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" />
+            <span>${escapeHtml(item.category)}</span>
+            <strong>${escapeHtml(item.title)}</strong>
+            <b>${money(item.price)}</b>
+          </button>`
+        )
+        .join("")}
+    </div>
+  </section>
+`;
+
+const entryGate = () => `
+  <main class="entry-shell">
+    <div class="entry-brand-top">
+      <img class="brand-logo" src="/mp-logo.svg" alt="MP" />
+      <span>MarketPro</span>
+    </div>
+    <section class="entry-copy">
+      <p class="eyebrow">Acceso seguro</p>
+      <h1>Primero cuenta. Despues verificacion.</h1>
+      <p>MarketPro abre la app solo cuando el perfil queda completo. Asi cada chat, compra y publicacion nace con una identidad real para revisar.</p>
+      <div class="entry-trust">
+        <span>Gmail + contrasena</span>
+        <span>Cedula revisable</span>
+        <span>Rostro visible</span>
+        <span>GPS o direccion</span>
+      </div>
+      <div class="entry-ops">
+        <article><strong>Cuenta</strong><span>Acceso privado</span></article>
+        <article><strong>ID</strong><span>Revision manual</span></article>
+        <article><strong>Pago</strong><span>Mercado Pago</span></article>
+      </div>
+    </section>
+    <section class="panel auth-card entry-card secure-entry-card">
+      <div class="entry-card-head">
+        <div>
+          <p class="eyebrow">Cuenta privada</p>
+          <h2>Completa tu acceso</h2>
+        </div>
+        <div class="verification-seal">
+          <span>MP</span>
+          <small>ID</small>
+        </div>
+      </div>
+      <form id="entryForm">
+        <div class="auth-steps">
+          <div><span>1</span><strong>Cuenta</strong><small>Gmail y contrasena</small></div>
+          <div><span>2</span><strong>Revision</strong><small>Datos para aprobar</small></div>
+        </div>
+
+        <div class="onboarding-block">
+          <div class="block-title"><span>Cuenta</span><small>Tu acceso principal</small></div>
+          <div class="field"><label>Gmail</label><input name="email" required type="email" pattern="^[^@\\s]+@gmail\\.com$" placeholder="tu@gmail.com" /></div>
+          <div class="field"><label>Contrasena</label><input name="password" required type="password" minlength="8" autocomplete="new-password" placeholder="Minimo 8 caracteres" /></div>
+        </div>
+
+        <div class="onboarding-block">
+          <div class="block-title"><span>Identidad</span><small>Debe coincidir con la cedula</small></div>
+          <div class="field"><label>Nombre completo</label><input name="name" required placeholder="Tu nombre real" /></div>
+          <div class="two-col">
+            <div class="field"><label>Cedula / documento</label><input name="cedula" required placeholder="Documento de identidad" /></div>
+            <div class="field"><label>Telefono</label><input name="phone" required placeholder="Telefono verificable" /></div>
+          </div>
+        </div>
+
+        <div class="onboarding-block">
+          <div class="block-title"><span>Ubicacion</span><small>Obligatoria para seguridad</small></div>
+          <div class="field">
+            <label>Ubicacion exacta</label>
+            <div class="location-field">
+              <input id="exactLocationInput" name="exactLocation" required placeholder="Calle, numero, ciudad o coordenadas" />
+              <button class="secondary-btn" type="button" id="useDeviceLocation">Usar GPS</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="onboarding-block">
+          <div class="block-title"><span>Fotos</span><small>Solo para revision privada</small></div>
+          <div class="identity-upload-grid">
+            <label class="upload-card">
+              <span>Foto de rostro</span>
+              <small>Selfie clara, de frente y sin lentes oscuros.</small>
+              <input name="profilePhoto" required type="file" accept="image/*" capture="user" />
+            </label>
+            <label class="upload-card">
+              <span>Foto frontal de cedula</span>
+              <small>Parte frontal completa, enfocada y legible.</small>
+              <input name="documentPhoto" required type="file" accept="image/*" />
+            </label>
+          </div>
+        </div>
+        <button class="sell-action" type="submit">Entrar y enviar verificacion</button>
+        <small class="private-note">Estos datos solo aparecen en el panel privado del creador/admin.</small>
+      </form>
+      ${canShowAdminEntry() ? `<section class="admin-entry">
+        <div>
+          <span>Acceso del creador</span>
+          <small>No requiere verificacion de comprador/vendedor.</small>
+        </div>
+        <form id="adminEntryForm">
+          <input name="password" required type="password" placeholder="Contrasena admin" />
+          <button type="submit">Entrar como admin</button>
+        </form>
+        <a href="/admin.html">Abrir panel privado</a>
+      </section>` : ""}
+    </section>
+  </main>
+`;
+
+const feedView = () => {
+  const products = filteredProducts();
+  return `
+    ${sidebar()}
+    <main>
+      <div class="toolbar-row">
+        <button type="button" class="filter-toggle" data-filter-toggle>
+          ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+        </button>
+      </div>
+      <section class="hero-panel">
+        <div>
+          <p class="eyebrow">MarketPro verificado</p>
+          <h1>Compra y venta con respaldo operativo.</h1>
+          <p>Productos seleccionados, vendedores verificados y pago vinculado con Mercado Pago. Una experiencia mas seria para operaciones entre personas.</p>
+          <div class="hero-metrics">
+            <span><strong>${products.length}</strong> publicaciones</span>
+            <span><strong>Pago</strong> protegido</span>
+            <span><strong>ID</strong> verificada</span>
+          </div>
+        </div>
+        ${heroVisual()}
+        <div class="hero-cta-stack">
+          <button class="sell-action hero-action" data-view="compose">Vender</button>
+          <button class="buy-action hero-action" data-view="profile">Verificarme</button>
+        </div>
+      </section>
+      ${commandBar()}
+      <section class="luxury-strip">
+        <article><span>01</span><strong>Validacion de vendedor</strong><p>Las publicaciones se habilitan con perfil revisado.</p></article>
+        <article><span>02</span><strong>Checkout interno</strong><p>Direccion, metodo y comprobante quedan en la orden.</p></article>
+        <article><span>03</span><strong>Entrega confirmada</strong><p>El pago se libera cuando la recepcion queda validada.</p></article>
+      </section>
+      ${securityProtocol()}
+      ${featuredRail()}
+      <div class="content-head">
+        <div>
+          <h2>Catalogo verificado</h2>
+          <div class="muted">${products.length} resultados</div>
+        </div>
+      </div>
+      ${
+        products.length
+          ? `<section class="grid">${products.map(productCard).join("")}</section>`
+          : `<div class="empty">No encontramos articulos con esos filtros.</div>`
+      }
+      ${offerSummary()}
+    </main>
+  `;
+};
+
+const detailView = () => {
+  const item = selectedProduct();
+  if (!item) return feedView();
+  const currentImage = item.images[state.galleryIndex] || item.images[0];
+  const similar = state.products.filter((product) => product.id !== item.id && product.category === item.category).slice(0, 4);
+  return `
+    ${sidebar()}
+    <main>
+      <div class="toolbar-row">
+        <button type="button" class="filter-toggle" data-filter-toggle>
+          ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+        </button>
+      </div>
+      <button class="text-btn" data-view="feed">Volver al feed</button>
+      <section class="detail-grid">
+        <div class="panel gallery-panel">
+          <div class="gallery-main"><img src="${currentImage}" alt="${escapeHtml(item.title)}" /></div>
+          <div class="thumbs">
+            ${item.images
+              .map(
+                (src, index) => `
+                <button class="thumb ${index === state.galleryIndex ? "active" : ""}" data-thumb="${index}">
+                  <img src="${src}" alt="Foto ${index + 1}" />
+                </button>`
+              )
+              .join("")}
+          </div>
+        </div>
+        <aside class="panel detail-panel">
+          <div class="detail-topline">
+            ${trustBadge(item)}
+            <span class="pill">${item.safeMeetup ? "Entrega segura" : "Coordinar con cuidado"}</span>
+          </div>
+          <h1 class="detail-title">${escapeHtml(item.title)}</h1>
+          <div class="price">${money(item.price)}</div>
+          <p class="muted">${escapeHtml(item.location)} - ${escapeHtml(item.postedAt)}</p>
+          <p>${escapeHtml(item.description)}</p>
+          <div class="seller">
+            <img src="${item.seller.avatar}" alt="${escapeHtml(item.seller.name)}" />
+            <div>
+              <strong>${escapeHtml(item.seller.name)}</strong>
+              <div class="muted">Perfil verificado - ${item.seller.rating}/5</div>
+            </div>
+          </div>
+          <section class="identity-panel">
+            <div>
+              <span>Vendedor</span>
+              <strong>${escapeHtml(item.seller.name)}</strong>
+              <small>Identidad, reputacion y actividad revisadas.</small>
+            </div>
+            <div>
+              <span>Comprador</span>
+              <strong>${escapeHtml(currentIdentity().name)}</strong>
+              <small>Estos datos se muestran al iniciar compra segura.</small>
+            </div>
+          </section>
+          <section class="seller-proof">
+            ${sellerReliability(item).map((proof) => `<span>${escapeHtml(proof)}</span>`).join("")}
+          </section>
+          ${securityLedger(item)}
+          <div class="safety-card">
+            <strong>Proteccion MarketPro</strong>
+            ${safetyRules.slice(0, 3).map((rule) => `<span>${rule}</span>`).join("")}
+          </div>
+          ${state.checkoutOrder?.productId === item.id ? `
+            <section class="checkout-receipt">
+              <span>Compra iniciada</span>
+              <strong>${escapeHtml(state.checkoutOrder.status)}</strong>
+              <small>Orden ${escapeHtml(state.checkoutOrder.id)} - Codigo de entrega: ${escapeHtml(state.checkoutOrder.delivery.code)}. Huella: ${escapeHtml(state.checkoutOrder.security.stamp.productFingerprint)}. Riesgo: ${escapeHtml(state.checkoutOrder.security.stamp.riskLevel)}.</small>
+              <a class="buy-action checkout-link" href="${escapeHtml(state.checkoutOrder.mercadoPago.checkoutUrl)}" target="_blank" rel="noopener">Abrir Mercado Pago</a>
+              ${deliveryWorkflow(state.checkoutOrder)}
+            </section>
+          ` : `
+            <form class="checkout-box" id="checkoutForm">
+              <strong>Comprar con Mercado Pago</strong>
+              <input type="hidden" name="paymentMethod" value="mercadopago" />
+              <div class="payment-provider">
+                <span>Medio de pago vinculado</span>
+                <strong>Mercado Pago</strong>
+                <small>La app crea la orden protegida y deriva el cobro a Mercado Pago. MarketPro no guarda ni procesa tarjetas.</small>
+              </div>
+              <div class="two-col">
+                <div class="field"><label>Direccion de entrega</label><input name="address" required placeholder="Calle, numero, apartamento" /></div>
+                <div class="field"><label>Ciudad / zona</label><input name="city" required placeholder="Ciudad o barrio" /></div>
+              </div>
+              <div class="two-col">
+                <div class="field"><label>Telefono de contacto</label><input name="phone" required value="${escapeHtml(state.user?.phone || "")}" placeholder="Telefono" /></div>
+                <div class="field"><label>Metodo de entrega</label><select name="method" required><option>Retiro en punto seguro</option><option>Envio coordinado</option><option>Entrega personal verificada</option></select></div>
+              </div>
+              <div class="field"><label>Nota para entrega</label><input name="note" placeholder="Horario, referencia o instrucciones" /></div>
+              <label class="check-row"><input type="checkbox" name="acceptedRules" required /> Acepto comprar solo dentro de MarketPro y no compartir codigos fuera del chat.</label>
+              <label class="check-row"><input type="checkbox" name="declaredInspection" required /> Confirmo que voy a revisar articulo, accesorios y estado antes de liberar el pago.</label>
+              <small>MarketPro congela publicacion, precio, vendedor, comprador y condiciones. El pago se procesa en Mercado Pago vinculado a la app.</small>
+              <button class="buy-action" type="submit">Continuar con Mercado Pago</button>
+            </form>
+          `}
+          <div class="detail-actions">
+            <button class="buy-action" id="messageSeller">Contactar vendedor</button>
+            <button class="secondary-btn" id="reportListing">Reportar</button>
+          </div>
+        </aside>
+      </section>
+      <section class="similar-section">
+        <h2 class="panel-title">Similares</h2>
+        <div class="grid">${similar.map(productCard).join("") || '<div class="empty">Sin similares por ahora.</div>'}</div>
+      </section>
+    </main>
+  `;
+};
+
+const composeView = () => {
+  if (!isVerifiedSeller()) {
+    return `
+      ${sidebar()}
+      <main>
+        <div class="toolbar-row">
+          <button type="button" class="filter-toggle" data-filter-toggle>
+            ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+          </button>
+        </div>
+        <section class="panel verification-gate">
+          <p class="eyebrow">Verificacion requerida</p>
+          <h1>Antes de vender tienes que registrarte y verificar tu identidad.</h1>
+          <p class="muted">Para proteger a compradores y vendedores, pedimos cedula, telefono y ubicacion exacta. Esos datos quedan en la memoria privada del creador/admin.</p>
+          <button class="sell-action" data-view="profile">Verificarme ahora</button>
+        </section>
+      </main>
+    `;
+  }
+
+  return `
+  ${sidebar()}
+  <main>
+    <div class="toolbar-row">
+      <button type="button" class="filter-toggle" data-filter-toggle>
+        ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+      </button>
+    </div>
+    <section class="compose-grid">
+      <form class="panel form-panel" id="listingForm">
+        <p class="eyebrow">Seller Center</p>
+        <h1>Publica como vendedor profesional.</h1>
+        <div class="form-section">
+          <h2>Fotos</h2>
+          <div class="field">
+            <label>Sube hasta 6 imagenes</label>
+            <input id="photoInput" name="photos" type="file" accept="image/*" multiple />
+          </div>
+          <div class="photo-grid" id="photoGrid">
+            <div class="photo-slot">Agregar fotos</div>
+            <div class="photo-slot">Detalle</div>
+            <div class="photo-slot">Estado</div>
+          </div>
+        </div>
+        <div class="form-section">
+          <h2>Datos del articulo</h2>
+          <div class="two-col">
+            <div class="field">
+              <label>Titulo</label>
+              <input name="title" required maxlength="72" placeholder="Ej: Mesa de comedor" />
+            </div>
+            <div class="field">
+              <label>Precio USD</label>
+              <input name="price" required type="number" min="1" placeholder="120" />
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="field">
+              <label>Categoria</label>
+              <select name="category">${categories.filter((c) => c !== "Todo").map((c) => `<option>${c}</option>`).join("")}</select>
+            </div>
+            <div class="field">
+              <label>Condicion</label>
+              <select name="condition"><option>Usado</option><option>Nuevo</option></select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Descripcion</label>
+            <textarea name="description" required minlength="30" placeholder="Describe estado real, uso, medidas, fallas y que incluye."></textarea>
+          </div>
+          <div class="field">
+            <label>Ubicacion</label>
+            <input name="location" required placeholder="Barrio, ciudad" />
+          </div>
+        </div>
+        <div class="form-section protocol-box">
+          <h2>Protocolo de seguridad</h2>
+          ${safetyRules.map((rule, index) => `
+            <label class="check-row">
+              <input type="checkbox" name="safety-${index}" required />
+              <span>${rule}</span>
+            </label>
+          `).join("")}
+        </div>
+        <button class="sell-action" type="submit">Publicar producto</button>
+      </form>
+      <aside class="panel preview-panel">
+        <h2 class="panel-title">Vista previa</h2>
+        <div class="preview-card">
+          <div class="preview-image-wrap" id="previewImage"></div>
+          <div class="card-body">
+            <div class="price" id="previewPrice">USD 0</div>
+            <div class="card-title" id="previewTitle">Titulo del articulo</div>
+            <div class="card-meta" id="previewLocation">Ubicacion</div>
+            <div class="pill-row">
+              <span class="pill" id="previewCategory">Categoria</span>
+              <span class="pill" id="previewCondition">Condicion</span>
+            </div>
+          </div>
+        </div>
+        <div class="safety-card">
+          <strong>Publicacion verificada</strong>
+          <span>El producto aparecera con proteccion si aceptas el protocolo.</span>
+        </div>
+      </aside>
+    </section>
+  </main>
+`;
+};
+
+const messagesView = () => {
+  const active = state.conversations.find((chat) => chat.id === state.selectedChatId) || state.conversations[0];
+  if (active && state.selectedChatId !== active.id) state.selectedChatId = active.id;
+  return `
+    ${sidebar()}
+    <main>
+      <div class="toolbar-row">
+        <button type="button" class="filter-toggle" data-filter-toggle>
+          ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+        </button>
+      </div>
+      <section class="panel chat-shell">
+      <aside class="chat-sidebar">
+        <h2 class="panel-title">Chats seguros</h2>
+        <div class="chat-list">
+          ${state.conversations
+            .map(
+              (chat) => `
+              <button class="chat-row ${chat.id === state.selectedChatId ? "active" : ""}" data-chat="${chat.id}">
+                <img src="${chat.avatar}" alt="${escapeHtml(chat.seller)}" />
+                <div>
+                  <strong>${escapeHtml(chat.seller)}</strong>
+                  <div class="muted">${escapeHtml(chat.productTitle)}</div>
+                </div>
+              </button>`
+            )
+            .join("")}
+        </div>
+      </aside>
+      ${
+        active
+          ? `<section class="chat-main">
+              <div class="chat-header">
+                <img src="${active.avatar}" alt="${escapeHtml(active.seller)}" />
+                <div>
+                  <strong>${escapeHtml(active.seller)}</strong>
+                  <div class="muted">${escapeHtml(active.productTitle)}</div>
+                </div>
+              </div>
+              <div class="chat-warning">
+                No compartas codigos, claves ni datos bancarios. Coordina entrega en un punto publico.
+              </div>
+              <div class="messages">
+                ${active.messages
+                  .map(
+                    (msg) => `
+                    <div class="bubble ${isMyMessage(msg) ? "me" : ""} ${msg.from === "system" ? "system" : ""}">
+                      ${msg.senderName && msg.from !== "system" ? `<span>${escapeHtml(msg.senderName)}</span>` : ""}
+                      ${escapeHtml(msg.text)}
+                      ${msg.risk?.level && msg.risk.level !== "Bajo" ? `<small class="risk-note">Alerta ${escapeHtml(msg.risk.level)}: ${escapeHtml(msg.risk.flags.join(", "))}</small>` : ""}
+                    </div>`
+                  )
+                  .join("")}
+              </div>
+              <form class="message-form" id="messageForm">
+                <input name="message" autocomplete="off" placeholder="Escribe dentro del chat seguro" />
+                <button class="send-btn" title="Enviar">Enviar</button>
+              </form>
+            </section>`
+          : `<div class="empty">Todavia no tienes chats reales. Abre una publicacion y contacta al vendedor para iniciar una conversacion conectada.</div>`
+      }
+      </section>
+    </main>
+  `;
+};
+
+const profileView = () => {
+  if (!state.user) {
+    return `
+      ${sidebar()}
+      <main>
+        <div class="toolbar-row">
+          <button type="button" class="filter-toggle" data-filter-toggle>
+            ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+          </button>
+        </div>
+        <section class="panel auth-card">
+          <p class="eyebrow">Registro y verificacion</p>
+          <h1>Crea tu cuenta segura de vendedor.</h1>
+          <p class="muted">Estos datos son parte del protocolo de seguridad. Quedan guardados en la memoria privada del sistema y solo se muestran en el panel privado del creador/admin.</p>
+          <form id="authForm">
+            <div class="two-col">
+              <div class="field">
+                <label>Nombre completo</label>
+                <input name="name" required placeholder="Tu nombre" />
+              </div>
+              <div class="field">
+                <label>Gmail</label>
+                <input name="email" required type="email" pattern="^[^@\\s]+@gmail\\.com$" placeholder="tu@gmail.com" />
+              </div>
+            </div>
+            <div class="field">
+              <label>Contrasena</label>
+              <input name="password" required type="password" minlength="8" autocomplete="new-password" placeholder="Minimo 8 caracteres" />
+            </div>
+            <div class="two-col">
+              <div class="field">
+                <label>Cedula</label>
+                <input name="cedula" required placeholder="Ej: 1.234.567-8" />
+              </div>
+              <div class="field">
+                <label>Telefono</label>
+                <input name="phone" required placeholder="Ej: 099 123 456" />
+              </div>
+            </div>
+            <div class="field">
+              <label>Ubicacion exacta</label>
+              <input name="exactLocation" required placeholder="Calle, numero, ciudad" />
+            </div>
+            <div class="two-col">
+              <div class="field">
+                <label>Foto de rostro</label>
+                <input name="profilePhoto" required type="file" accept="image/*" capture="user" />
+              </div>
+              <div class="field">
+                <label>Foto frontal de cedula</label>
+                <input name="documentPhoto" required type="file" accept="image/*" />
+              </div>
+            </div>
+            <button class="sell-action" type="submit">Registrarme y verificarme</button>
+          </form>
+        </section>
+      </main>
+    `;
+  }
+
+  if (!isVerifiedSeller()) {
+    return `
+      ${sidebar()}
+      <main>
+        <div class="toolbar-row">
+          <button type="button" class="filter-toggle" data-filter-toggle>
+            ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+          </button>
+        </div>
+        <section class="panel verification-gate">
+          <p class="eyebrow">Verificacion pendiente</p>
+          <h1>Tu cuenta esta esperando revision del administrador.</h1>
+          <p class="muted">Tus datos fueron guardados en la memoria privada. Cuando el admin corrobore cedula, telefono y ubicacion exacta, vas a poder publicar productos.</p>
+          <div class="seller-metrics">
+            <div class="metric-card">
+              <span>Estado</span>
+              <strong>${escapeHtml(state.user.verificationStatus || "Pendiente")}</strong>
+            </div>
+            <div class="metric-card">
+              <span>Email</span>
+              <strong>${escapeHtml(state.user.email)}</strong>
+            </div>
+          </div>
+        </section>
+      </main>
+    `;
+  }
+
+  const dashboard = state.sellerDashboard;
+  const stats = dashboard?.stats || { active: 0, sold: 0, balance: 0, pendingBalance: 0, grossSales: 0, securityScore: 98 };
+  const mine = state.products.filter((item) => item.seller?.email === state.user.email || item.seller?.name === state.user.name);
+  const visible = mine.filter((item) => (state.profileTab === "sold" ? item.status === "sold" : item.status !== "sold"));
+  return `
+    ${sidebar()}
+    <main>
+      <div class="toolbar-row">
+        <button type="button" class="filter-toggle" data-filter-toggle>
+          ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+        </button>
+      </div>
+      <section class="panel profile-panel">
+        <div class="profile-head">
+          <div class="avatar-btn large">${state.user.name[0]}</div>
+          <div>
+            <h1>${escapeHtml(state.user.name)}</h1>
+            <div class="muted">${escapeHtml(state.user.email)} - ${escapeHtml(state.user.verificationStatus)} - Protocolo activo</div>
+          </div>
+        </div>
+        <section class="seller-metrics">
+          <div class="metric-card">
+            <span>Saldo disponible</span>
+            <strong>${money(stats.balance)}</strong>
+          </div>
+          <div class="metric-card">
+            <span>Saldo pendiente</span>
+            <strong>${money(stats.pendingBalance)}</strong>
+          </div>
+          <div class="metric-card">
+            <span>Publicaciones activas</span>
+            <strong>${stats.active}</strong>
+          </div>
+          <div class="metric-card">
+            <span>Vendidos</span>
+            <strong>${stats.sold}</strong>
+          </div>
+        </section>
+        <div class="profile-list">
+          <button class="profile-tab ${state.profileTab === "active" ? "active" : ""}" data-profile-tab="active">Activos</button>
+          <button class="profile-tab ${state.profileTab === "sold" ? "active" : ""}" data-profile-tab="sold">Vendidos</button>
+        </div>
+      </section>
+      <section class="grid profile-grid">
+        ${
+          visible.length
+            ? visible
+                .map(
+                  (item) => `
+                  <article class="product-card">
+                    <button data-product="${item.id}" class="unstyled-card-button">
+                      <div class="card-image"><img src="${item.images[0]}" alt="${escapeHtml(item.title)}" />${trustBadge(item)}</div>
+                      <div class="card-body">
+                        <div class="price">${money(item.price)}</div>
+                        <div class="card-title">${escapeHtml(item.title)}</div>
+                        <div class="card-meta">${item.status === "sold" ? "Vendido" : "Activo"}</div>
+                      </div>
+                    </button>
+                    <div class="card-body actions-row">
+                      <button class="secondary-btn" data-toggle-sold="${item.id}">${item.status === "sold" ? "Reactivar" : "Vendido"}</button>
+                      <button class="danger-btn" data-delete="${item.id}">Eliminar</button>
+                    </div>
+                  </article>`
+                )
+                .join("")
+            : `<div class="empty">No hay publicaciones en esta seccion.</div>`
+        }
+      </section>
+    </main>
+  `;
+};
+
+const view = () =>
+  ({
+    feed: feedView,
+    detail: detailView,
+    compose: composeView,
+    messages: messagesView,
+    profile: profileView
+  })[state.view]();
+
+const render = () => {
+  if (!hasCompleteAccess()) {
+    app.innerHTML = `<div class="app-shell">${entryGate()}</div>`;
+    bindEvents();
+    return;
+  }
+  app.innerHTML = `
+    <div class="app-shell">
+      ${topbar()}
+      <div class="main-layout view-surface ${state.filtersOpen ? "" : "filters-collapsed"}" data-view-key="${state.viewKey}">${view()}</div>
+    </div>
+  `;
+  bindEvents();
+};
+
+const bindEvents = () => {
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.addEventListener("click", () => navigate(button.dataset.view));
+  });
+
+  document.querySelectorAll("[data-filter-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.filtersOpen = !state.filtersOpen;
+      localStorage.setItem("marketFiltersOpen", JSON.stringify(state.filtersOpen));
+      render();
+    });
+  });
+
+  document.querySelector("#globalSearch")?.addEventListener("input", (event) => {
+    state.query = event.target.value;
+    if (state.view !== "feed") state.view = "feed";
+    render();
+  });
+
+  document.querySelectorAll("[data-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.filters.category = button.dataset.category;
+      state.view = "feed";
+      render();
+    });
+  });
+
+  ["minPrice", "maxPrice", "distance", "condition"].forEach((id) => {
+    document.querySelector(`#${id}`)?.addEventListener("input", (event) => {
+      state.filters[id] = event.target.value;
+      render();
+    });
+  });
+
+  document.querySelector("#clearFilters")?.addEventListener("click", () => {
+    state.filters = { category: "Todo", minPrice: "", maxPrice: "", distance: "50", condition: "Todas" };
+    render();
+  });
+
+  document.querySelectorAll("[data-product]").forEach((button) => {
+    button.addEventListener("click", () => navigate("detail", { selectedProductId: button.dataset.product, galleryIndex: 0 }));
+  });
+
+  document.querySelectorAll("[data-thumb]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.galleryIndex = Number(button.dataset.thumb);
+      render();
+    });
+  });
+
+  document.querySelector("#messageSeller")?.addEventListener("click", startConversation);
+  document.querySelector("#checkoutForm")?.addEventListener("submit", secureCheckout);
+  document.querySelector("#deliveryConfirmForm")?.addEventListener("submit", confirmDelivery);
+  document.querySelector("#sellerProofForm")?.addEventListener("submit", submitSellerProof);
+  document.querySelector("#markTransitForm")?.addEventListener("submit", markOrderInTransit);
+  document.querySelector("#disputeForm")?.addEventListener("submit", openDispute);
+  document.querySelector("#entryForm")?.addEventListener("submit", authenticate);
+  document.querySelector("#adminEntryForm")?.addEventListener("submit", authenticateAdminEntry);
+  document.querySelector("#useDeviceLocation")?.addEventListener("click", useDeviceLocation);
+  document.querySelector("#reportListing")?.addEventListener("click", reportListing);
+  document.querySelectorAll("input[name='paymentMethod']").forEach((input) => {
+    input.addEventListener("change", () => {
+      state.paymentMethod = input.value;
+      render();
+    });
+  });
+  document.querySelector("#listingForm")?.addEventListener("input", updatePreview);
+  document.querySelector("#listingForm")?.addEventListener("submit", publishListing);
+  document.querySelector("#photoInput")?.addEventListener("change", previewPhotos);
+  document.querySelector("#authForm")?.addEventListener("submit", authenticate);
+
+  document.querySelectorAll("[data-chat]").forEach((button) => {
+    button.addEventListener("click", () => navigate("messages", { selectedChatId: button.dataset.chat }));
+  });
+
+  document.querySelector("#messageForm")?.addEventListener("submit", sendMessage);
+
+  document.querySelectorAll("[data-profile-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.profileTab = button.dataset.profileTab;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-toggle-sold]").forEach((button) => {
+    button.addEventListener("click", () => toggleSold(button.dataset.toggleSold));
+  });
+
+  document.querySelectorAll("[data-delete]").forEach((button) => {
+    button.addEventListener("click", () => deleteListing(button.dataset.delete));
+  });
+};
+
+const updatePreview = (event) => {
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  document.querySelector("#previewTitle").textContent = data.get("title") || "Titulo del articulo";
+  document.querySelector("#previewPrice").textContent = money(Number(data.get("price") || 0));
+  document.querySelector("#previewLocation").textContent = data.get("location") || "Ubicacion";
+  document.querySelector("#previewCategory").textContent = data.get("category") || "Categoria";
+  document.querySelector("#previewCondition").textContent = data.get("condition") || "Condicion";
+};
+
+const previewPhotos = (event) => {
+  const files = [...event.target.files].slice(0, 6);
+  const grid = document.querySelector("#photoGrid");
+  const preview = document.querySelector("#previewImage");
+  grid.innerHTML = "";
+  files.forEach((file, index) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      grid.insertAdjacentHTML(
+        "beforeend",
+        `<div class="photo-slot image-slot"><img class="preview-image" src="${reader.result}" alt="Foto ${index + 1}" /></div>`
+      );
+      if (index === 0) preview.innerHTML = `<img class="preview-image" src="${reader.result}" alt="Vista previa" />`;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
+const collectPhotos = async (input) => {
+  const files = [...input.files].slice(0, 6);
+  if (!files.length) return [`/api/demo-photo/new-${Date.now()}.svg`];
+  return Promise.all(
+    files.map(
+      (file) =>
+        new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        })
+    )
+  );
+};
+
+const fileToDataUrl = (file) =>
+  new Promise((resolve) => {
+    if (!file || !file.size) {
+      resolve("");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+
+const useDeviceLocation = () => {
+  const input = document.querySelector("#exactLocationInput");
+  if (!input) return;
+  if (!navigator.geolocation) {
+    alert("Este dispositivo no permite tomar ubicacion automatica. Escribe tu direccion exacta.");
+    return;
+  }
+  input.value = "Tomando ubicacion...";
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const { latitude, longitude, accuracy } = position.coords;
+      input.value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)} (precision ${Math.round(accuracy)} m)`;
+    },
+    () => {
+      input.value = "";
+      alert("No se pudo obtener la ubicacion. Escribe calle, numero y ciudad.");
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+};
+
+const publishListing = async (event) => {
+  event.preventDefault();
+  if (!isVerifiedSeller()) {
+    navigate("profile");
+    return;
+  }
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const images = await collectPhotos(form.photos);
+  const product = normalizeProduct(
+    await api("/api/products", {
+      method: "POST",
+      body: JSON.stringify({
+        title: data.get("title"),
+        price: Number(data.get("price")),
+        category: data.get("category"),
+        condition: data.get("condition"),
+        description: data.get("description"),
+        location: data.get("location"),
+        distance: 1,
+        images,
+        seller: {
+          name: state.user.name,
+          email: state.user.email,
+          avatar: `/api/avatar/${encodeURIComponent(state.user.name)}.svg`,
+          rating: 5,
+          verified: true
+        },
+        verified: true,
+        safeMeetup: true,
+        safetyAccepted: true
+      })
+    })
+  );
+  state.products = [product, ...state.products];
+  await refreshSellerDashboard();
+  navigate("detail", { selectedProductId: product.id, galleryIndex: 0 });
+};
+
+const startConversation = async () => {
+  const item = selectedProduct();
+  const buyer = currentIdentity();
+  const chat = await api("/api/conversations", {
+    method: "POST",
+    body: JSON.stringify({
+      productId: item.id,
+      productTitle: item.title,
+      sellerName: item.seller.name,
+      sellerEmail: item.seller.email || "",
+      sellerAvatar: item.seller.avatar,
+      buyer
+    })
+  });
+  const exists = state.conversations.some((conversation) => conversation.id === chat.id);
+  state.conversations = exists ? state.conversations : [chat, ...state.conversations];
+  navigate("messages", { selectedChatId: chat.id });
+};
+
+const reportListing = async () => {
+  const item = selectedProduct();
+  const updated = await api(`/api/products/${item.id}`, {
+    method: "PUT",
+    body: JSON.stringify({ reportCount: (item.reportCount || 0) + 1 })
+  });
+  state.products = state.products.map((product) => (product.id === item.id ? normalizeProduct(updated) : product));
+  alert("Gracias. Revisaremos esta publicacion.");
+  render();
+};
+
+const secureCheckout = async (event) => {
+  event.preventDefault();
+  const item = selectedProduct();
+  const buyer = currentIdentity();
+  const data = new FormData(event.currentTarget);
+  const order = await api("/api/checkout", {
+    method: "POST",
+    body: JSON.stringify({
+      productId: item.id,
+      paymentMethod: data.get("paymentMethod") || state.paymentMethod,
+      buyer,
+      delivery: {
+        address: data.get("address"),
+        city: data.get("city"),
+        phone: data.get("phone"),
+        method: data.get("method"),
+        note: data.get("note")
+      },
+      acceptedRules: data.get("acceptedRules") === "on",
+      declaredInspection: data.get("declaredInspection") === "on"
+    })
+  });
+  if (order.error) {
+    alert(`${order.error}${order.details ? "\nRevisa credenciales o cuenta de Mercado Pago." : ""}`);
+    return;
+  }
+  state.checkoutOrder = order;
+  render();
+};
+
+const confirmDelivery = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const order = await api(`/api/orders/${state.checkoutOrder.id}/confirm-delivery`, {
+    method: "POST",
+    body: JSON.stringify({
+      code: data.get("code"),
+      conditionNote: data.get("conditionNote"),
+      checklist: {
+        identityMatched: data.get("identityMatched") === "on",
+        packageIntact: data.get("packageIntact") === "on",
+        itemMatches: data.get("itemMatches") === "on",
+        accessoriesMatch: data.get("accessoriesMatch") === "on",
+        conditionAccepted: data.get("conditionAccepted") === "on"
+      }
+    })
+  });
+  if (order.error) {
+    alert(order.error);
+    return;
+  }
+  state.checkoutOrder = order;
+  render();
+};
+
+const filesToDataUrls = async (fileList, limit = 6) => {
+  const files = [...(fileList || [])].slice(0, limit);
+  return Promise.all(files.map(fileToDataUrl));
+};
+
+const submitSellerProof = async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const order = await api(`/api/orders/${state.checkoutOrder.id}/seller-proof`, {
+    method: "POST",
+    body: JSON.stringify({
+      packageNotes: data.get("packageNotes"),
+      serialOrMark: data.get("serialOrMark"),
+      accessories: data.get("accessories"),
+      photos: await filesToDataUrls(form.photos?.files)
+    })
+  });
+  if (order.error) {
+    alert(order.error);
+    return;
+  }
+  state.checkoutOrder = order;
+  render();
+};
+
+const markOrderInTransit = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const order = await api(`/api/orders/${state.checkoutOrder.id}/mark-in-transit`, {
+    method: "POST",
+    body: JSON.stringify({
+      carrier: data.get("carrier"),
+      trackingCode: data.get("trackingCode"),
+      note: data.get("note")
+    })
+  });
+  if (order.error) {
+    alert(order.error);
+    return;
+  }
+  state.checkoutOrder = order;
+  render();
+};
+
+const openDispute = async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const order = await api(`/api/orders/${state.checkoutOrder.id}/dispute`, {
+    method: "POST",
+    body: JSON.stringify({
+      reason: data.get("reason"),
+      description: data.get("description"),
+      evidence: await filesToDataUrls(form.evidence?.files),
+      createdBy: currentIdentity()
+    })
+  });
+  if (order.error) {
+    alert(order.error);
+    return;
+  }
+  state.checkoutOrder = order;
+  render();
+};
+
+const sendMessage = (event) => {
+  event.preventDefault();
+  const input = event.currentTarget.message;
+  const text = input.value.trim();
+  if (!text) return;
+  const identity = currentIdentity();
+  const message = {
+    id: `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    from: "user",
+    senderId: identity.id,
+    senderName: identity.name,
+    senderAvatar: identity.avatar,
+    text,
+    time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
+    createdAt: new Date().toISOString()
+  };
+  state.socket?.send(JSON.stringify({ type: "message", chatId: state.selectedChatId, message }));
+  state.conversations = state.conversations.map((chat) =>
+    chat.id === state.selectedChatId ? { ...chat, messages: [...chat.messages, message] } : chat
+  );
+  input.value = "";
+  render();
+};
+
+const authenticate = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const profilePhoto = await fileToDataUrl(data.get("profilePhoto"));
+  const documentPhoto = await fileToDataUrl(data.get("documentPhoto"));
+  const result = await api("/api/user", {
+    method: "POST",
+    body: JSON.stringify({
+      name: data.get("name"),
+      email: data.get("email"),
+      password: data.get("password"),
+      cedula: data.get("cedula"),
+      phone: data.get("phone"),
+      exactLocation: data.get("exactLocation"),
+      profilePhoto,
+      documentPhoto
+    })
+  });
+  if (result.error) {
+    alert(result.fields?.length ? `${result.error}: ${result.fields.join(", ")}` : result.error);
+    return;
+  }
+  state.user = result;
+  localStorage.setItem("marketUser", JSON.stringify(state.user));
+  await refreshSellerDashboard();
+  render();
+  scrollToTop();
+};
+
+const authenticateAdminEntry = async (event) => {
+  event.preventDefault();
+  const password = new FormData(event.currentTarget).get("password");
+  const result = await api("/api/admin/login", {
+    method: "POST",
+    body: JSON.stringify({ password })
+  });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  sessionStorage.setItem("mpAdminToken", result.token);
+  state.user = {
+    id: "marketpro-admin",
+    name: "Admin MarketPro",
+    email: "admin@marketpro.local",
+    phone: "Admin",
+    cedula: "Admin",
+    exactLocation: "Panel privado",
+    profilePhoto: "admin-access",
+    documentPhoto: "admin-access",
+    authComplete: true,
+    hasPassword: true,
+    verified: true,
+    verificationStatus: "Admin verificado",
+    admin: true
+  };
+  localStorage.setItem("marketUser", JSON.stringify(state.user));
+  state.sellerDashboard = { user: state.user, stats: { active: 0, sold: 0, grossSales: 0, balance: 0, pendingBalance: 0, securityScore: 100 }, listings: [] };
+  render();
+  scrollToTop();
+};
+
+const toggleSold = async (id) => {
+  const item = state.products.find((product) => product.id === id);
+  const status = item.status === "sold" ? "active" : "sold";
+  const updated = await api(`/api/products/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ status })
+  });
+  state.products = state.products.map((product) => (product.id === id ? normalizeProduct(updated) : product));
+  await refreshSellerDashboard();
+  render();
+};
+
+const deleteListing = async (id) => {
+  await api(`/api/products/${id}`, { method: "DELETE" });
+  state.products = state.products.filter((product) => product.id !== id);
+  await refreshSellerDashboard();
+  render();
+};
+
+loadData();
+
+
