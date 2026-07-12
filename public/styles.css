@@ -1192,6 +1192,10 @@ button {
   border-left-color: var(--green);
 }
 
+.approved-admin-table .compact-admin-user {
+  grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(140px, 0.9fr) minmax(100px, 0.6fr) auto;
+}
+
 .admin-user.rejected {
   border-left-color: var(--red);
 }

@@ -875,10 +875,13 @@ app.post("/api/products", (req, res) => {
   const missing = required.filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Faltan datos obligatorios", fields: missing });
   if (!req.body.safetyAccepted) return res.status(400).json({ error: "Debes aceptar el protocolo de seguridad" });
-  if (String(req.body.seller?.verificationStatus || "").toLowerCase().includes("rechaz")) {
+  const savedSeller = store.users.find((user) =>
+    String(user.email || "").toLowerCase() === String(req.body.seller?.email || "").toLowerCase()
+  );
+  if (String(savedSeller?.verificationStatus || req.body.seller?.verificationStatus || "").toLowerCase().includes("rechaz")) {
     return res.status(403).json({ error: "Tu cuenta ha sido rechazada. No cumples con los requisitos para vender." });
   }
-  if (!req.body.seller?.verified) return res.status(403).json({ error: "Debes registrarte y verificarte antes de vender" });
+  if (!(savedSeller?.verified || req.body.seller?.verified)) return res.status(403).json({ error: "Debes registrarte y verificarte antes de vender" });
 
   const product = {
     id: `item-${Date.now()}`,
@@ -887,7 +890,12 @@ app.post("/api/products", (req, res) => {
     safeMeetup: true,
     reportCount: 0,
     postedAt: "Hace unos segundos",
-    ...req.body
+    ...req.body,
+    seller: {
+      ...req.body.seller,
+      verified: true,
+      verificationStatus: savedSeller?.verificationStatus || req.body.seller?.verificationStatus || "Verificado por admin"
+    }
   };
   listings = [product, ...listings];
   store.products = listings;

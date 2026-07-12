@@ -567,7 +567,7 @@ const entryGate = () => `
           <small>ID</small>
         </div>
       </div>
-      <form id="entryForm">
+      <form id="entryForm" novalidate>
         <div class="auth-steps">
           <div><span>1</span><strong>Cuenta</strong><small>Gmail y contrasena</small></div>
           <div><span>2</span><strong>Revision</strong><small>Datos para aprobar</small></div>
@@ -575,16 +575,16 @@ const entryGate = () => `
 
         <div class="onboarding-block">
           <div class="block-title"><span>Cuenta</span><small>Tu acceso principal</small></div>
-          <div class="field"><label>Gmail</label><input name="email" required type="email" pattern="^[^@\\s]+@gmail\\.com$" placeholder="tu@gmail.com" /></div>
-          <div class="field"><label>Contrasena</label><input name="password" required type="password" minlength="8" autocomplete="new-password" placeholder="Minimo 8 caracteres" /></div>
+          <div class="field"><label>Gmail</label><input name="email" required type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="tu@gmail.com" /></div>
+          <div class="field"><label>Contrasena</label><input name="password" required type="password" minlength="8" autocomplete="current-password" placeholder="Minimo 8 caracteres" /></div>
         </div>
 
         <div class="onboarding-block">
           <div class="block-title"><span>Identidad</span><small>Debe coincidir con la cedula</small></div>
-          <div class="field"><label>Nombre completo</label><input name="name" required placeholder="Tu nombre real" /></div>
+          <div class="field"><label>Nombre completo</label><input name="name" required autocomplete="name" placeholder="Tu nombre real" /></div>
           <div class="two-col">
             <div class="field"><label>Cedula / documento</label><input name="cedula" required placeholder="Documento de identidad" /></div>
-            <div class="field"><label>Telefono</label><input name="phone" required placeholder="Telefono verificable" /></div>
+            <div class="field"><label>Telefono</label><input name="phone" required type="tel" autocomplete="tel" placeholder="Telefono verificable" /></div>
           </div>
         </div>
 
@@ -593,7 +593,7 @@ const entryGate = () => `
           <div class="field">
             <label>Ubicacion exacta</label>
             <div class="location-field">
-              <input id="exactLocationInput" name="exactLocation" required placeholder="Calle, numero, ciudad o coordenadas" />
+              <input id="exactLocationInput" name="exactLocation" required autocomplete="street-address" placeholder="Calle, numero, ciudad o coordenadas" />
               <button class="secondary-btn" type="button" id="useDeviceLocation">Usar GPS</button>
             </div>
           </div>
@@ -841,7 +841,7 @@ const composeView = () => {
       </button>
     </div>
     <section class="compose-grid">
-      <form class="panel form-panel" id="listingForm">
+      <form class="panel form-panel" id="listingForm" novalidate>
         <p class="eyebrow">Seller Center</p>
         <h1>Publica como vendedor profesional.</h1>
         <div class="form-section">
@@ -861,11 +861,11 @@ const composeView = () => {
           <div class="two-col">
             <div class="field">
               <label>Titulo</label>
-              <input name="title" required maxlength="72" placeholder="Ej: Mesa de comedor" />
+              <input name="title" required maxlength="72" autocomplete="off" placeholder="Ej: Mesa de comedor" />
             </div>
             <div class="field">
               <label>Precio USD</label>
-              <input name="price" required type="number" min="1" placeholder="120" />
+              <input name="price" required type="number" inputmode="decimal" min="1" placeholder="120" />
             </div>
           </div>
           <div class="two-col">
@@ -884,7 +884,7 @@ const composeView = () => {
           </div>
           <div class="field">
             <label>Ubicacion</label>
-            <input name="location" required placeholder="Barrio, ciudad" />
+            <input name="location" required autocomplete="address-level2" placeholder="Barrio, ciudad" />
           </div>
         </div>
         <div class="form-section protocol-box">
@@ -1002,20 +1002,20 @@ const profileView = () => {
           <p class="eyebrow">Registro y verificacion</p>
           <h1>Crea tu cuenta segura de vendedor.</h1>
           <p class="muted">Estos datos son parte del protocolo de seguridad. Quedan guardados en la memoria privada del sistema y solo se muestran en el panel privado del creador/admin.</p>
-          <form id="authForm">
+          <form id="authForm" novalidate>
             <div class="two-col">
               <div class="field">
                 <label>Nombre completo</label>
-                <input name="name" required placeholder="Tu nombre" />
+                <input name="name" required autocomplete="name" placeholder="Tu nombre" />
               </div>
               <div class="field">
                 <label>Gmail</label>
-                <input name="email" required type="email" pattern="^[^@\\s]+@gmail\\.com$" placeholder="tu@gmail.com" />
+                <input name="email" required type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="tu@gmail.com" />
               </div>
             </div>
             <div class="field">
               <label>Contrasena</label>
-              <input name="password" required type="password" minlength="8" autocomplete="new-password" placeholder="Minimo 8 caracteres" />
+              <input name="password" required type="password" minlength="8" autocomplete="current-password" placeholder="Minimo 8 caracteres" />
             </div>
             <div class="two-col">
               <div class="field">
@@ -1024,12 +1024,12 @@ const profileView = () => {
               </div>
               <div class="field">
                 <label>Telefono</label>
-                <input name="phone" required placeholder="Ej: 099 123 456" />
+                <input name="phone" required type="tel" autocomplete="tel" placeholder="Ej: 099 123 456" />
               </div>
             </div>
             <div class="field">
               <label>Ubicacion exacta</label>
-              <input name="exactLocation" required placeholder="Calle, numero, ciudad" />
+              <input name="exactLocation" required autocomplete="street-address" placeholder="Calle, numero, ciudad" />
             </div>
             <div class="two-col">
               <div class="field">
@@ -1325,31 +1325,64 @@ const previewPhotos = (event) => {
   });
 };
 
-const collectPhotos = async (input) => {
-  const files = [...input.files].slice(0, 6);
-  if (!files.length) return [`/api/demo-photo/new-${Date.now()}.svg`];
-  return Promise.all(
-    files.map(
-      (file) =>
-        new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.readAsDataURL(file);
-        })
-    )
-  );
-};
-
-const fileToDataUrl = (file) =>
+const compressImage = (file, maxSize = 1280, quality = 0.72) =>
   new Promise((resolve) => {
     if (!file || !file.size) {
       resolve("");
       return;
     }
+    if (!file.type?.startsWith("image/")) {
+      resolve("");
+      return;
+    }
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(reader.result);
+      img.src = reader.result;
+    };
+    reader.onerror = () => resolve("");
     reader.readAsDataURL(file);
   });
+
+const collectPhotos = async (input) => {
+  const files = [...(input?.files || [])].slice(0, 6);
+  if (!files.length) return [`/api/demo-photo/new-${Date.now()}.svg`];
+  return Promise.all(files.map((file) => compressImage(file, 1280, 0.72)));
+};
+
+const fileToDataUrl = (file) => compressImage(file, 1100, 0.74);
+
+const requiredValue = (data, key) => String(data.get(key) || "").trim();
+
+const validateAccountForm = (data) => {
+  const email = requiredValue(data, "email").toLowerCase();
+  const password = String(data.get("password") || "");
+  const required = ["name", "email", "cedula", "phone", "exactLocation"].filter((key) => !requiredValue(data, key));
+  if (required.length) return `Faltan datos obligatorios: ${required.join(", ")}`;
+  if (!email.endsWith("@gmail.com")) return "Usa un Gmail valido para crear la cuenta segura.";
+  if (password.length < 8) return "La contrasena debe tener al menos 8 caracteres.";
+  if (!data.get("profilePhoto")?.size) return "Sube una foto clara de tu rostro.";
+  if (!data.get("documentPhoto")?.size) return "Sube la foto frontal de tu cedula.";
+  return "";
+};
+
+const validateListingForm = (data) => {
+  const required = ["title", "price", "category", "condition", "description", "location"].filter((key) => !requiredValue(data, key));
+  if (required.length) return `Faltan datos del articulo: ${required.join(", ")}`;
+  if (Number(data.get("price")) <= 0) return "El precio tiene que ser mayor a cero.";
+  if (requiredValue(data, "description").length < 30) return "La descripcion tiene que tener al menos 30 caracteres.";
+  return "";
+};
 
 const useDeviceLocation = () => {
   const input = document.querySelector("#exactLocationInput");
@@ -1380,16 +1413,21 @@ const publishListing = async (event) => {
   }
   const form = event.currentTarget;
   const data = new FormData(form);
+  const validationError = validateListingForm(data);
+  if (validationError) {
+    alert(validationError);
+    return;
+  }
   const images = await collectPhotos(form.photos);
   const created = await api("/api/products", {
     method: "POST",
     body: JSON.stringify({
-      title: data.get("title"),
+      title: requiredValue(data, "title"),
       price: Number(data.get("price")),
-      category: data.get("category"),
-      condition: data.get("condition"),
-      description: data.get("description"),
-      location: data.get("location"),
+      category: requiredValue(data, "category"),
+      condition: requiredValue(data, "condition"),
+      description: requiredValue(data, "description"),
+      location: requiredValue(data, "location"),
       distance: 1,
       images,
       seller: {
@@ -1594,17 +1632,22 @@ const sendMessage = (event) => {
 const authenticate = async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
+  const validationError = validateAccountForm(data);
+  if (validationError) {
+    alert(validationError);
+    return;
+  }
   const profilePhoto = await fileToDataUrl(data.get("profilePhoto"));
   const documentPhoto = await fileToDataUrl(data.get("documentPhoto"));
   const result = await api("/api/user", {
     method: "POST",
     body: JSON.stringify({
-      name: data.get("name"),
-      email: data.get("email"),
+      name: requiredValue(data, "name"),
+      email: requiredValue(data, "email").toLowerCase(),
       password: data.get("password"),
-      cedula: data.get("cedula"),
-      phone: data.get("phone"),
-      exactLocation: data.get("exactLocation"),
+      cedula: requiredValue(data, "cedula"),
+      phone: requiredValue(data, "phone"),
+      exactLocation: requiredValue(data, "exactLocation"),
       profilePhoto,
       documentPhoto
     })

@@ -165,10 +165,12 @@ const mercadoPagoView = () => {
 const dashboardView = () => {
   const overview = state.overview || { users: [], products: [], conversations: [], memory: {} };
   const reviewableUsers = overview.users.filter((user) => !isRejected(user));
+  const pendingUsers = reviewableUsers.filter((user) => !user.verified);
+  const approvedUsers = reviewableUsers.filter((user) => user.verified);
   const orders = overview.orders || [];
   const disputes = orders.flatMap((order) => (order.disputes || []).map((dispute) => ({ ...dispute, order })));
-  const pending = reviewableUsers.filter((user) => !user.verified).length;
-  const verified = reviewableUsers.filter((user) => user.verified).length;
+  const pending = pendingUsers.length;
+  const verified = approvedUsers.length;
   return `
     <header class="admin-header">
       <div class="admin-brand">
@@ -220,13 +222,13 @@ const dashboardView = () => {
     <section class="panel">
       <div class="admin-section-head">
         <div>
-          <p class="eyebrow">Verificaciones</p>
-          <h1>Datos privados de vendedores</h1>
+          <p class="eyebrow">Verificaciones pendientes</p>
+          <h1>Datos privados para revisar</h1>
         </div>
         <a class="secondary-btn admin-link" href="/">Volver a MarketPro</a>
       </div>
       <div class="admin-table">
-        ${reviewableUsers.length ? reviewableUsers
+        ${pendingUsers.length ? pendingUsers
           .map(
             (user) => `
             <article class="admin-user ${statusClass(user)}">
@@ -253,6 +255,34 @@ const dashboardView = () => {
             </article>`
           )
           .join("") : `<div class="empty">No hay vendedores pendientes para revisar.</div>`}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="admin-section-head">
+        <div>
+          <p class="eyebrow">Aprobados</p>
+          <h1>Vendedores habilitados</h1>
+        </div>
+      </div>
+      <div class="admin-table approved-admin-table">
+        ${approvedUsers.length ? approvedUsers
+          .map(
+            (user) => `
+            <article class="admin-user approved compact-admin-user">
+              <div>
+                <strong>${escapeHtml(user.name)}</strong>
+                <span>${escapeHtml(user.email)}</span>
+              </div>
+              <div><small>Estado</small><b>${escapeHtml(user.verificationStatus)}</b></div>
+              <div><small>Telefono</small><b>${escapeHtml(user.phone)}</b></div>
+              <div><small>Publicaciones</small><b>${user.listings}</b></div>
+              <div class="admin-actions">
+                <button class="danger-btn" data-reject="${user.id}">Rechazar</button>
+              </div>
+            </article>`
+          )
+          .join("") : `<div class="empty">Todavia no hay vendedores aprobados.</div>`}
       </div>
     </section>
   `;
