@@ -5076,23 +5076,29 @@ body,
 
   .mobile-tabs {
     position: fixed;
+    top: auto;
     right: 12px;
     bottom: 12px;
     left: 12px;
     z-index: 40;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: center;
     gap: 6px;
     border: 1px solid rgba(18, 18, 18, 0.1);
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.94);
     padding: 6px;
+    min-height: 0;
+    height: 56px;
     box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
     backdrop-filter: blur(18px);
   }
 
   .mobile-tabs button {
-    min-height: 42px;
+    width: 100%;
+    min-height: 0;
+    height: 42px;
     border-radius: 12px;
     background: transparent;
     font-size: 12px;
