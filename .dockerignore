@@ -1,0 +1,8 @@
+.git
+node_modules
+.env
+*.log
+marketpro-render-ready.zip
+.tmp-render-*
+Marketpro
+Marketpro2
