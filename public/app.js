@@ -1071,6 +1071,7 @@ const profileView = () => {
               <strong>${escapeHtml(state.user.email)}</strong>
             </div>
           </div>
+          <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesion</button>
         </section>
       </main>
     `;
@@ -1099,6 +1100,7 @@ const profileView = () => {
               <strong>${escapeHtml(state.user.email)}</strong>
             </div>
           </div>
+          <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesion</button>
         </section>
       </main>
     `;
@@ -1123,6 +1125,7 @@ const profileView = () => {
             <h1>${escapeHtml(state.user.name)}</h1>
             <div class="muted">${escapeHtml(state.user.email)} - ${escapeHtml(state.user.verificationStatus)} - Protocolo activo</div>
           </div>
+          <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesion</button>
         </div>
         <section class="seller-metrics">
           <div class="metric-card">
@@ -1258,6 +1261,7 @@ const bindEvents = () => {
   document.querySelector("#disputeForm")?.addEventListener("submit", openDispute);
   document.querySelector("#entryForm")?.addEventListener("submit", authenticate);
   document.querySelector("#adminEntryForm")?.addEventListener("submit", authenticateAdminEntry);
+  document.querySelector("#logoutUser")?.addEventListener("click", logoutUser);
   document.querySelector("#useDeviceLocation")?.addEventListener("click", useDeviceLocation);
   document.querySelector("#reportListing")?.addEventListener("click", reportListing);
   document.querySelectorAll("input[name='paymentMethod']").forEach((input) => {
@@ -1645,6 +1649,19 @@ const authenticateAdminEntry = async (event) => {
   };
   localStorage.setItem("marketUser", JSON.stringify(state.user));
   state.sellerDashboard = { user: state.user, stats: { active: 0, sold: 0, grossSales: 0, balance: 0, pendingBalance: 0, securityScore: 100 }, listings: [] };
+  render();
+  scrollToTop();
+};
+
+const logoutUser = () => {
+  state.user = null;
+  state.sellerDashboard = null;
+  state.view = "profile";
+  state.selectedChatId = null;
+  state.checkoutOrder = null;
+  localStorage.removeItem("marketUser");
+  sessionStorage.removeItem("mpAdminToken");
+  connectSocket();
   render();
   scrollToTop();
 };

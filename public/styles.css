@@ -973,7 +973,16 @@ button {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
   margin-bottom: 16px;
+}
+
+.profile-head .logout-btn {
+  margin-left: auto;
+}
+
+.verification-gate .logout-btn {
+  margin-top: 16px;
 }
 
 .profile-list {
