@@ -191,7 +191,10 @@ const loadData = async () => {
   ]);
   state.products = products.map(normalizeProduct);
   state.conversations = conversations;
-  if (!hasCompleteAccess(state.user) && hasCompleteAccess(savedUser)) {
+  if (
+    hasCompleteAccess(savedUser) &&
+    (!hasCompleteAccess(state.user) || !state.user?.email || state.user.email === savedUser.email)
+  ) {
     state.user = savedUser;
     localStorage.setItem("marketUser", JSON.stringify(savedUser));
   }
@@ -211,7 +214,9 @@ const normalizeProduct = (item) => ({
   reportCount: item.reportCount ?? 0
 });
 
-const isVerifiedSeller = () => Boolean(state.user?.verified);
+const isRejectedUser = (user = state.user) => Boolean(user?.verificationStatus?.toLowerCase().includes("rechaz"));
+
+const isVerifiedSeller = () => Boolean(state.user?.verified && !isRejectedUser());
 
 const refreshSellerDashboard = async () => {
   state.sellerDashboard = await api("/api/seller-dashboard");
@@ -789,6 +794,25 @@ const detailView = () => {
 };
 
 const composeView = () => {
+  if (isRejectedUser()) {
+    return `
+      ${sidebar()}
+      <main>
+        <div class="toolbar-row">
+          <button type="button" class="filter-toggle" data-filter-toggle>
+            ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+          </button>
+        </div>
+        <section class="panel verification-gate rejected-gate">
+          <p class="eyebrow">Atencion</p>
+          <h1>Tu cuenta ha sido rechazada.</h1>
+          <p class="muted">No cumples con los requisitos de seguridad de MarketPro. Por este motivo no puedes publicar ni vender articulos dentro de la app.</p>
+          <button class="secondary-btn" data-view="profile">Ver estado de cuenta</button>
+        </section>
+      </main>
+    `;
+  }
+
   if (!isVerifiedSeller()) {
     return `
       ${sidebar()}
@@ -1019,6 +1043,34 @@ const profileView = () => {
             </div>
             <button class="sell-action" type="submit">Registrarme y verificarme</button>
           </form>
+        </section>
+      </main>
+    `;
+  }
+
+  if (isRejectedUser()) {
+    return `
+      ${sidebar()}
+      <main>
+        <div class="toolbar-row">
+          <button type="button" class="filter-toggle" data-filter-toggle>
+            ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+          </button>
+        </div>
+        <section class="panel verification-gate rejected-gate">
+          <p class="eyebrow">Atencion</p>
+          <h1>Tu cuenta ha sido rechazada.</h1>
+          <p class="muted">No cumples con los requisitos de seguridad de MarketPro. La publicacion y venta de articulos queda bloqueada.</p>
+          <div class="seller-metrics">
+            <div class="metric-card">
+              <span>Estado</span>
+              <strong>${escapeHtml(state.user.verificationStatus || "Rechazada")}</strong>
+            </div>
+            <div class="metric-card">
+              <span>Email</span>
+              <strong>${escapeHtml(state.user.email)}</strong>
+            </div>
+          </div>
         </section>
       </main>
     `;
@@ -1325,31 +1377,36 @@ const publishListing = async (event) => {
   const form = event.currentTarget;
   const data = new FormData(form);
   const images = await collectPhotos(form.photos);
-  const product = normalizeProduct(
-    await api("/api/products", {
-      method: "POST",
-      body: JSON.stringify({
-        title: data.get("title"),
-        price: Number(data.get("price")),
-        category: data.get("category"),
-        condition: data.get("condition"),
-        description: data.get("description"),
-        location: data.get("location"),
-        distance: 1,
-        images,
-        seller: {
-          name: state.user.name,
-          email: state.user.email,
-          avatar: `/api/avatar/${encodeURIComponent(state.user.name)}.svg`,
-          rating: 5,
-          verified: true
-        },
-        verified: true,
-        safeMeetup: true,
-        safetyAccepted: true
-      })
+  const created = await api("/api/products", {
+    method: "POST",
+    body: JSON.stringify({
+      title: data.get("title"),
+      price: Number(data.get("price")),
+      category: data.get("category"),
+      condition: data.get("condition"),
+      description: data.get("description"),
+      location: data.get("location"),
+      distance: 1,
+      images,
+      seller: {
+        name: state.user.name,
+        email: state.user.email,
+        avatar: `/api/avatar/${encodeURIComponent(state.user.name)}.svg`,
+        rating: 5,
+        verified: state.user.verified,
+        verificationStatus: state.user.verificationStatus
+      },
+      verified: true,
+      safeMeetup: true,
+      safetyAccepted: true
     })
-  );
+  });
+  if (created.error) {
+    alert(created.error);
+    navigate("profile");
+    return;
+  }
+  const product = normalizeProduct(created);
   state.products = [product, ...state.products];
   await refreshSellerDashboard();
   navigate("detail", { selectedProductId: product.id, galleryIndex: 0 });

@@ -79,7 +79,8 @@ const loginView = () => `
   </section>
 `;
 
-const statusClass = (user) => (user.verified ? "approved" : user.verificationStatus?.includes("Rechazado") ? "rejected" : "pending");
+const isRejected = (user) => Boolean(user.verificationStatus?.toLowerCase().includes("rechaz"));
+const statusClass = (user) => (user.verified ? "approved" : isRejected(user) ? "rejected" : "pending");
 
 const privateRoadmapView = () => {
   const groups = [...new Set(state.innovations.map((item) => item.group))];
@@ -163,10 +164,11 @@ const mercadoPagoView = () => {
 
 const dashboardView = () => {
   const overview = state.overview || { users: [], products: [], conversations: [], memory: {} };
+  const reviewableUsers = overview.users.filter((user) => !isRejected(user));
   const orders = overview.orders || [];
   const disputes = orders.flatMap((order) => (order.disputes || []).map((dispute) => ({ ...dispute, order })));
-  const pending = overview.users.filter((user) => !user.verified && !user.verificationStatus?.includes("Rechazado")).length;
-  const verified = overview.users.filter((user) => user.verified).length;
+  const pending = reviewableUsers.filter((user) => !user.verified).length;
+  const verified = reviewableUsers.filter((user) => user.verified).length;
   return `
     <header class="admin-header">
       <div class="admin-brand">
@@ -180,7 +182,7 @@ const dashboardView = () => {
     </header>
 
     <section class="seller-metrics admin-metrics">
-      <div class="metric-card"><span>Vendedores</span><strong>${overview.users.length}</strong></div>
+      <div class="metric-card"><span>Vendedores</span><strong>${reviewableUsers.length}</strong></div>
       <div class="metric-card"><span>Pendientes</span><strong>${pending}</strong></div>
       <div class="metric-card"><span>Verificados</span><strong>${verified}</strong></div>
       <div class="metric-card"><span>Publicaciones</span><strong>${overview.products.length}</strong></div>
@@ -224,7 +226,7 @@ const dashboardView = () => {
         <a class="secondary-btn admin-link" href="/">Volver a MarketPro</a>
       </div>
       <div class="admin-table">
-        ${overview.users
+        ${reviewableUsers.length ? reviewableUsers
           .map(
             (user) => `
             <article class="admin-user ${statusClass(user)}">
@@ -250,7 +252,7 @@ const dashboardView = () => {
               </div>
             </article>`
           )
-          .join("")}
+          .join("") : `<div class="empty">No hay vendedores pendientes para revisar.</div>`}
       </div>
     </section>
   `;

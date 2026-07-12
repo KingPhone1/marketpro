@@ -684,7 +684,11 @@ app.post("/api/user", (req, res) => {
     documentPhoto: req.body.documentPhoto,
     authComplete: true,
     verified: existing?.verified || false,
-    verificationStatus: existing?.verified ? existing.verificationStatus : "Pendiente de revision",
+    verificationStatus: String(existing?.verificationStatus || "").toLowerCase().includes("rechaz")
+      ? existing.verificationStatus
+      : existing?.verified
+        ? existing.verificationStatus
+        : "Pendiente de revision",
     balance: Number(existing?.balance || req.body.balance || 0),
     pendingBalance: Number(existing?.pendingBalance || req.body.pendingBalance || 0),
     createdAt: existing?.createdAt || new Date().toISOString(),
@@ -849,7 +853,9 @@ app.post("/api/admin/users/:id/verify", requireAdmin, (req, res) => {
 
   const approved = req.body.status === "approved";
   user.verified = approved;
-  user.verificationStatus = approved ? "Verificado por admin" : "Rechazado por admin";
+  user.verificationStatus = approved
+    ? "Verificado por admin"
+    : "Atencion: tu cuenta ha sido rechazada. No cumples con los requisitos.";
   user.reviewedAt = new Date().toISOString();
   user.reviewNote = req.body.note || "";
 
@@ -869,6 +875,9 @@ app.post("/api/products", (req, res) => {
   const missing = required.filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Faltan datos obligatorios", fields: missing });
   if (!req.body.safetyAccepted) return res.status(400).json({ error: "Debes aceptar el protocolo de seguridad" });
+  if (String(req.body.seller?.verificationStatus || "").toLowerCase().includes("rechaz")) {
+    return res.status(403).json({ error: "Tu cuenta ha sido rechazada. No cumples con los requisitos para vender." });
+  }
   if (!req.body.seller?.verified) return res.status(403).json({ error: "Debes registrarte y verificarte antes de vender" });
 
   const product = {
