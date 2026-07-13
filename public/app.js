@@ -182,7 +182,8 @@ const currentIdentity = () => {
 
 const hasCompleteAccess = (user = state.user) =>
   Boolean(
-    user?.authComplete &&
+    (user?.admin || state.authToken) &&
+      user?.authComplete &&
       user?.hasPassword &&
       user?.email &&
       user?.phone &&
@@ -233,6 +234,10 @@ const api = async (path, options = {}) => {
 };
 
 const loadData = async () => {
+  if (state.user && !state.user.admin && !state.authToken) {
+    state.user = null;
+    localStorage.removeItem("marketUser");
+  }
   const [products, conversations, savedUser] = await Promise.all([
     api("/api/products"),
     api("/api/conversations"),
@@ -248,7 +253,8 @@ const loadData = async () => {
     localStorage.setItem("marketUser", JSON.stringify(savedUser));
   }
   if (state.user) {
-    state.sellerDashboard = await api("/api/seller-dashboard");
+    const dashboard = await api("/api/seller-dashboard");
+    state.sellerDashboard = dashboard.error ? null : dashboard;
   }
   state.selectedChatId = conversations[0]?.id || null;
   connectSocket();

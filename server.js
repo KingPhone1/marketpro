@@ -928,7 +928,7 @@ app.get("/api/orders", (_req, res) => {
 });
 
 app.get("/api/user", (req, res) => {
-  res.json(publicUser(authenticatedUser(req) || store.currentUser));
+  res.json(publicUser(authenticatedUser(req)));
 });
 
 app.post("/api/user", (req, res) => {
@@ -984,7 +984,6 @@ app.post("/api/user", (req, res) => {
     },
     ...store.verificationRequests.filter((item) => item.userId !== user.id)
   ];
-  store.currentUser = user;
   const session = createUserSession(user, req);
   writeStore();
   res.status(201).json({ ...publicUser(user), sessionToken: session.token });
@@ -1005,7 +1004,6 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(401).json({ error: "Gmail o contrasena incorrectos." });
   }
   clearFailedLogin(email);
-  store.currentUser = user;
   const session = createUserSession(user, req);
   writeStore();
   res.json({ ...publicUser(user), sessionToken: session.token });
@@ -1053,7 +1051,8 @@ app.post("/api/auth/password-reset/confirm", (req, res) => {
 });
 
 app.get("/api/seller-dashboard", (_req, res) => {
-  const user = authenticatedUser(_req) || store.currentUser || demoUser;
+  const user = authenticatedUser(_req);
+  if (!user) return res.status(401).json({ error: "Sesion requerida" });
   const mine = listings.filter((item) => item.seller?.email === user.email || item.seller?.name === user.name);
   const sold = mine.filter((item) => item.status === "sold");
   const active = mine.filter((item) => item.status !== "sold");
