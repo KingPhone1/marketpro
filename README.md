@@ -27,9 +27,23 @@ Variables principales:
 
 - `ADMIN_PASSWORD`
 - `APP_BASE_URL`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
 - `MERCADO_PAGO_ACCESS_TOKEN`
 - `MERCADO_PAGO_PUBLIC_KEY`
 - `MERCADO_PAGO_WEBHOOK_SECRET`
+
+## Memoria en la nube
+
+Para produccion usa Supabase. Crea un proyecto en Supabase, abre el editor SQL y ejecuta `supabase.sql`.
+Luego agrega estas variables privadas en Render:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_STORE_TABLE=marketpro_store`
+- `SUPABASE_STORE_ID=production`
+
+Con esas variables activas, MarketPro guarda en la nube usuarios, aprobaciones, publicaciones, chats, ordenes, calificaciones y anuncios. Si Supabase no esta configurado, usa `data/store.json` solo como respaldo local.
 
 ## Admin privado
 
@@ -43,4 +57,4 @@ Desde el admin puedes revisar usuarios, corroborar identidad, aprobar vendedores
 
 Lee [PRODUCCION.md](./PRODUCCION.md) antes de publicar.
 
-La opcion recomendada para que funcione todo es Render con `render.yaml`, porque mantiene el servidor Node activo, soporta chats por WebSocket y permite disco persistente para la memoria.
+La opcion recomendada para que funcione todo es Render + Supabase, porque Render mantiene el servidor Node activo y Supabase conserva la memoria aunque Render reinicie o despliegue una version nueva.

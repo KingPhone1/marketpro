@@ -16,6 +16,14 @@ services:
         value: /var/data
       - key: APP_BASE_URL
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_STORE_TABLE
+        value: marketpro_store
+      - key: SUPABASE_STORE_ID
+        value: production
       - key: ADMIN_PASSWORD
         sync: false
       - key: MERCADO_PAGO_ACCESS_TOKEN

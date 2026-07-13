@@ -38,6 +38,13 @@ const MERCADO_PAGO_WEBHOOK_SECRET = process.env.MERCADO_PAGO_WEBHOOK_SECRET || "
 const MERCADO_PAGO_CURRENCY = process.env.MERCADO_PAGO_CURRENCY || "USD";
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const STORE_FILE = path.join(DATA_DIR, "store.json");
+const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const SUPABASE_STORE_TABLE = process.env.SUPABASE_STORE_TABLE || "marketpro_store";
+const SUPABASE_STORE_ID = process.env.SUPABASE_STORE_ID || "production";
+const hasSupabaseStore = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+let cloudStoreReady = false;
+let cloudWriteQueue = Promise.resolve();
 const adminTokens = new Set();
 const unsplash = (id, focus = "center") =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1200&h=900&q=86&fm=jpg&ixlib=rb-4.1.0&crop=${focus}`;
@@ -390,14 +397,61 @@ const readStore = () => {
   }
 };
 
+const supabaseHeaders = (extra = {}) => ({
+  apikey: SUPABASE_SERVICE_ROLE_KEY,
+  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+  "Content-Type": "application/json",
+  ...extra
+});
+
+const loadStoreFromSupabase = async () => {
+  if (!hasSupabaseStore) return null;
+  const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_STORE_TABLE}?id=eq.${encodeURIComponent(SUPABASE_STORE_ID)}&select=store_data`;
+  const response = await fetch(url, { headers: supabaseHeaders() });
+  if (!response.ok) {
+    throw new Error(`Supabase no pudo leer la memoria (${response.status})`);
+  }
+  const rows = await response.json();
+  return rows?.[0]?.store_data || null;
+};
+
+const saveStoreToSupabase = async (nextStore) => {
+  if (!hasSupabaseStore) return;
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_STORE_TABLE}`, {
+    method: "POST",
+    headers: supabaseHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+    body: JSON.stringify({
+      id: SUPABASE_STORE_ID,
+      store_data: nextStore,
+      updated_at: new Date().toISOString()
+    })
+  });
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Supabase no pudo guardar la memoria (${response.status}): ${details}`);
+  }
+};
+
+const persistStoreToCloud = () => {
+  if (!cloudStoreReady || !hasSupabaseStore) return;
+  const snapshot = JSON.parse(JSON.stringify(store));
+  cloudWriteQueue = cloudWriteQueue
+    .catch(() => {})
+    .then(() => saveStoreToSupabase(snapshot))
+    .catch((error) => console.error("[MarketPro] Error guardando memoria en Supabase:", error.message));
+};
+
 const writeStore = () => {
+  store.memory = store.memory || {};
   store.memory.updatedAt = new Date().toISOString();
+  store.memory.driver = hasSupabaseStore ? "supabase" : "local-json";
   fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2));
+  persistStoreToCloud();
 };
 
 let store = readStore();
-let listings = store.products?.length ? store.products : [...products];
-let chats = store.conversations?.length ? store.conversations : [...conversations];
+let listings = [];
+let chats = [];
 const internetPhotoFrom = (src) => {
   const cleanSrc = String(src || "").split("?")[0];
   const match = cleanSrc.match(/\/api\/(?:demo-photo|placeholder)\/([^/]+)\.svg$/);
@@ -436,18 +490,59 @@ const normalizeChats = (items) =>
           senderName: message.senderName || (message.from === "me" ? buyer.name : seller.name),
           createdAt: message.createdAt || new Date().toISOString(),
           ...message
-        }))
+      }))
     };
   });
-listings = normalizeDemoImages(listings);
-chats = normalizeChats(chats).filter((chat) => !["chat-1", "chat-2"].includes(chat.id) && chat.buyerId !== "buyer-demo");
-store.products = listings;
-store.conversations = chats;
-store.orders = store.orders || [];
-store.promotions = store.promotions || [];
-store.users = store.users?.length ? store.users : [demoUser];
-store.currentUser = store.currentUser || null;
-store.verificationRequests = store.verificationRequests || [];
+
+const hydrateRuntimeStore = (nextStore = {}) => {
+  store = {
+    ...defaultStore,
+    ...nextStore,
+    memory: {
+      ...defaultStore.memory,
+      ...(nextStore.memory || {})
+    }
+  };
+  listings = store.products?.length ? store.products : [...products];
+  chats = store.conversations?.length ? store.conversations : [...conversations];
+  listings = normalizeDemoImages(listings);
+  chats = normalizeChats(chats).filter((chat) => !["chat-1", "chat-2"].includes(chat.id) && chat.buyerId !== "buyer-demo");
+  store.products = listings;
+  store.conversations = chats;
+  store.orders = store.orders || [];
+  store.promotions = store.promotions || [];
+  store.users = store.users?.length ? store.users : [demoUser];
+  store.currentUser = store.currentUser || null;
+  store.verificationRequests = store.verificationRequests || [];
+};
+
+const initializePersistentStore = async () => {
+  hydrateRuntimeStore(store);
+  if (!hasSupabaseStore) {
+    writeStore();
+    console.log("[MarketPro] Memoria local activa. Configura Supabase para produccion.");
+    return;
+  }
+
+  try {
+    const cloudStore = await loadStoreFromSupabase();
+    if (cloudStore) {
+      hydrateRuntimeStore(cloudStore);
+      console.log("[MarketPro] Memoria cargada desde Supabase.");
+    } else {
+      console.log("[MarketPro] Supabase vacio. Creando memoria inicial en la nube.");
+      await saveStoreToSupabase(store);
+    }
+    cloudStoreReady = true;
+    writeStore();
+  } catch (error) {
+    console.error("[MarketPro] No se pudo iniciar Supabase:", error.message);
+    console.error("[MarketPro] La app seguira con memoria local hasta corregir credenciales/tabla.");
+    writeStore();
+  }
+};
+
+hydrateRuntimeStore(store);
 writeStore();
 
 app.use(express.json({ limit: "8mb" }));
@@ -1440,6 +1535,8 @@ wss.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`MarketPro listo en http://${HOST}:${PORT}`);
+initializePersistentStore().finally(() => {
+  server.listen(PORT, HOST, () => {
+    console.log(`MarketPro listo en http://${HOST}:${PORT}`);
+  });
 });
