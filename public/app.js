@@ -25,7 +25,9 @@ const safetyRules = [
   "Revisa perfil, fotos, precio y descripcion antes de coordinar.",
   "Encuentro en lugar publico o punto seguro.",
   "No compartas codigos, claves, documentos ni datos bancarios.",
-  "Paga solo cuando hayas visto el articulo."
+  "Paga solo por Mercado Pago vinculado a MarketPro.",
+  "No entregues el codigo de recepcion antes de revisar el articulo.",
+  "Sube evidencia clara si vendes productos de valor."
 ];
 
 const fraudScenarios = [
@@ -53,6 +55,23 @@ const fraudScenarios = [
     title: "Disputa por estado del articulo",
     text: "El comprador tiene ventana de disputa; el pago queda retenido hasta decision del admin."
   }
+];
+
+const shieldControls = [
+  ["Pago externo", "Bloquea o advierte transferencias, efectivo, cripto y pagos directos fuera de MarketPro."],
+  ["Codigo sensible", "Marca pedidos de OTP, clave, PIN o codigo de entrega antes de liberar informacion."],
+  ["Entrega dudosa", "Detecta terceros sin documento, cadetes improvisados o entrega sin revision."],
+  ["Producto cambiado", "Congela fotos, precio, descripcion y vendedor al crear la orden."],
+  ["Presion indebida", "Alerta mensajes con urgencia artificial o intento de cerrar sin revisar."],
+  ["Disputa fuerte", "Ordena evidencia, chat y recepcion para decision admin."]
+];
+
+const fraudPatterns = [
+  { label: "pago externo", pattern: /(transferencia|dep[oó]sito|fuera de la app|por fuera|zelle|paypal|cuenta bancaria|efectivo|cash|cripto|usdt|binance|giro)/i },
+  { label: "codigo sensible", pattern: /(otp|pin|clave|contrase[nñ]a|token|codigo de entrega|codigo privado|verificaci[oó]n)/i },
+  { label: "contacto fuera", pattern: /(whatsapp|telegram|instagram|wa\.me|t\.me|ll[aá]mame|mi n[uú]mero)/i },
+  { label: "entrega no verificable", pattern: /(mando un uber|mando taxi|retira un amigo|sin revisar|dejalo en porteria|cadete)/i },
+  { label: "presion", pattern: /(urgente|ya mismo|apurate|solo hoy|ultimo aviso|si no ahora)/i }
 ];
 
 const state = {
@@ -98,6 +117,30 @@ const escapeHtml = (value = "") =>
 
 const selectedProduct = () => state.products.find((item) => item.id === state.selectedProductId);
 
+const analyzeMessageRisk = (text = "") => {
+  const flags = fraudPatterns.filter((item) => item.pattern.test(text)).map((item) => item.label);
+  return {
+    level: flags.length >= 2 || flags.includes("codigo sensible") || flags.includes("pago externo") ? "Alto" : flags.length ? "Medio" : "Bajo",
+    flags
+  };
+};
+
+const listingRiskFor = (item = {}) => {
+  if (item.security?.listingRisk) return item.security.listingRisk;
+  const flags = [];
+  if ((item.images || []).length < 2) flags.push("Pocas fotos");
+  if (String(item.description || "").length < 90) flags.push("Descripcion corta");
+  if (Number(item.price || 0) > 1000 && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(`${item.title} ${item.description}`)) {
+    flags.push("Falta identificador");
+  }
+  const score = Math.min(92, 18 + flags.length * 16 + (Number(item.price || 0) > 1000 ? 12 : 0));
+  return {
+    score,
+    level: score >= 58 ? "Alto" : score >= 34 ? "Medio" : "Bajo",
+    flags
+  };
+};
+
 const trustScore = (item) => {
   let score = 55;
   if (item.images?.length > 1) score += 10;
@@ -105,6 +148,9 @@ const trustScore = (item) => {
   if (sellerHasRating(item.seller) && item.seller.rating >= 4.8) score += 15;
   if (item.condition) score += 5;
   if (item.location) score += 5;
+  const risk = listingRiskFor(item);
+  if (risk.level === "Alto") score -= 16;
+  if (risk.level === "Medio") score -= 7;
   return Math.min(score, 98);
 };
 
@@ -338,6 +384,7 @@ const sellerReliability = (item) => [
 
 const securityLedger = (item) => {
   const score = trustScore(item);
+  const risk = listingRiskFor(item);
   return `
     <section class="security-ledger">
       <div>
@@ -350,10 +397,23 @@ const securityLedger = (item) => {
         <li>Pago procesado por Mercado Pago vinculado</li>
         <li>Chat monitoreado contra fraude</li>
         <li>Disputa bloquea retiro del vendedor</li>
+        <li>Riesgo de publicacion: ${escapeHtml(risk.level)}${risk.flags?.length ? ` (${escapeHtml(risk.flags.slice(0, 2).join(", "))})` : ""}</li>
       </ul>
     </section>
   `;
 };
+
+const shieldMatrix = () => `
+  <section class="shield-matrix">
+    <div>
+      <p class="eyebrow">MP Shield Pro</p>
+      <h2>Antiestafa activo antes del pago, durante el chat y al confirmar entrega.</h2>
+    </div>
+    <div class="shield-grid">
+      ${shieldControls.map(([title, text]) => `<article><strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span></article>`).join("")}
+    </div>
+  </section>
+`;
 
 const deliveryWorkflow = (order) => {
   if (!order) return "";
@@ -693,6 +753,7 @@ const feedView = () => {
         </div>
       </section>
       ${commandBar()}
+      ${shieldMatrix()}
       <section class="luxury-strip">
         <article><span>01</span><strong>Validacion de vendedor</strong><p>Las publicaciones se habilitan con perfil revisado.</p></article>
         <article><span>02</span><strong>Checkout interno</strong><p>Direccion, metodo y comprobante quedan en la orden.</p></article>
@@ -774,6 +835,11 @@ const detailView = () => {
           </section>
           <section class="seller-proof">
             ${sellerReliability(item).map((proof) => `<span>${escapeHtml(proof)}</span>`).join("")}
+          </section>
+          <section class="risk-panel ${listingRiskFor(item).level.toLowerCase()}">
+            <span>Analisis antiestafa</span>
+            <strong>Riesgo ${escapeHtml(listingRiskFor(item).level)} · Score ${escapeHtml(listingRiskFor(item).score)}</strong>
+            <small>${listingRiskFor(item).flags?.length ? escapeHtml(listingRiskFor(item).flags.join(" / ")) : "Sin senales criticas detectadas. Mantente dentro de MarketPro."}</small>
           </section>
           ${securityLedger(item)}
           <div class="safety-card">
@@ -1441,7 +1507,12 @@ const validateListingForm = (data) => {
   const required = ["title", "price", "category", "condition", "description", "location"].filter((key) => !requiredValue(data, key));
   if (required.length) return `Faltan datos del articulo: ${required.join(", ")}`;
   if (Number(data.get("price")) <= 0) return "El precio tiene que ser mayor a cero.";
-  if (requiredValue(data, "description").length < 30) return "La descripcion tiene que tener al menos 30 caracteres.";
+  if (requiredValue(data, "description").length < 80) return "La descripcion tiene que tener al menos 80 caracteres: estado real, detalles, fallas, accesorios y forma de entrega.";
+  if (Number(data.get("price")) > 1000 && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(`${requiredValue(data, "title")} ${requiredValue(data, "description")}`)) {
+    return "Para articulos de valor agrega un identificador verificable: factura, serie, IMEI, chasis, matricula, modelo o medidas.";
+  }
+  const textRisk = analyzeMessageRisk(`${requiredValue(data, "title")} ${requiredValue(data, "description")} ${requiredValue(data, "location")}`);
+  if (textRisk.level === "Alto") return `La publicacion contiene senales de riesgo: ${textRisk.flags.join(", ")}. Ajusta el texto para mantener la operacion dentro de MarketPro.`;
   return "";
 };
 
@@ -1480,6 +1551,10 @@ const publishListing = async (event) => {
     return;
   }
   const images = await collectPhotos(form.photos);
+  if ((form.photos?.files || []).length < 2) {
+    alert("Sube al menos 2 fotos reales del articulo para reducir disputas y mejorar la proteccion antiestafa.");
+    return;
+  }
   const created = await api("/api/products", {
     method: "POST",
     body: JSON.stringify({
@@ -1720,6 +1795,11 @@ const sendMessage = (event) => {
   const input = event.currentTarget.message;
   const text = input.value.trim();
   if (!text) return;
+  const risk = analyzeMessageRisk(text);
+  if (risk.level === "Alto") {
+    const proceed = confirm(`MP Shield detecto posible ${risk.flags.join(", ")}. No compartas codigos, pagos externos ni datos bancarios. ¿Enviar igualmente como evidencia auditada?`);
+    if (!proceed) return;
+  }
   const identity = currentIdentity();
   const message = {
     id: `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -1728,6 +1808,7 @@ const sendMessage = (event) => {
     senderName: identity.name,
     senderAvatar: identity.avatar,
     text,
+    risk,
     time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
     createdAt: new Date().toISOString()
   };

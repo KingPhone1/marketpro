@@ -175,8 +175,45 @@ const suspiciousPatterns = [
 const analyzeTextRisk = (text = "") => {
   const hits = suspiciousPatterns.filter((item) => item.pattern.test(text));
   return {
-    level: hits.length >= 2 ? "Alto" : hits.length === 1 ? "Medio" : "Bajo",
+    level: hits.length >= 2 || hits.some((hit) => ["secret-code", "external-payment"].includes(hit.key)) ? "Alto" : hits.length === 1 ? "Medio" : "Bajo",
     flags: hits.map((item) => item.label)
+  };
+};
+
+suspiciousPatterns.push(
+  { key: "shipping-trick", label: "Entrega no verificable", pattern: /(mando un uber|mando taxi|retira un amigo|tercero sin documento|sin revisar|dejalo en porteria|te paso cadete)/i },
+  { key: "refund-trick", label: "Engano de reembolso", pattern: /(devolucion inmediata|te devuelvo luego|paga y cancelo|reembolso por fuera|me equivoque de pago)/i },
+  { key: "crypto-cash", label: "Pago no reversible", pattern: /(cripto|binance|usdt|cash|efectivo|giro|redpagos|abitab)/i }
+);
+
+const analyzeListingRisk = (product = {}) => {
+  const text = [product.title, product.description, product.location].join(" ");
+  const textRisk = analyzeTextRisk(text);
+  const price = Number(product.price || 0);
+  const imageCount = product.images?.length || 0;
+  const flags = [...textRisk.flags];
+  if (imageCount < 2) flags.push("Pocas fotos del articulo");
+  if (String(product.description || "").length < 90) flags.push("Descripcion corta");
+  if (price > 1000 && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(text)) flags.push("Falta identificador para articulo de valor");
+  if (/(sin garantia|no acepto reclamos|solo efectivo|retira ya)/i.test(text)) flags.push("Condiciones sospechosas");
+  const score = Math.min(95, 14 + flags.length * 14 + (price > 1000 ? 10 : 0) + (price > 10000 ? 12 : 0));
+  return {
+    score,
+    level: score >= 58 ? "Alto" : score >= 34 ? "Medio" : "Bajo",
+    flags,
+    reviewRequired: score >= 58,
+    fingerprint: crypto
+      .createHash("sha256")
+      .update(JSON.stringify({
+        title: product.title,
+        price: product.price,
+        seller: product.seller?.email || product.seller?.name,
+        description: product.description,
+        images: product.images
+      }))
+      .digest("hex")
+      .slice(0, 20)
+      .toUpperCase()
   };
 };
 
@@ -202,15 +239,17 @@ const publicUser = (user) => {
 
 const buildSecurityStamp = (product, req) => {
   const price = Number(product.price || 0);
+  const listingRisk = product.security?.listingRisk || analyzeListingRisk(product);
   const categoryRisk = ["Vehiculos", "Inmuebles", "Electronica"].includes(product.category) ? 18 : 8;
   const priceRisk = price > 10000 ? 18 : price > 1000 ? 10 : 4;
   const sellerRisk = Number(product.seller?.ratingCount || product.seller?.reviews || 0) > 0 && product.seller?.rating >= 4.8 ? 0 : 8;
   const reportRisk = Number(product.reportCount || 0) * 8;
-  const riskScore = Math.min(92, categoryRisk + priceRisk + sellerRisk + reportRisk);
+  const riskScore = Math.min(96, categoryRisk + priceRisk + sellerRisk + reportRisk + Math.round(Number(listingRisk.score || 0) / 5));
   return {
     id: `sec-${crypto.randomBytes(4).toString("hex").toUpperCase()}`,
     riskScore,
     riskLevel: riskScore >= 50 ? "Alto" : riskScore >= 28 ? "Medio" : "Bajo",
+    listingRisk,
     frozenAt: new Date().toISOString(),
     productFingerprint: crypto
       .createHash("sha256")
@@ -231,7 +270,9 @@ const buildSecurityStamp = (product, req) => {
       "Chat y orden conservados como evidencia",
       "Vendedor y comprador asociados a identidad",
       "Disputa bloquea retiro de saldo",
-      "Revision reforzada si hay alerta de riesgo"
+      "Revision reforzada si hay alerta de riesgo",
+      "Codigo de entrega nunca debe compartirse por chat",
+      "Huella antifraude compara fotos, precio y descripcion"
     ]
   };
 };
@@ -1063,6 +1104,15 @@ app.post("/api/products", (req, res) => {
   }
   if (!(savedSeller?.verified || req.body.seller?.verified)) return res.status(403).json({ error: "Debes registrarte y verificarte antes de vender" });
 
+  const draftProduct = {
+    ...req.body,
+    seller: {
+      ...req.body.seller,
+      verified: true,
+      verificationStatus: savedSeller?.verificationStatus || req.body.seller?.verificationStatus || "Verificado por admin"
+    }
+  };
+  const listingRisk = analyzeListingRisk(draftProduct);
   const product = {
     id: `item-${Date.now()}`,
     status: "active",
@@ -1070,11 +1120,17 @@ app.post("/api/products", (req, res) => {
     safeMeetup: true,
     reportCount: 0,
     postedAt: "Hace unos segundos",
-    ...req.body,
-    seller: {
-      ...req.body.seller,
-      verified: true,
-      verificationStatus: savedSeller?.verificationStatus || req.body.seller?.verificationStatus || "Verificado por admin"
+    ...draftProduct,
+    security: {
+      listingRisk,
+      reviewRequired: listingRisk.reviewRequired,
+      createdFingerprint: listingRisk.fingerprint,
+      checks: [
+        "Fotos, precio y descripcion congelados",
+        "Vendedor asociado a identidad verificada",
+        "Alertas de pago externo y codigos sensibles activas",
+        "Admin puede revisar flags antes de destacar o mediar"
+      ]
     }
   };
   listings = [product, ...listings];
@@ -1515,11 +1571,32 @@ wss.on("connection", (socket) => {
     if (!chat || !participantIds(chat).has(String(sender))) return;
     const risk = analyzeTextRisk(payload.message?.text || "");
     payload.message.risk = risk;
+    const systemRiskMessage = risk.level === "Alto"
+      ? {
+          id: `msg-${Date.now()}-risk`,
+          from: "system",
+          senderId: "system",
+          senderName: "MarketPro Shield",
+          text: `Alerta antifraude: detectamos ${risk.flags.join(", ")}. No compartas codigos, claves ni pagos por fuera de MarketPro.`,
+          risk,
+          time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
+          createdAt: new Date().toISOString()
+        }
+      : null;
 
     chats = chats.map((chat) => {
       if (chat.id !== payload.chatId) return chat;
       const exists = chat.messages.some((message) => message.id && message.id === payload.message.id);
-      return exists ? chat : { ...chat, lastMessageAt: payload.message.createdAt || new Date().toISOString(), messages: [...chat.messages, payload.message] };
+      if (exists) return chat;
+      const riskEvents = risk.level !== "Bajo"
+        ? [...(chat.riskEvents || []), { level: risk.level, flags: risk.flags, at: new Date().toISOString() }]
+        : chat.riskEvents || [];
+      return {
+        ...chat,
+        riskEvents,
+        lastMessageAt: payload.message.createdAt || new Date().toISOString(),
+        messages: systemRiskMessage ? [...chat.messages, payload.message, systemRiskMessage] : [...chat.messages, payload.message]
+      };
     });
     store.conversations = chats;
     writeStore();
@@ -1530,6 +1607,7 @@ wss.on("connection", (socket) => {
       const clientEmail = String(client.identity?.email || "");
       if (client.readyState === 1 && (allowedIds.has(clientId) || allowedIds.has(clientEmail))) {
         client.send(JSON.stringify(payload));
+        if (systemRiskMessage) client.send(JSON.stringify({ type: "message", chatId: payload.chatId, message: systemRiskMessage }));
       }
     });
   });
