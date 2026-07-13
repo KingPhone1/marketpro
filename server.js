@@ -237,6 +237,60 @@ const publicUser = (user) => {
   };
 };
 
+const userByEmail = (email = "") =>
+  store.users.find((user) => String(user.email || "").toLowerCase() === String(email || "").toLowerCase());
+
+const createUserSession = (user, req) => {
+  const token = crypto.randomBytes(32).toString("hex");
+  const now = new Date();
+  const session = {
+    token,
+    userId: user.id,
+    email: user.email,
+    createdAt: now.toISOString(),
+    lastSeenAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+    userAgent: String(req.headers["user-agent"] || "").slice(0, 160)
+  };
+  store.sessions = [session, ...(store.sessions || []).filter((item) => item.userId !== user.id).slice(0, 8)];
+  return session;
+};
+
+const authTokenFrom = (req) => String(req.headers.authorization || "").replace("Bearer ", "").trim();
+
+const authenticatedUser = (req) => {
+  const token = authTokenFrom(req);
+  if (!token) return null;
+  const session = (store.sessions || []).find((item) => item.token === token);
+  if (!session || new Date(session.expiresAt).getTime() < Date.now()) return null;
+  session.lastSeenAt = new Date().toISOString();
+  return store.users.find((user) => user.id === session.userId || String(user.email || "").toLowerCase() === String(session.email || "").toLowerCase()) || null;
+};
+
+const authAttemptState = (email = "") => {
+  const key = String(email || "unknown").toLowerCase();
+  store.authAttempts = store.authAttempts || {};
+  store.authAttempts[key] = store.authAttempts[key] || { count: 0, lockedUntil: "", lastAt: "" };
+  return store.authAttempts[key];
+};
+
+const recordFailedLogin = (email = "") => {
+  const attempt = authAttemptState(email);
+  attempt.count += 1;
+  attempt.lastAt = new Date().toISOString();
+  if (attempt.count >= 5) {
+    attempt.lockedUntil = new Date(Date.now() + 1000 * 60 * 15).toISOString();
+  }
+  return attempt;
+};
+
+const clearFailedLogin = (email = "") => {
+  const attempt = authAttemptState(email);
+  attempt.count = 0;
+  attempt.lockedUntil = "";
+  attempt.lastAt = new Date().toISOString();
+};
+
 const buildSecurityStamp = (product, req) => {
   const price = Number(product.price || 0);
   const listingRisk = product.security?.listingRisk || analyzeListingRisk(product);
@@ -555,6 +609,9 @@ const hydrateRuntimeStore = (nextStore = {}) => {
   store.users = store.users?.length ? store.users : [demoUser];
   store.currentUser = store.currentUser || null;
   store.verificationRequests = store.verificationRequests || [];
+  store.sessions = store.sessions || [];
+  store.authAttempts = store.authAttempts || {};
+  store.passwordResets = store.passwordResets || [];
 };
 
 const initializePersistentStore = async () => {
@@ -870,8 +927,8 @@ app.get("/api/orders", (_req, res) => {
   res.json(store.orders || []);
 });
 
-app.get("/api/user", (_req, res) => {
-  res.json(publicUser(store.currentUser));
+app.get("/api/user", (req, res) => {
+  res.json(publicUser(authenticatedUser(req) || store.currentUser));
 });
 
 app.post("/api/user", (req, res) => {
@@ -886,7 +943,7 @@ app.post("/api/user", (req, res) => {
   }
 
   const email = String(req.body.email).trim().toLowerCase();
-  const existing = store.users.find((item) => String(item.email || "").toLowerCase() === email);
+  const existing = userByEmail(email);
   if (existing && !verifyPassword(req.body.password, existing)) {
     return res.status(401).json({ error: "La contrasena no coincide con esa cuenta" });
   }
@@ -928,12 +985,75 @@ app.post("/api/user", (req, res) => {
     ...store.verificationRequests.filter((item) => item.userId !== user.id)
   ];
   store.currentUser = user;
+  const session = createUserSession(user, req);
   writeStore();
-  res.status(201).json(publicUser(user));
+  res.status(201).json({ ...publicUser(user), sessionToken: session.token });
+});
+
+app.post("/api/auth/login", (req, res) => {
+  const email = String(req.body.email || "").toLowerCase().trim();
+  const password = String(req.body.password || "");
+  if (!email || !password) return res.status(400).json({ error: "Gmail y contrasena son obligatorios." });
+  const attempt = authAttemptState(email);
+  if (attempt.lockedUntil && new Date(attempt.lockedUntil).getTime() > Date.now()) {
+    return res.status(429).json({ error: "Cuenta bloqueada temporalmente por intentos fallidos. Intenta nuevamente en 15 minutos." });
+  }
+  const user = userByEmail(email);
+  if (!user || !verifyPassword(password, user)) {
+    recordFailedLogin(email);
+    writeStore();
+    return res.status(401).json({ error: "Gmail o contrasena incorrectos." });
+  }
+  clearFailedLogin(email);
+  store.currentUser = user;
+  const session = createUserSession(user, req);
+  writeStore();
+  res.json({ ...publicUser(user), sessionToken: session.token });
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  const token = authTokenFrom(req);
+  store.sessions = (store.sessions || []).filter((session) => session.token !== token);
+  writeStore();
+  res.json({ ok: true });
+});
+
+app.post("/api/auth/password-reset/request", (req, res) => {
+  const email = String(req.body.email || "").toLowerCase().trim();
+  const user = userByEmail(email);
+  if (!user) return res.json({ ok: true, message: "Si la cuenta existe, se genero un codigo de recuperacion." });
+  const code = crypto.randomBytes(3).toString("hex").toUpperCase();
+  store.passwordResets = [
+    { email, code, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 1000 * 60 * 20).toISOString(), used: false },
+    ...(store.passwordResets || []).filter((item) => item.email !== email).slice(0, 10)
+  ];
+  writeStore();
+  res.json({
+    ok: true,
+    message: "Codigo de recuperacion generado. En produccion se enviaria por email.",
+    demoCode: code
+  });
+});
+
+app.post("/api/auth/password-reset/confirm", (req, res) => {
+  const email = String(req.body.email || "").toLowerCase().trim();
+  const code = String(req.body.code || "").trim().toUpperCase();
+  const password = String(req.body.password || "");
+  if (password.length < 8) return res.status(400).json({ error: "La nueva contrasena debe tener al menos 8 caracteres." });
+  const reset = (store.passwordResets || []).find((item) => item.email === email && item.code === code && !item.used);
+  if (!reset || new Date(reset.expiresAt).getTime() < Date.now()) return res.status(400).json({ error: "Codigo invalido o vencido." });
+  const user = userByEmail(email);
+  if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+  Object.assign(user, hashPassword(password));
+  reset.used = true;
+  store.sessions = (store.sessions || []).filter((session) => session.email !== email);
+  clearFailedLogin(email);
+  writeStore();
+  res.json({ ok: true, message: "Contrasena actualizada. Ya puedes iniciar sesion." });
 });
 
 app.get("/api/seller-dashboard", (_req, res) => {
-  const user = store.currentUser || demoUser;
+  const user = authenticatedUser(_req) || store.currentUser || demoUser;
   const mine = listings.filter((item) => item.seller?.email === user.email || item.seller?.name === user.name);
   const sold = mine.filter((item) => item.status === "sold");
   const active = mine.filter((item) => item.status !== "sold");

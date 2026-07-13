@@ -94,6 +94,7 @@ const state = {
   filtersOpen: JSON.parse(localStorage.getItem("marketFiltersOpen") ?? "true"),
   profileTab: "active",
   user: JSON.parse(localStorage.getItem("marketUser")) || null,
+  authToken: localStorage.getItem("marketAuthToken") || "",
   sessionId: getSessionId(),
   viewKey: 0,
   sellerDashboard: null,
@@ -220,6 +221,7 @@ const api = async (path, options = {}) => {
     "X-User-Id": identity.id,
     "X-User-Name": encodeURIComponent(identity.name),
     "X-User-Email": identity.email,
+    ...(state.authToken ? { Authorization: `Bearer ${state.authToken}` } : {}),
     ...(options.headers || {})
   };
   const response = await fetch(path, {
@@ -660,6 +662,25 @@ const entryGate = () => `
           <small>ID</small>
         </div>
       </div>
+      <section class="login-panel">
+        <div class="block-title"><span>Entrar</span><small>Si ya tienes cuenta</small></div>
+        <form id="loginForm" novalidate>
+          <div class="field"><label>Gmail</label><input name="email" required type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="tu@gmail.com" /></div>
+          <div class="field"><label>Contrasena</label><input name="password" required type="password" autocomplete="current-password" placeholder="Tu contrasena" /></div>
+          <button class="buy-action" type="submit">Entrar a MarketPro</button>
+        </form>
+        <form id="resetRequestForm" class="mini-auth-form" novalidate>
+          <input name="email" required type="email" placeholder="Gmail para recuperar" />
+          <button class="secondary-btn" type="submit">Recuperar</button>
+        </form>
+        <form id="resetConfirmForm" class="mini-auth-form" novalidate>
+          <input name="email" required type="email" placeholder="Gmail" />
+          <input name="code" required placeholder="Codigo" />
+          <input name="password" required type="password" minlength="8" placeholder="Nueva contrasena" />
+          <button class="secondary-btn" type="submit">Cambiar</button>
+        </form>
+      </section>
+
       <form id="entryForm" novalidate>
         <div class="auth-steps">
           <div><span>1</span><strong>Cuenta</strong><small>Gmail y contrasena</small></div>
@@ -1382,6 +1403,9 @@ const bindEvents = () => {
   document.querySelector("#markTransitForm")?.addEventListener("submit", markOrderInTransit);
   document.querySelector("#disputeForm")?.addEventListener("submit", openDispute);
   document.querySelector("#entryForm")?.addEventListener("submit", authenticate);
+  document.querySelector("#loginForm")?.addEventListener("submit", loginUser);
+  document.querySelector("#resetRequestForm")?.addEventListener("submit", requestPasswordReset);
+  document.querySelector("#resetConfirmForm")?.addEventListener("submit", confirmPasswordReset);
   document.querySelector("#adminEntryForm")?.addEventListener("submit", authenticateAdminEntry);
   document.querySelector("#logoutUser")?.addEventListener("click", logoutUser);
   document.querySelector("#useDeviceLocation")?.addEventListener("click", useDeviceLocation);
@@ -1847,11 +1871,66 @@ const authenticate = async (event) => {
     alert(result.fields?.length ? `${result.error}: ${result.fields.join(", ")}` : result.error);
     return;
   }
+  if (result.sessionToken) {
+    state.authToken = result.sessionToken;
+    localStorage.setItem("marketAuthToken", result.sessionToken);
+  }
   state.user = result;
   localStorage.setItem("marketUser", JSON.stringify(state.user));
   await refreshSellerDashboard();
   render();
   scrollToTop();
+};
+
+const loginUser = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const result = await api("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({
+      email: requiredValue(data, "email").toLowerCase(),
+      password: data.get("password")
+    })
+  });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  state.authToken = result.sessionToken || "";
+  state.user = result;
+  localStorage.setItem("marketAuthToken", state.authToken);
+  localStorage.setItem("marketUser", JSON.stringify(state.user));
+  await refreshSellerDashboard();
+  render();
+  scrollToTop();
+};
+
+const requestPasswordReset = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const result = await api("/api/auth/password-reset/request", {
+    method: "POST",
+    body: JSON.stringify({ email: requiredValue(data, "email").toLowerCase() })
+  });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  alert(result.demoCode ? `${result.message} Codigo: ${result.demoCode}` : result.message);
+};
+
+const confirmPasswordReset = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const result = await api("/api/auth/password-reset/confirm", {
+    method: "POST",
+    body: JSON.stringify({
+      email: requiredValue(data, "email").toLowerCase(),
+      code: requiredValue(data, "code"),
+      password: data.get("password")
+    })
+  });
+  alert(result.error || result.message || "Listo.");
 };
 
 const authenticateAdminEntry = async (event) => {
@@ -1888,12 +1967,17 @@ const authenticateAdminEntry = async (event) => {
 };
 
 const logoutUser = () => {
+  if (state.authToken) {
+    api("/api/auth/logout", { method: "POST", body: JSON.stringify({}) }).catch(() => {});
+  }
   state.user = null;
+  state.authToken = "";
   state.sellerDashboard = null;
   state.view = "profile";
   state.selectedChatId = null;
   state.checkoutOrder = null;
   localStorage.removeItem("marketUser");
+  localStorage.removeItem("marketAuthToken");
   sessionStorage.removeItem("mpAdminToken");
   connectSocket();
   render();

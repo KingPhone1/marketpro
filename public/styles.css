@@ -6522,3 +6522,53 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Formal authentication layer */
+.login-panel {
+  display: grid;
+  gap: 12px;
+  margin: 18px 20px 0;
+  border: 1px solid rgba(15, 17, 15, 0.12);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffaf0, #efe2ca);
+  padding: 14px;
+}
+
+.login-panel form {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  background: transparent;
+}
+
+.login-panel .buy-action {
+  min-height: 46px;
+}
+
+.mini-auth-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.mini-auth-form input {
+  min-height: 40px;
+  border: 1px solid rgba(15, 17, 15, 0.12);
+  border-radius: 12px;
+  background: #fffdf8;
+  padding: 0 11px;
+}
+
+#resetConfirmForm {
+  grid-template-columns: minmax(0, 1fr) 100px minmax(0, 1fr) auto;
+}
+
+@media (max-width: 700px) {
+  .login-panel {
+    margin: 14px 16px 0;
+  }
+
+  .mini-auth-form,
+  #resetConfirmForm {
+    grid-template-columns: 1fr;
+  }
+}
