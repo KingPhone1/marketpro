@@ -197,7 +197,7 @@ const buildSecurityStamp = (product, req) => {
   const price = Number(product.price || 0);
   const categoryRisk = ["Vehiculos", "Inmuebles", "Electronica"].includes(product.category) ? 18 : 8;
   const priceRisk = price > 10000 ? 18 : price > 1000 ? 10 : 4;
-  const sellerRisk = product.seller?.rating >= 4.8 ? 0 : 12;
+  const sellerRisk = Number(product.seller?.ratingCount || product.seller?.reviews || 0) > 0 && product.seller?.rating >= 4.8 ? 0 : 8;
   const reportRisk = Number(product.reportCount || 0) * 8;
   const riskScore = Math.min(92, categoryRisk + priceRisk + sellerRisk + reportRisk);
   return {
@@ -227,6 +227,35 @@ const buildSecurityStamp = (product, req) => {
       "Revision reforzada si hay alerta de riesgo"
     ]
   };
+};
+
+const updateSellerRating = (seller = {}, rating, comment = "") => {
+  const sellerEmail = String(seller.email || "").toLowerCase();
+  const sellerName = String(seller.name || "");
+  const previousCount = Number(seller.ratingCount || seller.reviews || 0);
+  const previousRating = Number(seller.rating || 0);
+  const nextCount = previousCount + 1;
+  const nextRating = Number((((previousRating * previousCount) + Number(rating)) / nextCount).toFixed(2));
+  const ratingSummary = {
+    rating: nextRating,
+    ratingCount: nextCount,
+    lastRatingComment: comment || "",
+    lastRatedAt: new Date().toISOString()
+  };
+
+  listings = listings.map((product) => {
+    const matches = String(product.seller?.email || "").toLowerCase() === sellerEmail || String(product.seller?.name || "") === sellerName;
+    return matches ? { ...product, seller: { ...product.seller, ...ratingSummary } } : product;
+  });
+  store.products = listings;
+  store.users = (store.users || []).map((user) => {
+    const matches = String(user.email || "").toLowerCase() === sellerEmail || String(user.name || "") === sellerName;
+    return matches ? { ...user, ...ratingSummary } : user;
+  });
+  if (store.currentUser && (String(store.currentUser.email || "").toLowerCase() === sellerEmail || String(store.currentUser.name || "") === sellerName)) {
+    store.currentUser = { ...store.currentUser, ...ratingSummary };
+  }
+  return ratingSummary;
 };
 
 const createMercadoPagoPreference = async ({ order, product }) => {
@@ -283,6 +312,61 @@ const createMercadoPagoPreference = async ({ order, product }) => {
   if (!response.ok) {
     return {
       error: data.message || data.error || "Mercado Pago rechazo la creacion de la preferencia.",
+      details: data
+    };
+  }
+  return data;
+};
+
+const createPromotionPreference = async ({ promotion, product }) => {
+  if (!MERCADO_PAGO_ACCESS_TOKEN) {
+    return {
+      error: "Mercado Pago todavia no esta configurado. Agrega las credenciales reales para cobrar anuncios."
+    };
+  }
+
+  const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${MERCADO_PAGO_ACCESS_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      external_reference: promotion.id,
+      notification_url: `${APP_BASE_URL}/api/payments/mercadopago/webhook`,
+      back_urls: {
+        success: `${APP_BASE_URL}/?promotion=success&product=${encodeURIComponent(product.id)}`,
+        pending: `${APP_BASE_URL}/?promotion=pending&product=${encodeURIComponent(product.id)}`,
+        failure: `${APP_BASE_URL}/?promotion=failure&product=${encodeURIComponent(product.id)}`
+      },
+      auto_return: "approved",
+      items: [
+        {
+          id: promotion.id,
+          title: `Anuncio destacado MarketPro - ${product.title}`,
+          description: "Publicacion destacada en la pagina principal de MarketPro.",
+          quantity: 1,
+          currency_id: MERCADO_PAGO_CURRENCY,
+          unit_price: 1
+        }
+      ],
+      payer: {
+        name: promotion.buyer?.name || "",
+        email: promotion.buyer?.email || undefined
+      },
+      metadata: {
+        type: "promotion",
+        promotion_id: promotion.id,
+        product_id: product.id,
+        seller: product.seller?.email || product.seller?.name || ""
+      }
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    return {
+      error: data.message || data.error || "Mercado Pago rechazo el anuncio.",
       details: data
     };
   }
@@ -360,6 +444,7 @@ chats = normalizeChats(chats).filter((chat) => !["chat-1", "chat-2"].includes(ch
 store.products = listings;
 store.conversations = chats;
 store.orders = store.orders || [];
+store.promotions = store.promotions || [];
 store.users = store.users?.length ? store.users : [demoUser];
 store.currentUser = store.currentUser || null;
 store.verificationRequests = store.verificationRequests || [];
@@ -903,6 +988,47 @@ app.post("/api/products", (req, res) => {
   res.status(201).json(product);
 });
 
+app.post("/api/promotions", async (req, res) => {
+  const product = listings.find((item) => item.id === req.body.productId);
+  if (!product) return res.status(404).json({ error: "Publicacion no encontrada" });
+  const buyerEmail = String(req.body.buyer?.email || "").toLowerCase();
+  const sellerEmail = String(product.seller?.email || "").toLowerCase();
+  if (sellerEmail && buyerEmail && sellerEmail !== buyerEmail) {
+    return res.status(403).json({ error: "Solo el vendedor puede pagar el anuncio de su publicacion." });
+  }
+
+  const promotion = {
+    id: `promo-${Date.now()}`,
+    productId: product.id,
+    productTitle: product.title,
+    amount: 1,
+    currency: MERCADO_PAGO_CURRENCY,
+    status: "Pendiente de pago en Mercado Pago",
+    buyer: req.body.buyer || {},
+    seller: product.seller,
+    createdAt: new Date().toISOString(),
+    mercadoPago: {
+      preferenceId: "",
+      checkoutUrl: "",
+      status: "Pendiente"
+    }
+  };
+
+  const preference = await createPromotionPreference({ promotion, product });
+  if (preference.error) {
+    return res.status(502).json(preference);
+  }
+  promotion.mercadoPago.preferenceId = preference.id;
+  promotion.mercadoPago.checkoutUrl = preference.init_point || preference.sandbox_init_point || "";
+  promotion.mercadoPago.status = "Preferencia creada";
+  store.promotions = [promotion, ...(store.promotions || [])];
+  writeStore();
+  res.status(201).json({
+    ...promotion,
+    checkoutUrl: promotion.mercadoPago.checkoutUrl
+  });
+});
+
 app.put("/api/products/:id", (req, res) => {
   const index = listings.findIndex((item) => item.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: "Publicacion no encontrada" });
@@ -1062,6 +1188,35 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   res.json(order);
 });
 
+app.post("/api/orders/:id/rate-seller", (req, res) => {
+  const order = (store.orders || []).find((item) => item.id === req.params.id);
+  if (!order) return res.status(404).json({ error: "Orden no encontrada" });
+  if (!order.delivery?.buyerInspection) {
+    return res.status(400).json({ error: "Primero confirma la entrega para poder calificar." });
+  }
+  if (order.sellerRating) {
+    return res.status(400).json({ error: "Esta orden ya califico al vendedor." });
+  }
+  const rating = Number(req.body.rating);
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "La calificacion debe estar entre 1 y 5." });
+  }
+  const summary = updateSellerRating(order.seller, rating, req.body.comment || "");
+  order.sellerRating = {
+    rating,
+    comment: req.body.comment || "",
+    ratedAt: new Date().toISOString(),
+    sellerRating: summary.rating,
+    sellerRatingCount: summary.ratingCount
+  };
+  order.timeline = [
+    ...(order.timeline || []),
+    { event: `Comprador califico vendedor con ${rating}/5`, at: order.sellerRating.ratedAt }
+  ];
+  writeStore();
+  res.json(order);
+});
+
 app.post("/api/orders/:id/seller-proof", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
@@ -1175,6 +1330,30 @@ app.post("/api/payments/mercadopago/webhook", async (req, res) => {
       ...(order.security.auditTrail || []),
       { event: `Webhook Mercado Pago ${order.paymentNotification.status}`, at: order.paymentNotification.receivedAt }
     ];
+    writeStore();
+  }
+
+  const promotion = (store.promotions || []).find((item) => item.id === externalReference);
+  if (promotion) {
+    promotion.paymentNotification = {
+      topic,
+      paymentId: String(paymentId || ""),
+      status: payment?.status || req.body.status || "received",
+      statusDetail: payment?.status_detail || "",
+      receivedAt: new Date().toISOString()
+    };
+    promotion.status = payment?.status === "approved" ? "Pagado - anuncio activo" : `Mercado Pago: ${promotion.paymentNotification.status}`;
+
+    if (payment?.status === "approved") {
+      const promotedUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      promotion.promotedUntil = promotedUntil;
+      listings = listings.map((product) =>
+        product.id === promotion.productId
+          ? { ...product, promotedUntil, promotedAt: promotion.paymentNotification.receivedAt, promotionId: promotion.id }
+          : product
+      );
+      store.products = listings;
+    }
     writeStore();
   }
 

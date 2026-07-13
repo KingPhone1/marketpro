@@ -540,6 +540,44 @@ button {
   color: var(--link);
 }
 
+.rating-line.no-rating span {
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.ad-badge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0b0d0c, #2a2417);
+  color: #f5c84b;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.promotion-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 18px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.promotion-form {
+  display: grid;
+  gap: 10px;
+}
+
+.promotion-form select {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 12px;
+}
+
 .price {
   margin-top: 6px;
   color: #111;
@@ -5133,6 +5171,10 @@ body,
 
   .grid {
     gap: 12px;
+  }
+
+  .promotion-panel {
+    grid-template-columns: 1fr;
   }
 
   .product-card {

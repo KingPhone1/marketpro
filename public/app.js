@@ -102,7 +102,7 @@ const trustScore = (item) => {
   let score = 55;
   if (item.images?.length > 1) score += 10;
   if (item.description?.length > 70) score += 10;
-  if (item.seller?.rating >= 4.8) score += 15;
+  if (sellerHasRating(item.seller) && item.seller.rating >= 4.8) score += 15;
   if (item.condition) score += 5;
   if (item.location) score += 5;
   return Math.min(score, 98);
@@ -119,7 +119,7 @@ const filteredProducts = () => {
     const distanceMatch = item.distance <= Number(state.filters.distance || 50);
     const conditionMatch = state.filters.condition === "Todas" || item.condition === state.filters.condition;
     return textMatch && categoryMatch && minMatch && maxMatch && distanceMatch && conditionMatch;
-  });
+  }).sort((a, b) => Number(Boolean(b.promoted)) - Number(Boolean(a.promoted)));
 };
 
 const currentIdentity = () => {
@@ -211,7 +211,8 @@ const normalizeProduct = (item) => ({
   category: item.category === "Ropa y accesorios" ? "Ropa" : item.category === "Hogar y jardin" ? "Hogar" : item.category,
   verified: item.verified ?? true,
   safeMeetup: item.safeMeetup ?? true,
-  reportCount: item.reportCount ?? 0
+  reportCount: item.reportCount ?? 0,
+  promoted: Boolean(item.promotedUntil && new Date(item.promotedUntil).getTime() > Date.now())
 });
 
 const isRejectedUser = (user = state.user) => Boolean(user?.verificationStatus?.toLowerCase().includes("rechaz"));
@@ -330,7 +331,7 @@ const trustBadge = (item) => `
 
 const sellerReliability = (item) => [
   "Identidad validada",
-  `${item.seller?.rating || 4.8}/5 reputacion`,
+  sellerHasRating(item.seller) ? `${Number(item.seller.rating).toFixed(1)}/5 reputacion real` : "Sin calificaciones todavia",
   "Chat auditado",
   "Pago protegido"
 ];
@@ -407,6 +408,27 @@ const deliveryWorkflow = (order) => {
         <input name="conditionNote" placeholder="Observacion final de recepcion" />
         <button class="buy-action" type="submit">Confirmar entrega</button>
       </form>
+      ${inspection && !order.sellerRating ? `
+        <form class="secure-subform rating-form" id="sellerRatingForm">
+          <strong>Calificar vendedor</strong>
+          <select name="rating" required>
+            <option value="">Selecciona una calificacion</option>
+            <option value="5">5 - Excelente</option>
+            <option value="4">4 - Muy bien</option>
+            <option value="3">3 - Correcto</option>
+            <option value="2">2 - Regular</option>
+            <option value="1">1 - Malo</option>
+          </select>
+          <input name="comment" placeholder="Comentario opcional" />
+          <button class="secondary-btn" type="submit">Enviar calificacion</button>
+        </form>
+      ` : ""}
+      ${order.sellerRating ? `
+        <div class="proof-summary">
+          <strong>Vendedor calificado</strong>
+          <span>${ratingStars(order.sellerRating.rating)} - ${Number(order.sellerRating.rating).toFixed(1)}/5</span>
+        </div>
+      ` : ""}
       <form class="secure-subform dispute-form" id="disputeForm">
         <strong>Abrir disputa</strong>
         <select name="reason" required>
@@ -425,7 +447,14 @@ const deliveryWorkflow = (order) => {
   `;
 };
 
-const ratingStars = (rating = 4.7) => {
+const sellerHasRating = (seller = {}) => Number(seller.ratingCount || seller.reviews || 0) > 0;
+
+const sellerRatingLabel = (seller = {}) =>
+  sellerHasRating(seller)
+    ? `${Number(seller.rating || 0).toFixed(1)} (${Number(seller.ratingCount || seller.reviews || 0)} ventas calificadas)`
+    : "Sin calificaciones";
+
+const ratingStars = (rating = 0) => {
   const rounded = Math.round(rating);
   return "*****".slice(0, rounded) + "-----".slice(0, 5 - rounded);
 };
@@ -439,8 +468,12 @@ const productCard = (item) => `
     <div class="card-body">
       <div class="card-kicker">${escapeHtml(item.category)} / ${escapeHtml(item.condition)}</div>
       <div class="card-title">${escapeHtml(item.title)}</div>
-      <div class="rating-line"><span>${ratingStars(item.seller.rating)}</span><small>${item.seller.rating}</small></div>
+      <div class="rating-line ${sellerHasRating(item.seller) ? "" : "no-rating"}">
+        ${sellerHasRating(item.seller) ? `<span>${ratingStars(item.seller.rating)}</span>` : "<span>Nuevo vendedor</span>"}
+        <small>${escapeHtml(sellerRatingLabel(item.seller))}</small>
+      </div>
       <div class="price">${money(item.price)}</div>
+      ${item.promoted ? `<div class="ad-badge">Anuncio destacado</div>` : ""}
       <div class="security-strip">
         <span>Pago protegido</span>
         <span>Vendedor verificado</span>
@@ -724,7 +757,7 @@ const detailView = () => {
             <img src="${item.seller.avatar}" alt="${escapeHtml(item.seller.name)}" />
             <div>
               <strong>${escapeHtml(item.seller.name)}</strong>
-              <div class="muted">Perfil verificado - ${item.seller.rating}/5</div>
+              <div class="muted">Perfil verificado - ${escapeHtml(sellerRatingLabel(item.seller))}</div>
             </div>
           </div>
           <section class="identity-panel">
@@ -1150,6 +1183,27 @@ const profileView = () => {
           <button class="profile-tab ${state.profileTab === "sold" ? "active" : ""}" data-profile-tab="sold">Vendidos</button>
         </div>
       </section>
+      <section class="panel promotion-panel">
+        <div>
+          <p class="eyebrow">Anuncio principal</p>
+          <h2>Destaca un producto por US$ 1</h2>
+          <p class="muted">Tu publicacion aparece primero en la pagina principal como anuncio destacado. El pago se realiza por Mercado Pago vinculado a MarketPro.</p>
+        </div>
+        ${
+          mine.filter((item) => item.status !== "sold").length
+            ? `<form id="promotionForm" class="promotion-form">
+                <select name="productId" required>
+                  <option value="">Elige una publicacion</option>
+                  ${mine
+                    .filter((item) => item.status !== "sold")
+                    .map((item) => `<option value="${item.id}">${item.promoted ? "Destacado - " : ""}${escapeHtml(item.title)}</option>`)
+                    .join("")}
+                </select>
+                <button class="sell-action" type="submit">Pagar US$ 1 y destacar</button>
+              </form>`
+            : `<div class="empty">Publica un producto activo para poder destacarlo.</div>`
+        }
+      </section>
       <section class="grid profile-grid">
         ${
           visible.length
@@ -1166,6 +1220,7 @@ const profileView = () => {
                       </div>
                     </button>
                     <div class="card-body actions-row">
+                      <button class="sell-action" data-promote="${item.id}">${item.promoted ? "Destacado" : "Anunciar US$ 1"}</button>
                       <button class="secondary-btn" data-toggle-sold="${item.id}">${item.status === "sold" ? "Reactivar" : "Vendido"}</button>
                       <button class="danger-btn" data-delete="${item.id}">Eliminar</button>
                     </div>
@@ -1256,6 +1311,7 @@ const bindEvents = () => {
   document.querySelector("#messageSeller")?.addEventListener("click", startConversation);
   document.querySelector("#checkoutForm")?.addEventListener("submit", secureCheckout);
   document.querySelector("#deliveryConfirmForm")?.addEventListener("submit", confirmDelivery);
+  document.querySelector("#sellerRatingForm")?.addEventListener("submit", rateSeller);
   document.querySelector("#sellerProofForm")?.addEventListener("submit", submitSellerProof);
   document.querySelector("#markTransitForm")?.addEventListener("submit", markOrderInTransit);
   document.querySelector("#disputeForm")?.addEventListener("submit", openDispute);
@@ -1272,6 +1328,7 @@ const bindEvents = () => {
   });
   document.querySelector("#listingForm")?.addEventListener("input", updatePreview);
   document.querySelector("#listingForm")?.addEventListener("submit", publishListing);
+  document.querySelector("#promotionForm")?.addEventListener("submit", promoteFromForm);
   document.querySelector("#photoInput")?.addEventListener("change", previewPhotos);
   document.querySelector("#authForm")?.addEventListener("submit", authenticate);
 
@@ -1286,6 +1343,10 @@ const bindEvents = () => {
       state.profileTab = button.dataset.profileTab;
       render();
     });
+  });
+
+  document.querySelectorAll("[data-promote]").forEach((button) => {
+    button.addEventListener("click", () => promoteProduct(button.dataset.promote));
   });
 
   document.querySelectorAll("[data-toggle-sold]").forEach((button) => {
@@ -1434,7 +1495,8 @@ const publishListing = async (event) => {
         name: state.user.name,
         email: state.user.email,
         avatar: `/api/avatar/${encodeURIComponent(state.user.name)}.svg`,
-        rating: 5,
+        rating: 0,
+        ratingCount: 0,
         verified: state.user.verified,
         verificationStatus: state.user.verificationStatus
       },
@@ -1537,6 +1599,54 @@ const confirmDelivery = async (event) => {
   }
   state.checkoutOrder = order;
   render();
+};
+
+const rateSeller = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const order = await api(`/api/orders/${state.checkoutOrder.id}/rate-seller`, {
+    method: "POST",
+    body: JSON.stringify({
+      rating: Number(data.get("rating")),
+      comment: data.get("comment")
+    })
+  });
+  if (order.error) {
+    alert(order.error);
+    return;
+  }
+  state.checkoutOrder = order;
+  state.products = (await api("/api/products")).map(normalizeProduct);
+  await refreshSellerDashboard();
+  alert("Gracias por calificar al vendedor.");
+  render();
+};
+
+const promoteProduct = async (productId) => {
+  const result = await api("/api/promotions", {
+    method: "POST",
+    body: JSON.stringify({ productId, buyer: currentIdentity() })
+  });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  if (result.checkoutUrl) {
+    window.open(result.checkoutUrl, "_blank", "noopener");
+    alert("Abrimos Mercado Pago. Cuando se confirme el pago, tu producto quedara destacado en la portada.");
+  } else {
+    alert("Solicitud de anuncio creada.");
+  }
+};
+
+const promoteFromForm = async (event) => {
+  event.preventDefault();
+  const productId = new FormData(event.currentTarget).get("productId");
+  if (!productId) {
+    alert("Elige una publicacion para destacar.");
+    return;
+  }
+  await promoteProduct(productId);
 };
 
 const filesToDataUrls = async (fileList, limit = 6) => {
