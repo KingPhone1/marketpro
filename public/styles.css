@@ -6534,6 +6534,58 @@ body {
   padding: 14px;
 }
 
+.auth-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 18px 20px 0;
+  border: 1px solid rgba(15, 17, 15, 0.12);
+  border-radius: 16px;
+  background: rgba(15, 17, 15, 0.08);
+  padding: 6px;
+}
+
+.auth-switch button,
+.register-link-btn {
+  min-height: 42px;
+  border-radius: 12px;
+  background: transparent;
+  color: #4f493c;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.auth-switch button.active {
+  background: #11120f;
+  color: #f4cf76;
+  box-shadow: 0 10px 22px rgba(15, 17, 15, 0.16);
+}
+
+.register-link-btn {
+  border: 1px solid rgba(15, 17, 15, 0.12);
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.register-intro {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(230, 184, 79, 0.22);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #11120f, #272217);
+  padding: 14px;
+  color: #fffdf8;
+}
+
+.register-intro strong {
+  color: #f4cf76;
+}
+
+.register-intro span {
+  color: rgba(255, 253, 248, 0.68);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .login-panel form {
   display: grid;
   gap: 10px;
@@ -6564,6 +6616,10 @@ body {
 
 @media (max-width: 700px) {
   .login-panel {
+    margin: 14px 16px 0;
+  }
+
+  .auth-switch {
     margin: 14px 16px 0;
   }
 

@@ -95,6 +95,7 @@ const state = {
   profileTab: "active",
   user: JSON.parse(localStorage.getItem("marketUser")) || null,
   authToken: localStorage.getItem("marketAuthToken") || "",
+  authMode: "login",
   sessionId: getSessionId(),
   viewKey: 0,
   sellerDashboard: null,
@@ -662,13 +663,18 @@ const entryGate = () => `
           <small>ID</small>
         </div>
       </div>
-      <section class="login-panel">
-        <div class="block-title"><span>Entrar</span><small>Si ya tienes cuenta</small></div>
+      <div class="auth-switch">
+        <button class="${state.authMode === "login" ? "active" : ""}" type="button" data-auth-mode="login">Entrar</button>
+        <button class="${state.authMode === "register" ? "active" : ""}" type="button" data-auth-mode="register">Registrarme</button>
+      </div>
+      ${state.authMode === "login" ? `<section class="login-panel">
+        <div class="block-title"><span>Entrar</span><small>Si ya tienes cuenta, usa tu Gmail y contrasena</small></div>
         <form id="loginForm" novalidate>
           <div class="field"><label>Gmail</label><input name="email" required type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="tu@gmail.com" /></div>
           <div class="field"><label>Contrasena</label><input name="password" required type="password" autocomplete="current-password" placeholder="Tu contrasena" /></div>
           <button class="buy-action" type="submit">Entrar a MarketPro</button>
         </form>
+        <button class="register-link-btn" type="button" data-auth-mode="register">No tengo cuenta, quiero registrarme</button>
         <form id="resetRequestForm" class="mini-auth-form" novalidate>
           <input name="email" required type="email" placeholder="Gmail para recuperar" />
           <button class="secondary-btn" type="submit">Recuperar</button>
@@ -679,9 +685,13 @@ const entryGate = () => `
           <input name="password" required type="password" minlength="8" placeholder="Nueva contrasena" />
           <button class="secondary-btn" type="submit">Cambiar</button>
         </form>
-      </section>
+      </section>` : `
 
       <form id="entryForm" novalidate>
+        <div class="register-intro">
+          <strong>Crear cuenta nueva</strong>
+          <span>Completa los datos una sola vez. El admin revisa tu identidad antes de permitirte vender.</span>
+        </div>
         <div class="auth-steps">
           <div><span>1</span><strong>Cuenta</strong><small>Gmail y contrasena</small></div>
           <div><span>2</span><strong>Revision</strong><small>Datos para aprobar</small></div>
@@ -730,7 +740,7 @@ const entryGate = () => `
         </div>
         <button class="sell-action" type="submit">Entrar y enviar verificacion</button>
         <small class="private-note">Estos datos solo aparecen en el panel privado del creador/admin.</small>
-      </form>
+      </form>`}
       ${canShowAdminEntry() ? `<section class="admin-entry">
         <div>
           <span>Acceso del creador</span>
@@ -1406,6 +1416,12 @@ const bindEvents = () => {
   document.querySelector("#loginForm")?.addEventListener("submit", loginUser);
   document.querySelector("#resetRequestForm")?.addEventListener("submit", requestPasswordReset);
   document.querySelector("#resetConfirmForm")?.addEventListener("submit", confirmPasswordReset);
+  document.querySelectorAll("[data-auth-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.authMode = button.dataset.authMode;
+      render();
+    });
+  });
   document.querySelector("#adminEntryForm")?.addEventListener("submit", authenticateAdminEntry);
   document.querySelector("#logoutUser")?.addEventListener("click", logoutUser);
   document.querySelector("#useDeviceLocation")?.addEventListener("click", useDeviceLocation);
