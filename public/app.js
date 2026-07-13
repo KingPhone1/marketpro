@@ -270,10 +270,10 @@ const topbar = () => `
     ${categories.map((category) => `<button data-category="${category}">${escapeHtml(category)}</button>`).join("")}
   </div>
   <nav class="mobile-tabs">
-    <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed">Inicio</button>
-    <button class="${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
-    <button class="${state.view === "messages" ? "active" : ""}" data-view="messages">Chats</button>
-    <button class="${state.view === "profile" ? "active" : ""}" data-view="profile">Perfil</button>
+    <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed" aria-label="Inicio"><span>⌂</span><small>Inicio</small></button>
+    <button class="${state.view === "compose" ? "active" : ""}" data-view="compose" aria-label="Vender"><span>＋</span><small>Vender</small></button>
+    <button class="${state.view === "messages" ? "active" : ""}" data-view="messages" aria-label="Chats"><span>✉</span><small>Chats</small></button>
+    <button class="${state.view === "profile" ? "active" : ""}" data-view="profile" aria-label="Perfil"><span>◉</span><small>Perfil</small></button>
   </nav>
 `;
 
