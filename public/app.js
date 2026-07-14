@@ -674,11 +674,7 @@ const offerSummary = () => `
 `;
 
 const securityView = () => `
-  ${sidebar()}
   <main>
-    <div class="toolbar-row">
-      <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
-    </div>
     <section class="panel trust-center">
       <p class="eyebrow">Centro de confianza</p>
       <h1>MarketPro protege identidad, pago, chat y entrega.</h1>
@@ -703,11 +699,7 @@ const securityView = () => `
 `;
 
 const supportView = () => `
-  ${sidebar()}
   <main>
-    <div class="toolbar-row">
-      <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
-    </div>
     <section class="panel support-panel">
       <p class="eyebrow">Soporte MarketPro</p>
       <h1>Reporta problemas de cuenta, compra, venta o seguridad.</h1>
@@ -734,11 +726,7 @@ const supportView = () => `
 `;
 
 const legalView = () => `
-  ${sidebar()}
   <main>
-    <div class="toolbar-row">
-      <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
-    </div>
     <section class="panel legal-panel">
       <p class="eyebrow">Privacidad y condiciones</p>
       <h1>Datos usados para seguridad, no para decorar perfiles.</h1>
