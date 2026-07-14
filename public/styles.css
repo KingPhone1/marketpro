@@ -8521,3 +8521,31 @@ h3,
     line-height: 1.02 !important;
   }
 }
+
+/* Footer readability hotfix */
+.app-footer {
+  margin-top: 22px !important;
+  border-top: 1px solid rgba(217, 173, 84, 0.28) !important;
+  background: #080907 !important;
+  color: #fff8e8 !important;
+}
+
+.app-footer strong {
+  color: #f6d986 !important;
+}
+
+.app-footer span {
+  color: rgba(255, 248, 232, 0.84) !important;
+}
+
+.app-footer button {
+  background: #fffdf8 !important;
+  border: 1px solid rgba(217, 173, 84, 0.48) !important;
+  color: #10110e !important;
+  font-weight: 950 !important;
+}
+
+.app-footer button:hover {
+  background: #f6d986 !important;
+  color: #080907 !important;
+}
