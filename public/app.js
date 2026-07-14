@@ -924,12 +924,6 @@ const feedView = () => {
         </div>
       </section>
       ${commandBar()}
-      ${shieldMatrix()}
-      <section class="luxury-strip">
-        <article><span>01</span><strong>Validacion de vendedor</strong><p>Las publicaciones se habilitan con perfil revisado.</p></article>
-        <article><span>02</span><strong>Checkout interno</strong><p>Direccion, metodo y comprobante quedan en la orden.</p></article>
-        <article><span>03</span><strong>Entrega confirmada</strong><p>El pago se libera cuando la recepcion queda validada.</p></article>
-      </section>
       ${featuredRail()}
       <div class="content-head">
         <div>
@@ -942,6 +936,14 @@ const feedView = () => {
           ? `<section class="grid">${products.map(productCard).join("")}</section>`
           : `<div class="empty">No encontramos articulos con esos filtros.</div>`
       }
+      <section class="luxury-strip closing-strip">
+        <article><span>01</span><strong>Validacion de vendedor</strong><p>Las publicaciones se habilitan con perfil revisado.</p></article>
+        <article><span>02</span><strong>Checkout interno</strong><p>Direccion, metodo y comprobante quedan en la orden.</p></article>
+        <article><span>03</span><strong>Entrega confirmada</strong><p>El pago se libera cuando la recepcion queda validada.</p></article>
+      </section>
+      <div class="closing-shield">
+        ${shieldMatrix()}
+      </div>
       ${offerSummary()}
     </main>
   `;

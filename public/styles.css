@@ -8549,3 +8549,17 @@ h3,
   background: #f6d986 !important;
   color: #080907 !important;
 }
+
+.closing-strip,
+.closing-shield {
+  margin-top: 18px !important;
+}
+
+.closing-shield .shield-matrix {
+  margin-top: 0 !important;
+}
+
+.closing-shield .shield-matrix h2 {
+  font-size: clamp(30px, 4vw, 52px) !important;
+  line-height: 1 !important;
+}
