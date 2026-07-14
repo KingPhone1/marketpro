@@ -1,9 +1,9 @@
-const CACHE_NAME = "marketpro-v52";
+const CACHE_NAME = "marketpro-v53";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=52",
-  "/app.js?v=52",
+  "/styles.css?v=53",
+  "/app.js?v=53",
   "/mp-logo.svg",
   "/manifest.json"
 ];

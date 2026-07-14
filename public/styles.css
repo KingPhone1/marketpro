@@ -6657,6 +6657,119 @@ body {
   }
 }
 
+/* Mobile install prompt and search fix */
+.pwa-install-card {
+  display: none;
+  max-width: 1320px;
+  margin: 10px auto 0;
+  border: 1px solid rgba(230, 184, 79, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #11120f, #292317);
+  padding: 10px 12px;
+  color: #fffdf8;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16);
+}
+
+.pwa-install-card strong,
+.pwa-install-card span {
+  display: block;
+}
+
+.pwa-install-card strong {
+  color: #f4cf76;
+  font-size: 13px;
+}
+
+.pwa-install-card span {
+  margin-top: 2px;
+  color: rgba(255, 253, 248, 0.68);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.install-chip {
+  border-radius: 999px;
+  background: #f4cf76;
+  padding: 8px 12px;
+  color: #11120f;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+@media (max-width: 700px) {
+  .pwa-install-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    margin: 8px 10px 0;
+  }
+
+  .entry-shell .pwa-install-card {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .topbar {
+    width: 100%;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr) !important;
+    align-items: center;
+    overflow: visible;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .brand span {
+    max-width: 104px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .searchbox {
+    grid-column: 1 / -1 !important;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    overflow: hidden;
+  }
+
+  .searchbox span {
+    min-width: 0;
+    padding: 0;
+    font-size: 10px;
+  }
+
+  .searchbox input {
+    min-width: 0;
+    width: 100%;
+    padding: 0 10px;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 380px) {
+  .brand span {
+    display: none;
+  }
+
+  .searchbox {
+    grid-template-columns: 38px minmax(0, 1fr) !important;
+  }
+
+  .searchbox input {
+    font-size: 13px;
+    padding: 0 8px;
+  }
+
+  .pwa-install-card {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .shield-matrix,
   .shield-grid {

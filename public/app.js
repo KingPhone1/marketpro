@@ -336,6 +336,16 @@ const topbar = () => `
   </nav>
 `;
 
+const pwaInstallCard = () => `
+  <section class="pwa-install-card">
+    <div>
+      <strong>Instala MarketPro</strong>
+      <span>En Android toca Instalar. En iPhone: Compartir > Agregar a pantalla de inicio.</span>
+    </div>
+    <button class="install-chip" id="installPwa" type="button">${state.canInstallPwa ? "Instalar" : "Como instalar"}</button>
+  </section>
+`;
+
 const sidebar = () => `
   <aside class="sidebar ${state.filtersOpen ? "open" : ""}">
     <div class="side-block">
@@ -776,6 +786,7 @@ const entryGate = () => `
         <a href="/admin.html">Abrir panel privado</a>
       </section>` : ""}
     </section>
+    ${pwaInstallCard()}
   </main>
 `;
 
@@ -1371,6 +1382,7 @@ const render = () => {
   app.innerHTML = `
     <div class="app-shell">
       ${topbar()}
+      ${pwaInstallCard()}
       <div class="main-layout view-surface ${state.filtersOpen ? "" : "filters-collapsed"}" data-view-key="${state.viewKey}">${view()}</div>
     </div>
   `;
@@ -2064,7 +2076,7 @@ const deleteListing = async (id) => {
 
 const installPwa = async () => {
   if (!deferredInstallPrompt) {
-    alert("Si tu navegador no muestra instalacion automatica, abre el menu y elige Agregar a pantalla de inicio.");
+    alert("Android/Chrome: abre el menu de tres puntos y toca Instalar app o Agregar a pantalla principal.\n\niPhone/Safari: toca Compartir y luego Agregar a pantalla de inicio.");
     return;
   }
   deferredInstallPrompt.prompt();
