@@ -6956,10 +6956,11 @@ body {
 .legal-panel,
 .secure-flow-panel,
 .account-control-panel {
-  border-color: rgba(244, 207, 118, 0.18);
+  border-color: rgba(244, 207, 118, 0.24);
   background:
-    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(238, 231, 216, 0.94)),
-    radial-gradient(circle at top right, rgba(244, 207, 118, 0.18), transparent 34%);
+    linear-gradient(180deg, #f6eddb 0%, #e7d7ba 100%),
+    radial-gradient(circle at top right, rgba(244, 207, 118, 0.22), transparent 34%);
+  color: #15130f;
 }
 
 .trust-center h1,
@@ -6969,6 +6970,41 @@ body {
   font-size: clamp(32px, 5vw, 64px);
   line-height: .96;
   letter-spacing: 0;
+  color: #11120f;
+}
+
+.trust-center .muted,
+.support-panel .muted,
+.legal-panel .muted,
+.secure-flow-panel .muted,
+.account-control-panel .muted {
+  color: #514839;
+}
+
+.support-panel .field label,
+.legal-panel .field label {
+  color: #241f18;
+}
+
+.support-panel input,
+.support-panel select,
+.support-panel textarea {
+  border: 1px solid rgba(17, 18, 15, 0.22);
+  background: #fffaf0;
+  color: #11120f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.support-panel input::placeholder,
+.support-panel textarea::placeholder {
+  color: #6f6250;
+  opacity: 1;
+}
+
+.support-panel .buy-action {
+  background: linear-gradient(135deg, #0f7a45, #129b59);
+  color: #fff;
+  box-shadow: 0 14px 26px rgba(15, 122, 69, 0.2);
 }
 
 .trust-center-grid,
@@ -6982,9 +7018,9 @@ body {
 .trust-center-grid article,
 .legal-grid article,
 .secure-flow span {
-  border: 1px solid rgba(15, 17, 15, 0.1);
+  border: 1px solid rgba(15, 17, 15, 0.14);
   border-radius: 14px;
-  background: rgba(255, 253, 248, 0.66);
+  background: rgba(255, 250, 240, 0.86);
   padding: 14px;
 }
 
@@ -6999,7 +7035,7 @@ body {
 .legal-grid span {
   display: block;
   margin-top: 6px;
-  color: #5d5648;
+  color: #40382d;
   font-size: 12px;
   line-height: 1.45;
 }

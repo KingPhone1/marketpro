@@ -24,10 +24,10 @@
       "purpose": "any maskable"
     },
     {
-      "src": "/mp-logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "screenshots": [

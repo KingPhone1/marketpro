@@ -2,49 +2,44 @@
   <title id="title">MP</title>
   <desc id="desc">Logo de MarketPro con monograma MP dorado</desc>
   <defs>
-    <linearGradient id="panel" x1="18" y1="12" x2="102" y2="110" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#222522"/>
-      <stop offset=".48" stop-color="#101211"/>
+    <linearGradient id="panel" x1="18" y1="12" x2="104" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#25231d"/>
+      <stop offset=".52" stop-color="#10110f"/>
       <stop offset="1" stop-color="#050605"/>
     </linearGradient>
-    <linearGradient id="gold" x1="26" y1="27" x2="92" y2="92" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff3bd"/>
-      <stop offset=".32" stop-color="#f1c35d"/>
-      <stop offset=".72" stop-color="#c7912e"/>
-      <stop offset="1" stop-color="#7b5518"/>
+    <linearGradient id="gold" x1="30" y1="30" x2="92" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff4bf"/>
+      <stop offset=".36" stop-color="#f5cd70"/>
+      <stop offset=".72" stop-color="#d29b35"/>
+      <stop offset="1" stop-color="#8b611d"/>
     </linearGradient>
     <linearGradient id="edge" x1="16" y1="10" x2="106" y2="114" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff0b4" stop-opacity=".88"/>
-      <stop offset=".42" stop-color="#c79532" stop-opacity=".34"/>
-      <stop offset="1" stop-color="#f8d77a" stop-opacity=".16"/>
+      <stop offset="0" stop-color="#fff0b4" stop-opacity=".78"/>
+      <stop offset=".5" stop-color="#c79532" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#f8d77a" stop-opacity=".18"/>
     </linearGradient>
-    <radialGradient id="glow" cx="36%" cy="24%" r="72%">
-      <stop offset="0" stop-color="#ffe39b" stop-opacity=".34"/>
-      <stop offset=".48" stop-color="#c99532" stop-opacity=".12"/>
+    <radialGradient id="glow" cx="36%" cy="24%" r="76%">
+      <stop offset="0" stop-color="#ffe39b" stop-opacity=".32"/>
+      <stop offset=".52" stop-color="#c99532" stop-opacity=".11"/>
       <stop offset="1" stop-color="#000000" stop-opacity="0"/>
     </radialGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#000000" flood-opacity=".34"/>
+    <filter id="shadow" x="-24%" y="-24%" width="148%" height="148%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000000" flood-opacity=".32"/>
     </filter>
-    <filter id="letterGlow" x="-35%" y="-35%" width="170%" height="170%">
-      <feGaussianBlur stdDeviation="1.25" result="blur"/>
-      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0.95  0 1 0 0 0.72  0 0 1 0 0.26  0 0 0 .8 0" result="goldBlur"/>
-      <feMerge>
-        <feMergeNode in="goldBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+    <filter id="letterGlow" x="-24%" y="-24%" width="148%" height="148%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.4" flood-color="#ffd978" flood-opacity=".52"/>
     </filter>
   </defs>
 
-  <rect x="8" y="8" width="104" height="104" rx="28" fill="url(#panel)" filter="url(#shadow)"/>
-  <rect x="8" y="8" width="104" height="104" rx="28" fill="url(#glow)"/>
-  <rect x="10.5" y="10.5" width="99" height="99" rx="25.5" fill="none" stroke="url(#edge)" stroke-width="2"/>
-  <text x="60" y="76" text-anchor="middle" fill="url(#gold)" filter="url(#letterGlow)"
-    font-family="Arial Black, Segoe UI Black, Inter, Arial, sans-serif" font-size="42" font-weight="900"
-    letter-spacing="-4">MP</text>
-  <text x="60" y="76" text-anchor="middle" fill="none" stroke="#fff3bd" stroke-opacity=".16" stroke-width="1.1"
-    font-family="Arial Black, Segoe UI Black, Inter, Arial, sans-serif" font-size="42" font-weight="900"
-    letter-spacing="-4">MP</text>
-  <path d="M25 96h43.4c14.2 0 26.2-5.2 35.8-15.5" fill="none" stroke="#f1c35d" stroke-width="3.4" stroke-linecap="round" opacity=".72"/>
-  <path d="M25 23c18.5-6.4 38.5-7 60-1.8" fill="none" stroke="#fff3bd" stroke-width="2.2" stroke-linecap="round" opacity=".38"/>
+  <rect x="10" y="10" width="100" height="100" rx="24" fill="url(#panel)" filter="url(#shadow)"/>
+  <rect x="10" y="10" width="100" height="100" rx="24" fill="url(#glow)"/>
+  <rect x="13" y="13" width="94" height="94" rx="21" fill="none" stroke="url(#edge)" stroke-width="2"/>
+  <text x="60" y="75" text-anchor="middle" fill="url(#gold)" filter="url(#letterGlow)"
+    font-family="Arial Black, Segoe UI Black, Inter, Arial, sans-serif" font-size="40" font-weight="900"
+    letter-spacing="-2">MP</text>
+  <text x="60" y="75" text-anchor="middle" fill="none" stroke="#fff3bd" stroke-opacity=".18" stroke-width=".9"
+    font-family="Arial Black, Segoe UI Black, Inter, Arial, sans-serif" font-size="40" font-weight="900"
+    letter-spacing="-2">MP</text>
+  <path d="M28 94h40c13 0 24-4.8 33-14.4" fill="none" stroke="#f1c35d" stroke-width="3" stroke-linecap="round" opacity=".66"/>
+  <path d="M29 25c16-5.4 34-5.9 54-1.5" fill="none" stroke="#fff3bd" stroke-width="2" stroke-linecap="round" opacity=".34"/>
 </svg>
