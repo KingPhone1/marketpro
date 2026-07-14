@@ -6531,6 +6531,132 @@ body {
   background: #eef8f2;
 }
 
+/* PWA and final product polish */
+.install-btn {
+  border-color: rgba(230, 184, 79, 0.36);
+  background: linear-gradient(135deg, rgba(230, 184, 79, 0.22), rgba(255, 253, 248, 0.08));
+  color: #ffe5a6;
+}
+
+.product-card {
+  min-height: 0;
+}
+
+.product-card .rating-line,
+.product-card .security-strip {
+  min-height: 0;
+}
+
+.product-card .security-strip span {
+  padding: 4px 7px;
+  font-size: 10px;
+}
+
+.card-foot strong {
+  width: auto;
+  min-width: 42px;
+  border-radius: 999px;
+  background: #11120f;
+  padding: 5px 9px;
+  color: #f4cf76;
+  text-align: center;
+}
+
+.detail-panel {
+  align-self: start;
+  display: grid;
+  gap: 13px;
+}
+
+.detail-title {
+  margin-bottom: 0;
+  font-size: clamp(30px, 3.4vw, 48px);
+}
+
+.detail-panel > p:not(.muted) {
+  border-top: 1px solid rgba(15, 17, 15, 0.08);
+  border-bottom: 1px solid rgba(15, 17, 15, 0.08);
+  margin: 0;
+  padding: 13px 0;
+  color: #4f4a41;
+  line-height: 1.55;
+}
+
+.seller,
+.identity-panel,
+.seller-proof,
+.risk-panel,
+.security-ledger,
+.safety-card,
+.checkout-box,
+.checkout-receipt {
+  box-shadow: none;
+}
+
+.identity-panel {
+  grid-template-columns: 1fr 1fr;
+}
+
+.safety-card {
+  display: none;
+}
+
+.admin-shell {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(230, 184, 79, 0.12), transparent 30%),
+    linear-gradient(180deg, #10110f, #ede5d8 290px, #f8f5ee);
+}
+
+.admin-header,
+.admin-shell > .panel,
+.admin-metrics article {
+  border-radius: 18px;
+  box-shadow: 0 18px 48px rgba(18, 18, 14, 0.12);
+}
+
+.admin-metrics article {
+  border: 1px solid rgba(230, 184, 79, 0.14);
+  background: #fffaf0;
+}
+
+.admin-user {
+  border-radius: 14px;
+  background: #fffdf8;
+}
+
+@media (max-width: 700px) {
+  .install-btn {
+    display: none;
+  }
+
+  .hero-panel,
+  .shield-matrix,
+  .featured-rail,
+  .offer-summary {
+    margin-inline: 0;
+  }
+
+  .featured-rail {
+    display: none;
+  }
+
+  .content-head {
+    margin-top: 10px;
+  }
+
+  .detail-panel {
+    gap: 10px;
+  }
+
+  .identity-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-title {
+    font-size: 30px;
+  }
+}
+
 @media (max-width: 900px) {
   .shield-matrix,
   .shield-grid {

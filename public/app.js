@@ -1,5 +1,7 @@
 ﻿const app = document.querySelector("#app");
 
+let deferredInstallPrompt = null;
+
 const getSessionId = () => {
   const existing = localStorage.getItem("marketSessionId");
   if (existing) return existing;
@@ -96,6 +98,7 @@ const state = {
   user: JSON.parse(localStorage.getItem("marketUser")) || null,
   authToken: localStorage.getItem("marketAuthToken") || "",
   authMode: "login",
+  canInstallPwa: false,
   sessionId: getSessionId(),
   viewKey: 0,
   sellerDashboard: null,
@@ -314,6 +317,7 @@ const topbar = () => `
       <input id="globalSearch" value="${escapeHtml(state.query)}" placeholder="Busca articulos, barrios o categorias" />
     </div>
     <div class="top-actions">
+      ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
       <button class="nav-btn ${state.view === "profile" ? "active" : ""}" data-view="profile">Mi cuenta</button>
       <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
       <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
@@ -559,12 +563,11 @@ const productCard = (item) => `
       ${item.promoted ? `<div class="ad-badge">Anuncio destacado</div>` : ""}
       <div class="security-strip">
         <span>Pago protegido</span>
-        <span>Vendedor verificado</span>
       </div>
       <div class="card-meta">${escapeHtml(item.location)}</div>
       <div class="card-foot">
-        <span>Compra segura</span>
-        <strong>Ver datos</strong>
+        <span>${escapeHtml(item.seller?.verified ? "Verificado" : "Nuevo")}</span>
+        <strong>Ver</strong>
       </div>
     </div>
   </button>
@@ -611,8 +614,8 @@ const securityProtocol = () => `
   <section class="security-protocol">
     <div>
       <p class="eyebrow">Compra protegida</p>
-      <h2>Operaciones con control antes, durante y despues de la entrega.</h2>
-      <p>MarketPro prioriza identidad, trazabilidad y pago vinculado con Mercado Pago. El comprador recibe informacion clara antes de pagar y el vendedor opera con reglas verificables para reducir disputas.</p>
+      <h2>Identidad, pago y entrega bajo control.</h2>
+      <p>MarketPro conserva la evidencia clave de cada operacion y evita pagos fuera de la app.</p>
     </div>
     <div class="fraud-grid">
       ${fraudScenarios.map((scenario) => `<article><strong>${escapeHtml(scenario.title)}</strong><span>${escapeHtml(scenario.text)}</span></article>`).join("")}
@@ -623,8 +626,8 @@ const securityProtocol = () => `
 const offerSummary = () => `
   <section class="offer-summary">
     <p class="eyebrow">MarketPro</p>
-    <h2>Un MarketPro sobrio para comprar y vender con respaldo.</h2>
-    <p>Publicaciones cuidadas, vendedores verificados, chat integrado, checkout interno y confirmacion de entrega. La experiencia esta pensada para operaciones claras, rapidas y con menos friccion.</p>
+    <h2>Compra simple. Venta verificada.</h2>
+    <p>Publicaciones claras, chat conectado, pago por Mercado Pago y entrega con codigo unico.</p>
   </section>
 `;
 
@@ -789,8 +792,8 @@ const feedView = () => {
       <section class="hero-panel">
         <div>
           <p class="eyebrow">MarketPro verificado</p>
-          <h1>Compra y venta con respaldo operativo.</h1>
-          <p>Productos seleccionados, vendedores verificados y pago vinculado con Mercado Pago. Una experiencia mas seria para operaciones entre personas.</p>
+          <h1>Compra y vende con verificacion real.</h1>
+          <p>Vendedores revisados, pago vinculado y entrega protegida por codigo unico.</p>
           <div class="hero-metrics">
             <span><strong>${products.length}</strong> publicaciones</span>
             <span><strong>Pago</strong> protegido</span>
@@ -810,7 +813,6 @@ const feedView = () => {
         <article><span>02</span><strong>Checkout interno</strong><p>Direccion, metodo y comprobante quedan en la orden.</p></article>
         <article><span>03</span><strong>Entrega confirmada</strong><p>El pago se libera cuando la recepcion queda validada.</p></article>
       </section>
-      ${securityProtocol()}
       ${featuredRail()}
       <div class="content-head">
         <div>
@@ -1434,6 +1436,7 @@ const bindEvents = () => {
   document.querySelector("#markTransitForm")?.addEventListener("submit", markOrderInTransit);
   document.querySelector("#disputeForm")?.addEventListener("submit", openDispute);
   document.querySelector("#entryForm")?.addEventListener("submit", authenticate);
+  document.querySelector("#installPwa")?.addEventListener("click", installPwa);
   document.querySelector("#loginForm")?.addEventListener("submit", loginUser);
   document.querySelector("#resetRequestForm")?.addEventListener("submit", requestPasswordReset);
   document.querySelector("#resetConfirmForm")?.addEventListener("submit", confirmPasswordReset);
@@ -2058,6 +2061,31 @@ const deleteListing = async (id) => {
   await refreshSellerDashboard();
   render();
 };
+
+const installPwa = async () => {
+  if (!deferredInstallPrompt) {
+    alert("Si tu navegador no muestra instalacion automatica, abre el menu y elige Agregar a pantalla de inicio.");
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  state.canInstallPwa = false;
+  render();
+};
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  state.canInstallPwa = true;
+  render();
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  state.canInstallPwa = false;
+  render();
+});
 
 loadData();
 
