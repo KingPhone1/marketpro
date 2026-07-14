@@ -68,6 +68,15 @@ const shieldControls = [
   ["Disputa fuerte", "Ordena evidencia, chat y recepcion para decision admin."]
 ];
 
+const reviewReadiness = [
+  ["Privacidad clara", "Explica que datos se guardan, para que se usan y como pedir eliminacion."],
+  ["Cuenta eliminable", "El usuario puede cerrar su cuenta desde Mi cuenta sin depender del admin."],
+  ["Moderacion activa", "Publicaciones y chats se pueden reportar; el admin recibe evidencia."],
+  ["Bloqueo preventivo", "Si una conversacion se vuelve riesgosa, el usuario puede bloquearla."],
+  ["Pago transparente", "MarketPro deriva el cobro a Mercado Pago y no almacena tarjetas."],
+  ["Soporte visible", "Hay un canal simple para problemas de cuenta, compra, venta o seguridad."]
+];
+
 const fraudPatterns = [
   { label: "pago externo", pattern: /(transferencia|dep[oó]sito|fuera de la app|por fuera|zelle|paypal|cuenta bancaria|efectivo|cash|cripto|usdt|binance|giro)/i },
   { label: "codigo sensible", pattern: /(otp|pin|clave|contrase[nñ]a|token|codigo de entrega|codigo privado|verificaci[oó]n)/i },
@@ -76,10 +85,18 @@ const fraudPatterns = [
   { label: "presion", pattern: /(urgente|ya mismo|apurate|solo hoy|ultimo aviso|si no ahora)/i }
 ];
 
+const initialView = () => {
+  if (location.pathname === "/privacy") return "legal";
+  if (location.pathname === "/support") return "support";
+  if (location.pathname === "/security") return "security";
+  const page = new URLSearchParams(location.search).get("page");
+  return ["legal", "support", "security"].includes(page) ? page : "feed";
+};
+
 const state = {
   products: [],
   conversations: [],
-  view: "feed",
+  view: initialView(),
   selectedProductId: null,
   selectedChatId: null,
   checkoutOrder: null,
@@ -320,6 +337,7 @@ const topbar = () => `
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
       <button class="nav-btn ${state.view === "profile" ? "active" : ""}" data-view="profile">Mi cuenta</button>
       <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
+      <button class="nav-btn ${state.view === "security" ? "active" : ""}" data-view="security">Seguridad</button>
       <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
       <button class="cart-btn ${state.view === "profile" ? "active" : ""}" data-view="profile">0</button>
       <button class="avatar-btn ${state.view === "profile" ? "active" : ""}" data-view="profile" title="Perfil">${state.user ? state.user.name[0] : "E"}</button>
@@ -334,6 +352,20 @@ const topbar = () => `
     <button class="${state.view === "messages" ? "active" : ""}" data-view="messages" aria-label="Chats"><span>✉</span><small>Chats</small></button>
     <button class="${state.view === "profile" ? "active" : ""}" data-view="profile" aria-label="Perfil"><span>◉</span><small>Perfil</small></button>
   </nav>
+`;
+
+const appFooter = () => `
+  <footer class="app-footer">
+    <div>
+      <strong>MarketPro</strong>
+      <span>Compraventa verificada con Mercado Pago, chat seguro y entrega por codigo unico.</span>
+    </div>
+    <nav>
+      <button data-view="security">Seguridad</button>
+      <button data-view="support">Soporte</button>
+      <button data-view="legal">Privacidad</button>
+    </nav>
+  </footer>
 `;
 
 const pwaInstallCard = () => `
@@ -641,6 +673,87 @@ const offerSummary = () => `
   </section>
 `;
 
+const securityView = () => `
+  ${sidebar()}
+  <main>
+    <div class="toolbar-row">
+      <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
+    </div>
+    <section class="panel trust-center">
+      <p class="eyebrow">Centro de confianza</p>
+      <h1>MarketPro protege identidad, pago, chat y entrega.</h1>
+      <p class="muted">Esta pantalla muestra lo que el usuario necesita saber. Los controles internos sensibles quedan solo para administracion.</p>
+      <div class="trust-center-grid">
+        ${reviewReadiness.map(([title, text]) => `<article><strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span></article>`).join("")}
+      </div>
+    </section>
+    ${securityProtocol()}
+    <section class="panel secure-flow-panel">
+      <p class="eyebrow">Entrega con codigo unico</p>
+      <h2>El vendedor no recibe liberacion si el comprador no entrega el codigo correcto.</h2>
+      <div class="secure-flow">
+        <span>1. Orden y pago por Mercado Pago</span>
+        <span>2. Publicacion congelada</span>
+        <span>3. Evidencia del vendedor</span>
+        <span>4. Revision del comprador</span>
+        <span>5. Codigo unico y cierre</span>
+      </div>
+    </section>
+  </main>
+`;
+
+const supportView = () => `
+  ${sidebar()}
+  <main>
+    <div class="toolbar-row">
+      <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
+    </div>
+    <section class="panel support-panel">
+      <p class="eyebrow">Soporte MarketPro</p>
+      <h1>Reporta problemas de cuenta, compra, venta o seguridad.</h1>
+      <p class="muted">El mensaje queda guardado para el admin con tu identidad de sesion y prioridad de riesgo.</p>
+      <form id="supportForm" class="support-form">
+        <div class="two-col">
+          <div class="field">
+            <label>Tipo de ayuda</label>
+            <select name="topic" required>
+              <option>Problema de compra</option>
+              <option>Problema de venta</option>
+              <option>Cuenta o verificacion</option>
+              <option>Pago Mercado Pago</option>
+              <option>Estafa o seguridad</option>
+            </select>
+          </div>
+          <div class="field"><label>Contacto</label><input name="contact" value="${escapeHtml(state.user?.email || "")}" placeholder="Email o telefono" /></div>
+        </div>
+        <div class="field"><label>Mensaje</label><textarea name="message" required placeholder="Cuenta que paso con detalles, numero de orden o publicacion"></textarea></div>
+        <button class="buy-action" type="submit">Enviar soporte</button>
+      </form>
+    </section>
+  </main>
+`;
+
+const legalView = () => `
+  ${sidebar()}
+  <main>
+    <div class="toolbar-row">
+      <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
+    </div>
+    <section class="panel legal-panel">
+      <p class="eyebrow">Privacidad y condiciones</p>
+      <h1>Datos usados para seguridad, no para decorar perfiles.</h1>
+      <div class="legal-grid">
+        <article><strong>Datos de cuenta</strong><span>Gmail, contrasena protegida, telefono, cedula, foto de rostro y foto frontal del documento para revision admin.</span></article>
+        <article><strong>Operaciones</strong><span>Publicaciones, chats, ordenes, evidencias, reportes, pagos derivados a Mercado Pago y estados de entrega.</span></article>
+        <article><strong>Pagos</strong><span>MarketPro no almacena tarjetas. El pago se realiza en Mercado Pago vinculado a la app.</span></article>
+        <article><strong>Eliminacion</strong><span>Desde Mi cuenta puedes solicitar/eliminar tu cuenta. Tus publicaciones quedan pausadas para evitar operaciones incompletas.</span></article>
+        <article><strong>Moderacion</strong><span>Reportes de publicaciones, chats y disputas quedan disponibles para el admin.</span></article>
+        <article><strong>Seguridad</strong><span>No compartas codigos antes de revisar el articulo. El codigo unico cambia por cada orden.</span></article>
+      </div>
+    </section>
+  </main>
+`;
+
 const featuredRail = () => `
   <section class="featured-rail">
     <div>
@@ -785,6 +898,11 @@ const entryGate = () => `
         </form>
         <a href="/admin.html">Abrir panel privado</a>
       </section>` : ""}
+      <nav class="entry-legal-links">
+        <button type="button" data-view="security">Seguridad</button>
+        <button type="button" data-view="support">Soporte</button>
+        <button type="button" data-view="legal">Privacidad</button>
+      </nav>
     </section>
     ${pwaInstallCard()}
   </main>
@@ -1137,11 +1255,15 @@ const messagesView = () => {
                       ${msg.risk?.level && msg.risk.level !== "Bajo" ? `<small class="risk-note">Alerta ${escapeHtml(msg.risk.level)}: ${escapeHtml(msg.risk.flags.join(", "))}</small>` : ""}
                     </div>`
                   )
-                  .join("")}
+            .join("")}
+              </div>
+              <div class="chat-tools">
+                <button class="secondary-btn" id="reportChat">Reportar chat</button>
+                <button class="danger-btn" id="blockChat">${active.blocked ? "Chat bloqueado" : "Bloquear chat"}</button>
               </div>
               <form class="message-form" id="messageForm">
-                <input name="message" autocomplete="off" placeholder="Escribe dentro del chat seguro" />
-                <button class="send-btn" title="Enviar">Enviar</button>
+                <input name="message" autocomplete="off" placeholder="${active.blocked ? "Chat bloqueado por seguridad" : "Escribe dentro del chat seguro"}" ${active.blocked ? "disabled" : ""} />
+                <button class="send-btn" title="Enviar" ${active.blocked ? "disabled" : ""}>Enviar</button>
               </form>
             </section>`
           : `<div class="empty">Todavia no tienes chats reales. Abre una publicacion y contacta al vendedor para iniciar una conversacion conectada.</div>`
@@ -1235,6 +1357,7 @@ const profileView = () => {
             </div>
           </div>
           <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesion</button>
+          <button class="danger-btn account-delete-btn" id="deleteAccount">Eliminar cuenta</button>
         </section>
       </main>
     `;
@@ -1264,6 +1387,7 @@ const profileView = () => {
             </div>
           </div>
           <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesion</button>
+          <button class="danger-btn account-delete-btn" id="deleteAccount">Eliminar cuenta</button>
         </section>
       </main>
     `;
@@ -1334,6 +1458,17 @@ const profileView = () => {
             : `<div class="empty">Publica un producto activo para poder destacarlo.</div>`
         }
       </section>
+      <section class="panel account-control-panel">
+        <div>
+          <p class="eyebrow">Cuenta</p>
+          <h2>Control de privacidad</h2>
+          <p class="muted">Puedes cerrar sesion o eliminar la cuenta. Si eliminas la cuenta, tus publicaciones quedan pausadas para evitar ventas incompletas.</p>
+        </div>
+        <div class="account-actions">
+          <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesion</button>
+          <button class="danger-btn" id="deleteAccount">Eliminar cuenta</button>
+        </div>
+      </section>
       <section class="grid profile-grid">
         ${
           visible.length
@@ -1370,11 +1505,15 @@ const view = () =>
     detail: detailView,
     compose: composeView,
     messages: messagesView,
-    profile: profileView
+    profile: profileView,
+    security: securityView,
+    support: supportView,
+    legal: legalView
   })[state.view]();
 
 const render = () => {
-  if (!hasCompleteAccess()) {
+  const publicView = ["security", "support", "legal"].includes(state.view);
+  if (!hasCompleteAccess() && !publicView) {
     app.innerHTML = `<div class="app-shell">${entryGate()}</div>`;
     bindEvents();
     return;
@@ -1384,6 +1523,7 @@ const render = () => {
       ${topbar()}
       ${pwaInstallCard()}
       <div class="main-layout view-surface ${state.filtersOpen ? "" : "filters-collapsed"}" data-view-key="${state.viewKey}">${view()}</div>
+      ${appFooter()}
     </div>
   `;
   bindEvents();
@@ -1479,6 +1619,10 @@ const bindEvents = () => {
   });
 
   document.querySelector("#messageForm")?.addEventListener("submit", sendMessage);
+  document.querySelector("#reportChat")?.addEventListener("click", reportActiveChat);
+  document.querySelector("#blockChat")?.addEventListener("click", blockActiveChat);
+  document.querySelector("#supportForm")?.addEventListener("submit", submitSupport);
+  document.querySelector("#deleteAccount")?.addEventListener("click", deleteAccount);
 
   document.querySelectorAll("[data-profile-tab]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1688,13 +1832,73 @@ const startConversation = async () => {
 
 const reportListing = async () => {
   const item = selectedProduct();
-  const updated = await api(`/api/products/${item.id}`, {
-    method: "PUT",
-    body: JSON.stringify({ reportCount: (item.reportCount || 0) + 1 })
+  const reason = prompt("Motivo del reporte", "Posible estafa o informacion incorrecta");
+  if (!reason) return;
+  const result = await api(`/api/products/${item.id}/report`, {
+    method: "POST",
+    body: JSON.stringify({ reason, details: reason })
   });
-  state.products = state.products.map((product) => (product.id === item.id ? normalizeProduct(updated) : product));
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  state.products = state.products.map((product) => (product.id === item.id ? normalizeProduct(result.product) : product));
   alert("Gracias. Revisaremos esta publicacion.");
   render();
+};
+
+const activeChat = () => state.conversations.find((chat) => chat.id === state.selectedChatId) || state.conversations[0];
+
+const reportActiveChat = async () => {
+  const chat = activeChat();
+  if (!chat) return;
+  const reason = prompt("Motivo del reporte", "Mensaje sospechoso o intento de pago fuera de MarketPro");
+  if (!reason) return;
+  const result = await api(`/api/conversations/${chat.id}/report`, {
+    method: "POST",
+    body: JSON.stringify({ reason, details: reason })
+  });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  alert("Chat reportado. El admin podra revisar la evidencia.");
+};
+
+const blockActiveChat = async () => {
+  const chat = activeChat();
+  if (!chat || chat.blocked) return;
+  if (!confirm("¿Bloquear este chat por seguridad? No se podran enviar mas mensajes en esta conversacion.")) return;
+  const result = await api(`/api/conversations/${chat.id}/block`, {
+    method: "POST",
+    body: JSON.stringify({ reason: "Bloqueo solicitado por usuario" })
+  });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  state.conversations = state.conversations.map((item) => (item.id === chat.id ? { ...item, blocked: true } : item));
+  alert("Chat bloqueado y enviado a revision.");
+  render();
+};
+
+const submitSupport = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const result = await api("/api/support", {
+    method: "POST",
+    body: JSON.stringify({
+      topic: requiredValue(data, "topic"),
+      contact: requiredValue(data, "contact"),
+      message: requiredValue(data, "message")
+    })
+  });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  alert(`Soporte recibido. Ticket ${result.id}`);
+  event.currentTarget.reset();
 };
 
 const secureCheckout = async (event) => {
@@ -1887,6 +2091,11 @@ const openDispute = async (event) => {
 
 const sendMessage = (event) => {
   event.preventDefault();
+  const chat = activeChat();
+  if (chat?.blocked) {
+    alert("Este chat esta bloqueado por seguridad.");
+    return;
+  }
   const input = event.currentTarget.message;
   const text = input.value.trim();
   if (!text) return;
@@ -2051,6 +2260,29 @@ const logoutUser = () => {
   localStorage.removeItem("marketAuthToken");
   sessionStorage.removeItem("mpAdminToken");
   connectSocket();
+  render();
+  scrollToTop();
+};
+
+const deleteAccount = async () => {
+  if (!state.authToken) {
+    alert("Para eliminar la cuenta tienes que iniciar sesion.");
+    return;
+  }
+  const confirmed = confirm("¿Eliminar tu cuenta de MarketPro? Tus publicaciones quedaran pausadas y la sesion se cerrara.");
+  if (!confirmed) return;
+  const result = await api("/api/user", { method: "DELETE" });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  state.authToken = "";
+  state.user = null;
+  state.sellerDashboard = null;
+  state.view = "profile";
+  localStorage.removeItem("marketUser");
+  localStorage.removeItem("marketAuthToken");
+  alert("Cuenta eliminada. Tus publicaciones quedaron pausadas por seguridad.");
   render();
   scrollToTop();
 };

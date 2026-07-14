@@ -168,6 +168,9 @@ const dashboardView = () => {
   const pendingUsers = reviewableUsers.filter((user) => !user.verified);
   const approvedUsers = reviewableUsers.filter((user) => user.verified);
   const orders = overview.orders || [];
+  const reports = overview.reports || [];
+  const supportTickets = overview.supportTickets || [];
+  const blockedPairs = overview.blockedPairs || [];
   const disputes = orders.flatMap((order) => (order.disputes || []).map((dispute) => ({ ...dispute, order })));
   const pending = pendingUsers.length;
   const verified = approvedUsers.length;
@@ -190,11 +193,53 @@ const dashboardView = () => {
       <div class="metric-card"><span>Publicaciones</span><strong>${overview.products.length}</strong></div>
       <div class="metric-card"><span>Ordenes</span><strong>${orders.length}</strong></div>
       <div class="metric-card"><span>Disputas</span><strong>${disputes.filter((item) => item.status !== "Cerrada").length}</strong></div>
+      <div class="metric-card"><span>Reportes</span><strong>${reports.length}</strong></div>
+      <div class="metric-card"><span>Soporte</span><strong>${supportTickets.length}</strong></div>
     </section>
 
     ${mercadoPagoView()}
 
     ${privateRoadmapView()}
+
+    <section class="panel">
+      <div class="admin-section-head">
+        <div>
+          <p class="eyebrow">Moderacion</p>
+          <h1>Reportes, soporte y bloqueos</h1>
+        </div>
+      </div>
+      <div class="admin-orders moderation-grid">
+        ${reports.length ? reports.slice(0, 12).map((report) => `
+          <article class="admin-order moderation-card">
+            <div>
+              <strong>${escapeHtml(report.reason)}</strong>
+              <span>${escapeHtml(report.type)} - ${escapeHtml(report.status)} - Riesgo ${escapeHtml(report.risk?.level || "Bajo")}</span>
+            </div>
+            <div><small>Articulo/chat</small><b>${escapeHtml(report.productTitle || report.chatId || "")}</b></div>
+            <div><small>Reporta</small><b>${escapeHtml(report.reporter?.name || "Usuario")}</b></div>
+            <div><small>Fecha</small><b>${escapeHtml(report.createdAt || "")}</b></div>
+          </article>
+        `).join("") : `<div class="empty">No hay reportes pendientes.</div>`}
+        ${supportTickets.length ? supportTickets.slice(0, 8).map((ticket) => `
+          <article class="admin-order moderation-card">
+            <div>
+              <strong>${escapeHtml(ticket.topic)}</strong>
+              <span>${escapeHtml(ticket.status)} - Prioridad ${escapeHtml(ticket.priority || "Bajo")}</span>
+            </div>
+            <div><small>Contacto</small><b>${escapeHtml(ticket.contact || "")}</b></div>
+            <div><small>Mensaje</small><b>${escapeHtml(ticket.message || "")}</b></div>
+          </article>
+        `).join("") : ""}
+        ${blockedPairs.length ? `
+          <article class="admin-order moderation-card">
+            <div>
+              <strong>Chats bloqueados</strong>
+              <span>${blockedPairs.length} bloqueos preventivos activos</span>
+            </div>
+          </article>
+        ` : ""}
+      </div>
+    </section>
 
     <section class="panel">
       <div class="admin-section-head">

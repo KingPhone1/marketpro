@@ -6815,6 +6815,24 @@ body {
   box-shadow: 0 10px 22px rgba(15, 17, 15, 0.16);
 }
 
+.entry-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 20px 0;
+}
+
+.entry-legal-links button {
+  flex: 1;
+  min-height: 38px;
+  border: 1px solid rgba(15, 17, 15, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.72);
+  color: #30291e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .register-link-btn {
   border: 1px solid rgba(15, 17, 15, 0.12);
   background: rgba(255, 253, 248, 0.72);
@@ -6880,5 +6898,216 @@ body {
   .mini-auth-form,
   #resetConfirmForm {
     grid-template-columns: 1fr;
+  }
+}
+
+/* App readiness, trust center and moderation controls */
+.app-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  max-width: 1320px;
+  margin: 18px auto 0;
+  padding: 18px 22px 92px;
+  color: rgba(255, 253, 248, 0.72);
+}
+
+.app-footer strong {
+  display: block;
+  color: #f4cf76;
+  font-size: 13px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.app-footer span {
+  display: block;
+  max-width: 560px;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.app-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.app-footer button,
+.chat-tools button,
+.account-actions button {
+  min-height: 38px;
+}
+
+.app-footer button {
+  border: 1px solid rgba(244, 207, 118, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.06);
+  padding: 0 14px;
+  color: #fffdf8;
+  font-weight: 850;
+}
+
+.trust-center,
+.support-panel,
+.legal-panel,
+.secure-flow-panel,
+.account-control-panel {
+  border-color: rgba(244, 207, 118, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(238, 231, 216, 0.94)),
+    radial-gradient(circle at top right, rgba(244, 207, 118, 0.18), transparent 34%);
+}
+
+.trust-center h1,
+.support-panel h1,
+.legal-panel h1 {
+  max-width: 760px;
+  font-size: clamp(32px, 5vw, 64px);
+  line-height: .96;
+  letter-spacing: 0;
+}
+
+.trust-center-grid,
+.legal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.trust-center-grid article,
+.legal-grid article,
+.secure-flow span {
+  border: 1px solid rgba(15, 17, 15, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.66);
+  padding: 14px;
+}
+
+.trust-center-grid strong,
+.legal-grid strong {
+  display: block;
+  color: #11120f;
+  font-size: 14px;
+}
+
+.trust-center-grid span,
+.legal-grid span {
+  display: block;
+  margin-top: 6px;
+  color: #5d5648;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.secure-flow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.secure-flow span {
+  color: #211d16;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.support-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.support-form textarea {
+  min-height: 132px;
+  resize: vertical;
+}
+
+.chat-tools {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 0 0;
+}
+
+.chat-main:has(.message-form input:disabled) {
+  border-color: rgba(196, 45, 45, 0.22);
+}
+
+.account-control-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.account-delete-btn {
+  margin-top: 10px;
+}
+
+.moderation-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.moderation-card {
+  border-left: 3px solid #c42d2d;
+}
+
+@media (max-width: 980px) {
+  .trust-center-grid,
+  .legal-grid,
+  .secure-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .app-footer,
+  .account-control-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .app-footer {
+    margin: 8px 10px 0;
+    padding: 16px 6px 104px;
+  }
+
+  .app-footer nav,
+  .account-actions,
+  .chat-tools {
+    justify-content: stretch;
+  }
+
+  .app-footer button,
+  .chat-tools button,
+  .account-actions button {
+    flex: 1;
+  }
+
+  .trust-center-grid,
+  .legal-grid,
+  .secure-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .trust-center h1,
+  .support-panel h1,
+  .legal-panel h1 {
+    font-size: 34px;
   }
 }

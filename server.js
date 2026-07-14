@@ -102,6 +102,9 @@ const defaultStore = {
   products,
   conversations,
   orders: [],
+  reports: [],
+  supportTickets: [],
+  blockedPairs: [],
   users: [demoUser],
   currentUser: null,
   verificationRequests: [],
@@ -613,6 +616,9 @@ const hydrateRuntimeStore = (nextStore = {}) => {
   store.products = listings;
   store.conversations = chats;
   store.orders = store.orders || [];
+  store.reports = store.reports || [];
+  store.supportTickets = store.supportTickets || [];
+  store.blockedPairs = store.blockedPairs || [];
   store.promotions = store.promotions || [];
   store.users = store.users?.length ? store.users : [demoUser];
   store.currentUser = store.currentUser || null;
@@ -664,6 +670,12 @@ app.get("/admin", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "admin.html"));
 });
 
+["/privacy", "/support", "/security"].forEach((route) => {
+  app.get(route, (_req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+  });
+});
+
 app.get("/healthz", (_req, res) => {
   res.json({
     ok: true,
@@ -702,10 +714,14 @@ const isParticipant = (chat, identity) => {
 
 const publicChatFor = (chat, identity) => {
   const other = (chat.participants || []).find((participant) => String(participant.id) !== String(identity.id));
+  const blocked = (store.blockedPairs || []).some((item) =>
+    item.chatId === chat.id && (item.by === identity.id || item.target === identity.id || item.byEmail === identity.email || item.targetEmail === identity.email)
+  );
   return {
     ...chat,
     avatar: other?.avatar || chat.avatar,
     seller: chat.seller,
+    blocked,
     otherParticipant: other || null
   };
 };
@@ -939,6 +955,34 @@ app.get("/api/user", (req, res) => {
   res.json(publicUser(authenticatedUser(req)));
 });
 
+app.delete("/api/user", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Sesion requerida" });
+  const email = String(user.email || "").toLowerCase();
+  const userId = user.id;
+  store.users = (store.users || []).filter((item) => item.id !== userId && String(item.email || "").toLowerCase() !== email);
+  store.sessions = (store.sessions || []).filter((session) => session.userId !== userId && String(session.email || "").toLowerCase() !== email);
+  store.verificationRequests = (store.verificationRequests || []).filter((request) => request.userId !== userId);
+  listings = listings.map((product) =>
+    String(product.seller?.email || "").toLowerCase() === email || product.seller?.name === user.name
+      ? { ...product, status: "paused", hiddenReason: "Cuenta eliminada por el usuario" }
+      : product
+  );
+  chats = chats.map((chat) =>
+    isParticipant(chat, { id: userId, email })
+      ? { ...chat, archived: true, archivedReason: "Cuenta eliminada por un participante" }
+      : chat
+  );
+  store.products = listings;
+  store.conversations = chats;
+  store.accountDeletionLog = [
+    { userId, email, deletedAt: new Date().toISOString(), action: "Cuenta eliminada y publicaciones pausadas" },
+    ...(store.accountDeletionLog || []).slice(0, 100)
+  ];
+  writeStore();
+  res.json({ ok: true });
+});
+
 app.post("/api/user", (req, res) => {
   const required = ["name", "email", "password", "phone", "cedula", "exactLocation", "profilePhoto", "documentPhoto"];
   const missing = required.filter((field) => !req.body[field]);
@@ -1105,6 +1149,9 @@ app.get("/api/admin/overview", requireAdmin, (_req, res) => {
     products: listings,
     conversations: chats,
     orders: store.orders || [],
+    reports: store.reports || [],
+    supportTickets: store.supportTickets || [],
+    blockedPairs: store.blockedPairs || [],
     memory: store.memory
   });
 });
@@ -1316,12 +1363,62 @@ app.put("/api/products/:id", (req, res) => {
   res.json(listings[index]);
 });
 
+app.post("/api/products/:id/report", (req, res) => {
+  const product = listings.find((item) => item.id === req.params.id);
+  if (!product) return res.status(404).json({ error: "Publicacion no encontrada" });
+  const reporter = requestIdentity(req);
+  const risk = analyzeTextRisk(`${req.body.reason || ""} ${req.body.details || ""}`);
+  const report = {
+    id: `report-${Date.now()}`,
+    type: "listing",
+    productId: product.id,
+    productTitle: product.title,
+    reason: req.body.reason || "Reporte de publicacion",
+    details: req.body.details || "",
+    reporter,
+    status: "Pendiente admin",
+    risk,
+    createdAt: new Date().toISOString()
+  };
+  product.reportCount = Number(product.reportCount || 0) + 1;
+  product.security = product.security || {};
+  product.security.lastReportRisk = risk;
+  if (product.reportCount >= 3 || risk.level === "Alto") {
+    product.security.reviewRequired = true;
+    product.status = product.status === "sold" ? product.status : "under-review";
+  }
+  store.reports = [report, ...(store.reports || [])].slice(0, 400);
+  store.products = listings;
+  writeStore();
+  res.status(201).json({ ok: true, report, product });
+});
+
 app.delete("/api/products/:id", (req, res) => {
   const before = listings.length;
   listings = listings.filter((item) => item.id !== req.params.id);
   store.products = listings;
   writeStore();
   res.json({ deleted: listings.length !== before });
+});
+
+app.post("/api/support", (req, res) => {
+  const identity = requestIdentity(req);
+  const required = ["topic", "message"];
+  const missing = required.filter((field) => !req.body[field]);
+  if (missing.length) return res.status(400).json({ error: "Faltan datos", fields: missing });
+  const ticket = {
+    id: `support-${Date.now()}`,
+    topic: String(req.body.topic || "").slice(0, 80),
+    message: String(req.body.message || "").slice(0, 1200),
+    contact: String(req.body.contact || identity.email || "").slice(0, 120),
+    identity,
+    status: "Abierto",
+    priority: analyzeTextRisk(req.body.message).level,
+    createdAt: new Date().toISOString()
+  };
+  store.supportTickets = [ticket, ...(store.supportTickets || [])].slice(0, 300);
+  writeStore();
+  res.status(201).json(ticket);
 });
 
 app.post("/api/checkout", async (req, res) => {
@@ -1733,6 +1830,54 @@ app.post("/api/conversations", (req, res) => {
   res.status(201).json(chat);
 });
 
+app.post("/api/conversations/:id/report", (req, res) => {
+  const chat = chats.find((item) => item.id === req.params.id);
+  if (!chat) return res.status(404).json({ error: "Chat no encontrado" });
+  const reporter = requestIdentity(req);
+  const report = {
+    id: `report-${Date.now()}`,
+    type: "chat",
+    chatId: chat.id,
+    productTitle: chat.productTitle,
+    reason: req.body.reason || "Reporte de chat",
+    details: req.body.details || "",
+    reporter,
+    status: "Pendiente admin",
+    risk: analyzeTextRisk(`${req.body.reason || ""} ${req.body.details || ""}`),
+    createdAt: new Date().toISOString()
+  };
+  store.reports = [report, ...(store.reports || [])].slice(0, 400);
+  chat.reviewRequired = true;
+  store.conversations = chats;
+  writeStore();
+  res.status(201).json({ ok: true, report });
+});
+
+app.post("/api/conversations/:id/block", (req, res) => {
+  const chat = chats.find((item) => item.id === req.params.id);
+  if (!chat) return res.status(404).json({ error: "Chat no encontrado" });
+  const identity = requestIdentity(req);
+  const other = (chat.participants || []).find((participant) =>
+    String(participant.id) !== String(identity.id) && String(participant.email || "") !== String(identity.email || "")
+  );
+  const block = {
+    id: `block-${Date.now()}`,
+    chatId: chat.id,
+    by: identity.id,
+    byEmail: identity.email,
+    target: other?.id || chat.sellerId || "",
+    targetEmail: other?.email || "",
+    reason: req.body.reason || "Bloqueo preventivo",
+    createdAt: new Date().toISOString()
+  };
+  store.blockedPairs = [block, ...(store.blockedPairs || [])].slice(0, 300);
+  chat.blocked = true;
+  chat.reviewRequired = true;
+  store.conversations = chats;
+  writeStore();
+  res.status(201).json({ ok: true, block });
+});
+
 wss.on("connection", (socket) => {
   socket.identity = null;
   socket.on("message", (raw) => {
@@ -1745,6 +1890,8 @@ wss.on("connection", (socket) => {
     const chat = chats.find((item) => item.id === payload.chatId);
     const sender = payload.message?.senderId || socket.identity?.id || "";
     if (!chat || !participantIds(chat).has(String(sender))) return;
+    const blocked = (store.blockedPairs || []).some((item) => item.chatId === chat.id);
+    if (blocked || chat.blocked) return;
     const risk = analyzeTextRisk(payload.message?.text || "");
     payload.message.risk = risk;
     const systemRiskMessage = risk.level === "Alto"
