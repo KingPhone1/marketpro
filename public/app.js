@@ -784,8 +784,8 @@ const entryGate = () => `
     </div>
     <section class="entry-copy">
       <p class="eyebrow">Acceso seguro</p>
-      <h1>Primero cuenta. Despues verificacion.</h1>
-      <p>MarketPro abre la app solo cuando el perfil queda completo. Asi cada chat, compra y publicacion nace con una identidad real para revisar.</p>
+      <h1>Cuenta segura.<br />Verificacion real.</h1>
+      <p>Identidad revisada, pagos vinculados y entrega protegida.</p>
       <div class="entry-trust">
         <span>Gmail + contrasena</span>
         <span>Cedula revisable</span>
@@ -811,7 +811,7 @@ const entryGate = () => `
       </div>
       <div class="auth-switch">
         <button class="${state.authMode === "login" ? "active" : ""}" type="button" data-auth-mode="login">Entrar</button>
-        <button class="${state.authMode === "register" ? "active" : ""}" type="button" data-auth-mode="register">Registrarme</button>
+        <button class="${state.authMode === "register" ? "active" : ""}" type="button" data-auth-mode="register">Crear</button>
       </div>
       ${state.authMode === "login" ? `<section class="login-panel">
         <div class="block-title"><span>Entrar</span><small>Si ya tienes cuenta, usa tu Gmail y contrasena</small></div>
