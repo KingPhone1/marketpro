@@ -6516,6 +6516,21 @@ body {
   color: #ffe7aa;
 }
 
+.release-form {
+  border-color: rgba(12, 122, 82, 0.28);
+  background: linear-gradient(135deg, #eef8f2, #fffdf8);
+}
+
+.release-form small {
+  color: #4c6258;
+  line-height: 1.45;
+}
+
+.release-ok {
+  border-color: rgba(12, 122, 82, 0.28);
+  background: #eef8f2;
+}
+
 @media (max-width: 900px) {
   .shield-matrix,
   .shield-grid {

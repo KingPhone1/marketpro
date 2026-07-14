@@ -433,8 +433,8 @@ const deliveryWorkflow = (order) => {
     <section class="delivery-workflow">
       <div class="delivery-status">
         <span>Entrega protegida</span>
-        <strong>${escapeHtml(order.delivery.status)}</strong>
-        <small>${hasOpenDispute ? "Disputa abierta: cierre bloqueado" : "Checklist anti-estafa activo"}</small>
+        <strong>${escapeHtml(order.paymentRelease?.status || order.delivery.status)}</strong>
+        <small>${hasOpenDispute ? "Disputa abierta: cierre bloqueado" : "Pago retenido hasta codigo unico de entrega"}</small>
       </div>
       <div class="delivery-steps">
         <span class="${proof ? "done" : ""}">1. Evidencia vendedor</span>
@@ -477,6 +477,20 @@ const deliveryWorkflow = (order) => {
         <input name="conditionNote" placeholder="Observacion final de recepcion" />
         <button class="buy-action" type="submit">Confirmar entrega</button>
       </form>
+      ${inspection && order.paymentRelease?.status !== "Liberado" ? `
+        <form class="secure-subform release-form" id="releasePaymentForm">
+          <strong>Liberar pago al vendedor</strong>
+          <small>El comprador entrega este codigo solo despues de revisar producto, accesorios y estado. Cada orden tiene un codigo diferente.</small>
+          <input name="code" required placeholder="Codigo unico de esta orden" />
+          <button class="buy-action" type="submit">Liberar pago</button>
+        </form>
+      ` : ""}
+      ${order.paymentRelease?.status === "Liberado" ? `
+        <div class="proof-summary release-ok">
+          <strong>Pago liberado</strong>
+          <span>Codigo unico validado el ${escapeHtml(order.paymentRelease.releasedAt || "")}</span>
+        </div>
+      ` : ""}
       ${inspection && !order.sellerRating ? `
         <form class="secure-subform rating-form" id="sellerRatingForm">
           <strong>Calificar vendedor</strong>
@@ -887,7 +901,7 @@ const detailView = () => {
             <section class="checkout-receipt">
               <span>Compra iniciada</span>
               <strong>${escapeHtml(state.checkoutOrder.status)}</strong>
-              <small>Orden ${escapeHtml(state.checkoutOrder.id)} - Codigo de entrega: ${escapeHtml(state.checkoutOrder.delivery.code)}. Huella: ${escapeHtml(state.checkoutOrder.security.stamp.productFingerprint)}. Riesgo: ${escapeHtml(state.checkoutOrder.security.stamp.riskLevel)}.</small>
+              <small>Orden ${escapeHtml(state.checkoutOrder.id)} - Codigo unico de entrega/liberacion: ${escapeHtml(state.checkoutOrder.delivery.code)}. No se comparte antes de revisar. Huella: ${escapeHtml(state.checkoutOrder.security.stamp.productFingerprint)}. Riesgo: ${escapeHtml(state.checkoutOrder.security.stamp.riskLevel)}.</small>
               <a class="buy-action checkout-link" href="${escapeHtml(state.checkoutOrder.mercadoPago.checkoutUrl)}" target="_blank" rel="noopener">Abrir Mercado Pago</a>
               ${deliveryWorkflow(state.checkoutOrder)}
             </section>
@@ -1414,6 +1428,7 @@ const bindEvents = () => {
   document.querySelector("#messageSeller")?.addEventListener("click", startConversation);
   document.querySelector("#checkoutForm")?.addEventListener("submit", secureCheckout);
   document.querySelector("#deliveryConfirmForm")?.addEventListener("submit", confirmDelivery);
+  document.querySelector("#releasePaymentForm")?.addEventListener("submit", releasePayment);
   document.querySelector("#sellerRatingForm")?.addEventListener("submit", rateSeller);
   document.querySelector("#sellerProofForm")?.addEventListener("submit", submitSellerProof);
   document.querySelector("#markTransitForm")?.addEventListener("submit", markOrderInTransit);
@@ -1719,6 +1734,25 @@ const confirmDelivery = async (event) => {
     return;
   }
   state.checkoutOrder = order;
+  render();
+};
+
+const releasePayment = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const order = await api(`/api/orders/${state.checkoutOrder.id}/release-payment`, {
+    method: "POST",
+    body: JSON.stringify({
+      code: data.get("code"),
+      releasedBy: currentIdentity()
+    })
+  });
+  if (order.error) {
+    alert(order.error);
+    return;
+  }
+  state.checkoutOrder = order;
+  alert("Pago liberado con codigo unico validado.");
   render();
 };
 

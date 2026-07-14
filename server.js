@@ -291,6 +291,14 @@ const clearFailedLogin = (email = "") => {
   attempt.lastAt = new Date().toISOString();
 };
 
+const generateUniqueDeliveryCode = () => {
+  let code = "";
+  do {
+    code = crypto.randomBytes(4).toString("hex").toUpperCase();
+  } while ((store.orders || []).some((order) => order.delivery?.code === code || order.paymentRelease?.releaseCode === code));
+  return code;
+};
+
 const buildSecurityStamp = (product, req) => {
   const price = Number(product.price || 0);
   const listingRisk = product.security?.listingRisk || analyzeListingRisk(product);
@@ -1328,7 +1336,7 @@ app.post("/api/checkout", async (req, res) => {
 
   const product = listings.find((item) => item.id === req.body.productId);
   if (!product) return res.status(404).json({ error: "Producto no encontrado" });
-  const deliveryCode = crypto.randomBytes(3).toString("hex").toUpperCase();
+  const deliveryCode = generateUniqueDeliveryCode();
   const securityStamp = buildSecurityStamp(product, req);
   const orderId = `order-${Date.now()}`;
 
@@ -1388,6 +1396,13 @@ app.post("/api/checkout", async (req, res) => {
         { event: `Riesgo ${securityStamp.riskLevel}`, at: new Date().toISOString() }
       ]
     },
+    paymentRelease: {
+      status: "Retenido hasta codigo de entrega",
+      releaseCode: deliveryCode,
+      releasedAt: "",
+      releasedBy: "",
+      note: "El vendedor solo puede solicitar liberacion si el comprador entrega el codigo unico despues de revisar el articulo."
+    },
     createdAt: new Date().toISOString(),
     mercadoPago: {
       enabled: true,
@@ -1437,7 +1452,7 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   if (missingChecks.length) {
     return res.status(400).json({ error: "Faltan confirmaciones del checklist de recepcion", fields: missingChecks });
   }
-  order.status = "Entrega confirmada - operacion cerrada";
+  order.status = "Entrega confirmada - pago liberable";
   order.delivery.status = "Confirmada por comprador";
   order.delivery.confirmedAt = new Date().toISOString();
   order.delivery.buyerInspection = {
@@ -1454,6 +1469,48 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
     ...(order.security.auditTrail || []),
     { event: "Entrega confirmada con checklist completo", at: order.delivery.confirmedAt }
   ];
+  order.paymentRelease = {
+    ...(order.paymentRelease || {}),
+    status: "Liberable con codigo validado",
+    buyerValidatedAt: order.delivery.confirmedAt
+  };
+  writeStore();
+  res.json(order);
+});
+
+app.post("/api/orders/:id/release-payment", (req, res) => {
+  const order = (store.orders || []).find((item) => item.id === req.params.id);
+  if (!order) return res.status(404).json({ error: "Orden no encontrada" });
+  if (order.disputes?.some((dispute) => dispute.status !== "Cerrada")) {
+    return res.status(409).json({ error: "No se puede liberar pago con una disputa abierta" });
+  }
+  if (!order.delivery?.buyerInspection) {
+    return res.status(409).json({ error: "El comprador primero debe confirmar recepcion y checklist." });
+  }
+  if (String(req.body.code || "").trim().toUpperCase() !== String(order.paymentRelease?.releaseCode || order.delivery?.code || "").toUpperCase()) {
+    return res.status(400).json({ error: "Codigo unico incorrecto. No se libera el pago." });
+  }
+  if (order.paymentRelease?.status === "Liberado") return res.json(order);
+  const releasedAt = new Date().toISOString();
+  order.paymentRelease = {
+    ...(order.paymentRelease || {}),
+    status: "Liberado",
+    releasedAt,
+    releasedBy: req.body.releasedBy?.email || req.body.releasedBy?.name || "Vendedor",
+    note: "Codigo unico validado. Operacion cerrada y pago habilitado para el vendedor."
+  };
+  order.status = "Pago liberado al vendedor";
+  order.delivery.status = "Cerrada con pago liberado";
+  order.delivery.timeline = [
+    ...(order.delivery.timeline || []),
+    { event: "Pago liberado con codigo unico", at: releasedAt }
+  ];
+  order.security.auditTrail = [
+    ...(order.security.auditTrail || []),
+    { event: "Liberacion de pago validada por codigo unico", at: releasedAt }
+  ];
+  listings = listings.map((product) => product.id === order.productId ? { ...product, status: "sold" } : product);
+  store.products = listings;
   writeStore();
   res.json(order);
 });
