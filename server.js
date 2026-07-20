@@ -699,6 +699,32 @@ const requestIdentity = (req) => ({
   avatar: String(req.body?.buyer?.avatar || `/api/avatar/${encodeURIComponent(decodeHeader(req.headers["x-user-name"], "Comprador"))}.svg`)
 });
 
+const sameOrderParty = (user, party = {}) => {
+  if (!user) return false;
+  const userEmail = String(user.email || "").trim().toLowerCase();
+  const partyEmail = String(party.email || "").trim().toLowerCase();
+  return Boolean(
+    (userEmail && partyEmail && userEmail === partyEmail) ||
+    (user.id && party.id && String(user.id) === String(party.id))
+  );
+};
+
+const requireOrderRole = (req, res, order, role = "party") => {
+  const user = authenticatedUser(req);
+  if (!user) {
+    res.status(401).json({ error: "Inicia sesion para gestionar esta orden." });
+    return null;
+  }
+  const isBuyer = sameOrderParty(user, order.buyer);
+  const isSeller = sameOrderParty(user, order.seller);
+  const allowed = role === "buyer" ? isBuyer : role === "seller" ? isSeller : isBuyer || isSeller;
+  if (!allowed) {
+    res.status(403).json({ error: "Esta accion pertenece a otra persona de la orden." });
+    return null;
+  }
+  return { user, isBuyer, isSeller };
+};
+
 const participantIds = (chat) =>
   new Set([
     chat.buyerId,
@@ -1001,8 +1027,10 @@ app.get("/api/conversations", (req, res) => {
   res.json(chats.filter((chat) => isParticipant(chat, identity)).map((chat) => publicChatFor(chat, identity)));
 });
 
-app.get("/api/orders", (_req, res) => {
-  res.json(store.orders || []);
+app.get("/api/orders", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.json([]);
+  res.json((store.orders || []).filter((order) => sameOrderParty(user, order.buyer) || sameOrderParty(user, order.seller)));
 });
 
 app.get("/api/user", (req, res) => {
@@ -1650,6 +1678,11 @@ app.post("/api/support", (req, res) => {
 });
 
 app.post("/api/checkout", async (req, res) => {
+  const buyerUser = authenticatedUser(req);
+  if (!buyerUser) return res.status(401).json({ error: "Inicia sesion para comprar de forma segura." });
+  if (!buyerUser.authComplete) {
+    return res.status(403).json({ error: "Completa tu identidad antes de iniciar una compra." });
+  }
   const required = ["productId", "paymentMethod", "buyer", "delivery"];
   const missing = required.filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Faltan datos para iniciar la compra", fields: missing });
@@ -1661,6 +1694,12 @@ app.post("/api/checkout", async (req, res) => {
 
   const product = listings.find((item) => item.id === req.body.productId);
   if (!product) return res.status(404).json({ error: "Producto no encontrado" });
+  if (sameOrderParty(buyerUser, product.seller)) {
+    return res.status(400).json({ error: "No puedes comprar tu propia publicacion." });
+  }
+  if (!req.body.acceptedRules || !req.body.declaredInspection) {
+    return res.status(400).json({ error: "Confirma el protocolo de compra protegida para continuar." });
+  }
   const deliveryCode = generateUniqueDeliveryCode();
   const securityStamp = buildSecurityStamp(product, req);
   const orderId = `order-${Date.now()}`;
@@ -1673,7 +1712,13 @@ app.post("/api/checkout", async (req, res) => {
     currency: "USD",
     status: "Pendiente de pago en Mercado Pago",
     paymentMethod: "mercadopago",
-    buyer: req.body.buyer,
+    buyer: {
+      id: buyerUser.id,
+      name: buyerUser.name,
+      email: buyerUser.email,
+      phone: buyerUser.phone,
+      avatar: `/api/avatar/${encodeURIComponent(buyerUser.name)}.svg`
+    },
     seller: product.seller,
     snapshot: {
       productId: product.id,
@@ -1762,6 +1807,7 @@ app.post("/api/checkout", async (req, res) => {
 app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
+  if (!requireOrderRole(req, res, order, "buyer")) return;
   if (order.disputes?.some((dispute) => dispute.status !== "Cerrada")) {
     return res.status(409).json({ error: "No se puede confirmar entrega con una disputa abierta" });
   }
@@ -1807,6 +1853,7 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
 app.post("/api/orders/:id/release-payment", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
+  if (!requireOrderRole(req, res, order, "buyer")) return;
   if (order.disputes?.some((dispute) => dispute.status !== "Cerrada")) {
     return res.status(409).json({ error: "No se puede liberar pago con una disputa abierta" });
   }
@@ -1844,6 +1891,7 @@ app.post("/api/orders/:id/release-payment", (req, res) => {
 app.post("/api/orders/:id/rate-seller", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
+  if (!requireOrderRole(req, res, order, "buyer")) return;
   if (!order.delivery?.buyerInspection) {
     return res.status(400).json({ error: "Primero confirma la entrega para poder calificar." });
   }
@@ -1873,6 +1921,7 @@ app.post("/api/orders/:id/rate-seller", (req, res) => {
 app.post("/api/orders/:id/seller-proof", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
+  if (!requireOrderRole(req, res, order, "seller")) return;
   const missing = ["packageNotes", "serialOrMark", "accessories"].filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Falta evidencia del vendedor", fields: missing });
 
@@ -1899,6 +1948,7 @@ app.post("/api/orders/:id/seller-proof", (req, res) => {
 app.post("/api/orders/:id/mark-in-transit", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
+  if (!requireOrderRole(req, res, order, "seller")) return;
   if (order.delivery.sellerProofRequired && !order.delivery.sellerProof) {
     return res.status(409).json({ error: "Antes de despachar se debe cargar evidencia del vendedor" });
   }
@@ -1932,6 +1982,7 @@ app.post("/api/orders/:id/mark-in-transit", (req, res) => {
 app.post("/api/orders/:id/dispute", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
+  if (!requireOrderRole(req, res, order, "party")) return;
   const missing = ["reason", "description"].filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Faltan datos para abrir disputa", fields: missing });
   const dispute = {

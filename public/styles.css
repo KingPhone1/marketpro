@@ -9157,3 +9157,198 @@ h3,
     grid-template-columns: 1fr;
   }
 }
+
+/* Simplified protected purchase flow */
+.simple-checkout {
+  gap: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  padding: 18px;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.08);
+}
+
+.checkout-heading {
+  display: grid;
+  gap: 6px;
+}
+
+.checkout-heading > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.checkout-heading span,
+.action-kicker {
+  color: #8a6410;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.checkout-heading strong {
+  color: #111827;
+  font-size: 26px;
+}
+
+.checkout-heading small {
+  margin: 0;
+}
+
+.checkout-mini-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background: #f7f7f5;
+}
+
+.checkout-mini-steps span {
+  min-width: 0;
+  padding: 9px 6px;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.checkout-mini-steps .active {
+  background: #111827;
+  color: #fff;
+}
+
+.delivery-note-drawer,
+.dispute-drawer {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 10px;
+}
+
+.delivery-note-drawer summary,
+.dispute-drawer summary {
+  cursor: pointer;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.delivery-note-drawer[open] .field,
+.dispute-drawer[open] form {
+  margin-top: 12px;
+}
+
+.simple-checkout .purchase-consent,
+.simple-delivery-flow .master-check {
+  align-items: flex-start;
+  min-height: 0;
+  border-color: rgba(21, 128, 61, 0.2);
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.purchase-consent input,
+.master-check input {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.checkout-primary {
+  min-height: 48px;
+  font-size: 14px;
+}
+
+.checkout-assurance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.checkout-assurance span {
+  min-width: 0;
+  color: #4b5563;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.simple-delivery-flow {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.simple-delivery-flow .delivery-status {
+  display: grid;
+  gap: 5px;
+}
+
+.simple-delivery-flow .delivery-status strong {
+  color: #111827;
+  font-size: 21px;
+}
+
+.simple-delivery-flow .delivery-status small {
+  color: #5f6672;
+  line-height: 1.5;
+}
+
+.simple-delivery-flow .secure-subform {
+  max-width: 680px;
+  border-color: #dfe3e8;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.simple-delivery-flow .secure-subform > small {
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.dispute-drawer {
+  max-width: 680px;
+}
+
+.dispute-drawer .dispute-form {
+  box-shadow: none;
+}
+
+@media (max-width: 700px) {
+  .simple-checkout,
+  .simple-delivery-flow {
+    padding: 14px;
+  }
+
+  .simple-checkout .two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-heading > div {
+    align-items: flex-start;
+  }
+
+  .checkout-heading strong {
+    font-size: 22px;
+  }
+
+  .checkout-mini-steps span {
+    padding-inline: 3px;
+    font-size: 10px;
+  }
+
+  .checkout-assurance {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-assurance span {
+    text-align: left;
+  }
+
+  .simple-delivery-flow .delivery-steps {
+    grid-template-columns: repeat(4, minmax(74px, 1fr));
+    overflow-x: auto;
+  }
+}

@@ -482,37 +482,61 @@ const deliveryWorkflow = (order) => {
   const proof = order.delivery?.sellerProof;
   const inspection = order.delivery?.buyerInspection;
   const hasOpenDispute = order.disputes?.some((dispute) => dispute.status !== "Cerrada");
+  const role = orderRole(order);
+  const isBuyer = role === "Compra";
+  const isSeller = role === "Venta";
+  const tracking = order.delivery?.tracking;
+  const released = order.paymentRelease?.status === "Liberado";
+  const nextAction = hasOpenDispute
+    ? "La operacion esta pausada mientras se revisa la disputa."
+    : released
+      ? "Compra finalizada y protegida."
+      : isSeller && !proof
+        ? "Carga la evidencia del articulo antes de enviarlo."
+        : isSeller && !tracking
+          ? "Registra el envio y su codigo de rastreo."
+          : isBuyer && !proof
+            ? "El vendedor esta preparando la evidencia del articulo."
+            : isBuyer && !tracking
+              ? "Te avisaremos cuando el vendedor despache el articulo."
+              : isBuyer && !inspection
+                ? "Cuando lo recibas, revisalo y confirma con tu codigo unico."
+                : "La operacion esta esperando su siguiente validacion.";
   return `
-    <section class="delivery-workflow">
+    <section class="delivery-workflow simple-delivery-flow">
       <div class="delivery-status">
-        <span>Entrega protegida</span>
+        <span>Tu proximo paso</span>
         <strong>${escapeHtml(order.paymentRelease?.status || order.delivery.status)}</strong>
-        <small>${hasOpenDispute ? "Disputa abierta: cierre bloqueado" : "Pago retenido hasta codigo unico de entrega"}</small>
+        <small>${escapeHtml(nextAction)}</small>
       </div>
       <div class="delivery-steps">
-        <span class="${proof ? "done" : ""}">1. Evidencia vendedor</span>
-        <span class="${order.delivery.tracking ? "done" : ""}">2. Despacho</span>
-        <span class="${inspection ? "done" : ""}">3. Recepcion</span>
-        <span class="${hasOpenDispute ? "danger" : inspection ? "done" : ""}">4. Cierre</span>
+        <span class="done">1. Orden</span>
+        <span class="${proof ? "done" : ""}">2. Preparacion</span>
+        <span class="${tracking ? "done" : ""}">3. Envio</span>
+        <span class="${hasOpenDispute ? "danger" : released ? "done" : ""}">4. Entrega</span>
       </div>
-      ${proof ? `
+      ${proof && isSeller ? `
         <div class="proof-summary">
           <strong>Evidencia cargada</strong>
           <span>${escapeHtml(proof.packageNotes)} - ${escapeHtml(proof.serialOrMark)} - ${escapeHtml(proof.accessories)}</span>
         </div>
-      ` : `
+      ` : ""}
+      ${isSeller && !proof ? `
         <form class="secure-subform" id="sellerProofForm">
-          <strong>Evidencia antes de entregar</strong>
+          <span class="action-kicker">Paso del vendedor</span>
+          <strong>Demuestra que envias el articulo correcto</strong>
+          <small>Estos datos quedan unidos a la orden y protegen a ambas partes.</small>
           <input name="packageNotes" required placeholder="Estado del empaque y articulo" />
           <input name="serialOrMark" required placeholder="Serie, IMEI, marca unica o detalle identificable" />
           <input name="accessories" required placeholder="Accesorios incluidos" />
           <input name="photos" type="file" accept="image/*" multiple />
-          <button class="secondary-btn" type="submit">Cargar evidencia</button>
+          <button class="buy-action" type="submit">Guardar evidencia</button>
         </form>
-      `}
-      ${proof && !order.delivery.tracking ? `
+      ` : ""}
+      ${isSeller && proof && !tracking ? `
         <form class="secure-subform" id="markTransitForm">
-          <strong>Marcar entrega en camino</strong>
+          <span class="action-kicker">Paso del vendedor</span>
+          <strong>Registrar envio</strong>
           <select name="carrier" required>
             <option value="">Empresa o metodo</option>
             <option>DAC</option>
@@ -525,35 +549,35 @@ const deliveryWorkflow = (order) => {
           </select>
           <input name="trackingCode" placeholder="Codigo de rastreo obligatorio para envios" />
           <input name="note" placeholder="Nota de traslado" />
-          <button class="secondary-btn" type="submit">Marcar en camino</button>
+          <button class="buy-action" type="submit">Confirmar despacho</button>
         </form>
       ` : ""}
-      <form class="secure-subform" id="deliveryConfirmForm">
-        <strong>Confirmar recepcion segura</strong>
-        <input name="code" required placeholder="Codigo recibido al entregar" />
-        <label class="check-row"><input type="checkbox" name="identityMatched" required /> La persona o envio coincide con la orden.</label>
-        <label class="check-row"><input type="checkbox" name="packageIntact" required /> El empaque no muestra manipulacion sospechosa.</label>
-        <label class="check-row"><input type="checkbox" name="itemMatches" required /> El articulo coincide con fotos y descripcion.</label>
-        <label class="check-row"><input type="checkbox" name="accessoriesMatch" required /> Accesorios y piezas coinciden.</label>
-        <label class="check-row"><input type="checkbox" name="conditionAccepted" required /> Estado aceptado luego de revisar.</label>
-        <input name="conditionNote" placeholder="Observacion final de recepcion" />
-        <button class="buy-action" type="submit">Confirmar entrega</button>
-      </form>
-      ${inspection && order.paymentRelease?.status !== "Liberado" ? `
+      ${isBuyer && proof && tracking && !inspection && !hasOpenDispute ? `
+        <form class="secure-subform buyer-confirm-card" id="deliveryConfirmForm">
+          <span class="action-kicker">Paso del comprador</span>
+          <strong>Revisa y confirma en un solo paso</strong>
+          <small>No confirmes si el paquete esta abierto o el articulo no coincide.</small>
+          <input name="code" required inputmode="numeric" autocomplete="one-time-code" placeholder="Codigo unico de entrega" />
+          <label class="check-row master-check"><input type="checkbox" name="purchaseVerified" required /> Revise identidad, paquete, articulo, accesorios y estado; todo coincide con la publicacion.</label>
+          <input name="conditionNote" placeholder="Observacion opcional" />
+          <button class="buy-action" type="submit">Confirmar y finalizar compra</button>
+        </form>
+      ` : ""}
+      ${isBuyer && inspection && !released && !hasOpenDispute ? `
         <form class="secure-subform release-form" id="releasePaymentForm">
-          <strong>Liberar pago al vendedor</strong>
-          <small>El comprador entrega este codigo solo despues de revisar producto, accesorios y estado. Cada orden tiene un codigo diferente.</small>
+          <strong>Finalizar liberacion</strong>
+          <small>La entrega ya fue validada. Repite el codigo solamente si la liberacion automatica no se completo.</small>
           <input name="code" required placeholder="Codigo unico de esta orden" />
-          <button class="buy-action" type="submit">Liberar pago</button>
+          <button class="buy-action" type="submit">Finalizar compra</button>
         </form>
       ` : ""}
-      ${order.paymentRelease?.status === "Liberado" ? `
+      ${released ? `
         <div class="proof-summary release-ok">
-          <strong>Pago liberado</strong>
-          <span>Codigo unico validado el ${escapeHtml(order.paymentRelease.releasedAt || "")}</span>
+          <strong>Compra completada</strong>
+          <span>Entrega validada y operacion cerrada el ${escapeHtml(order.paymentRelease.releasedAt || "")}</span>
         </div>
       ` : ""}
-      ${inspection && !order.sellerRating ? `
+      ${isBuyer && released && !order.sellerRating ? `
         <form class="secure-subform rating-form" id="sellerRatingForm">
           <strong>Calificar vendedor</strong>
           <select name="rating" required>
@@ -574,20 +598,25 @@ const deliveryWorkflow = (order) => {
           <span>${ratingStars(order.sellerRating.rating)} - ${Number(order.sellerRating.rating).toFixed(1)}/5</span>
         </div>
       ` : ""}
-      <form class="secure-subform dispute-form" id="disputeForm">
-        <strong>Abrir disputa</strong>
-        <select name="reason" required>
-          <option value="">Motivo</option>
-          <option>Producto distinto al publicado</option>
-          <option>Faltan accesorios</option>
-          <option>Producto danado o manipulado</option>
-          <option>No entregado / falsa entrega</option>
-          <option>Presion para entregar codigo</option>
-        </select>
-        <input name="description" required placeholder="Describe que paso" />
-        <input name="evidence" type="file" accept="image/*" multiple />
-        <button class="danger-btn" type="submit">Bloquear y revisar</button>
-      </form>
+      ${!released ? `
+        <details class="dispute-drawer">
+          <summary>Algo no esta bien</summary>
+          <form class="secure-subform dispute-form" id="disputeForm">
+            <strong>Pausar operacion y pedir revision</strong>
+            <select name="reason" required>
+              <option value="">Selecciona el problema</option>
+              <option>Producto distinto al publicado</option>
+              <option>Faltan accesorios</option>
+              <option>Producto danado o manipulado</option>
+              <option>No entregado / falsa entrega</option>
+              <option>Presion para entregar codigo</option>
+            </select>
+            <input name="description" required placeholder="Describe brevemente que paso" />
+            <input name="evidence" type="file" accept="image/*" multiple />
+            <button class="danger-btn" type="submit">Pausar y solicitar revision</button>
+          </form>
+        </details>
+      ` : ""}
     </section>
   `;
 };
@@ -1260,34 +1289,45 @@ const detailView = () => {
           </div>
           ${state.checkoutOrder?.productId === item.id ? `
             <section class="checkout-receipt">
-              <span>Compra iniciada</span>
+              <span>Compra protegida iniciada</span>
               <strong>${escapeHtml(state.checkoutOrder.status)}</strong>
-              <small>Orden ${escapeHtml(state.checkoutOrder.id)} - Codigo unico de entrega/liberacion: ${escapeHtml(state.checkoutOrder.delivery.code)}. No se comparte antes de revisar. Huella: ${escapeHtml(state.checkoutOrder.security.stamp.productFingerprint)}. Riesgo: ${escapeHtml(state.checkoutOrder.security.stamp.riskLevel)}.</small>
-              <a class="buy-action checkout-link" href="${escapeHtml(state.checkoutOrder.mercadoPago.checkoutUrl)}" target="_blank" rel="noopener">Abrir Mercado Pago</a>
-              ${deliveryWorkflow(state.checkoutOrder)}
+              <small>La orden, el chat, el pago y la entrega ya estan vinculados.</small>
+              <button class="buy-action" type="button" data-open-order="${escapeHtml(state.checkoutOrder.id)}">Ver mi compra</button>
             </section>
           ` : `
-            <form class="checkout-box" id="checkoutForm">
-              <strong>Comprar con Mercado Pago</strong>
+            <form class="checkout-box simple-checkout" id="checkoutForm">
               <input type="hidden" name="paymentMethod" value="mercadopago" />
-              <div class="payment-provider">
-                <span>Medio de pago vinculado</span>
-                <strong>Mercado Pago</strong>
-                <small>La app crea la orden protegida y deriva el cobro a Mercado Pago. MarketPro no guarda ni procesa tarjetas.</small>
+              <div class="checkout-heading">
+                <div>
+                  <span>Compra protegida</span>
+                  <strong>${money(item.price)}</strong>
+                </div>
+                <small>Pagas en Mercado Pago. MarketPro protege la orden y la entrega.</small>
+              </div>
+              <div class="checkout-mini-steps" aria-label="Proceso de compra">
+                <span class="active">1. Entrega</span>
+                <span>2. Pago</span>
+                <span>3. Recepcion</span>
               </div>
               <div class="two-col">
-                <div class="field"><label>Direccion de entrega</label><input name="address" required placeholder="Calle, numero, apartamento" /></div>
-                <div class="field"><label>Ciudad / zona</label><input name="city" required placeholder="Ciudad o barrio" /></div>
+                <div class="field"><label>Direccion</label><input name="address" required autocomplete="street-address" value="${escapeHtml(state.user?.exactLocation || "")}" placeholder="Calle, numero y apartamento" /></div>
+                <div class="field"><label>Ciudad o zona</label><input name="city" required autocomplete="address-level2" placeholder="Ciudad o barrio" /></div>
               </div>
               <div class="two-col">
-                <div class="field"><label>Telefono de contacto</label><input name="phone" required value="${escapeHtml(state.user?.phone || "")}" placeholder="Telefono" /></div>
-                <div class="field"><label>Metodo de entrega</label><select name="method" required><option>Retiro en punto seguro</option><option>Envio coordinado</option><option>Entrega personal verificada</option></select></div>
+                <div class="field"><label>Telefono</label><input name="phone" required type="tel" autocomplete="tel" value="${escapeHtml(state.user?.phone || "")}" placeholder="Telefono de contacto" /></div>
+                <div class="field"><label>Entrega</label><select name="method" required><option>Envio coordinado</option><option>Retiro en punto seguro</option><option>Entrega personal verificada</option></select></div>
               </div>
-              <div class="field"><label>Nota para entrega</label><input name="note" placeholder="Horario, referencia o instrucciones" /></div>
-              <label class="check-row"><input type="checkbox" name="acceptedRules" required /> Acepto comprar solo dentro de MarketPro y no compartir codigos fuera del chat.</label>
-              <label class="check-row"><input type="checkbox" name="declaredInspection" required /> Confirmo que voy a revisar articulo, accesorios y estado antes de liberar el pago.</label>
-              <small>MarketPro congela publicacion, precio, vendedor, comprador y condiciones. El pago se procesa en Mercado Pago vinculado a la app.</small>
-              <button class="buy-action" type="submit">Continuar con Mercado Pago</button>
+              <details class="delivery-note-drawer">
+                <summary>Agregar instrucciones de entrega</summary>
+                <div class="field"><label>Nota opcional</label><input name="note" placeholder="Horario o referencia" /></div>
+              </details>
+              <label class="check-row purchase-consent"><input type="checkbox" name="purchaseConsent" required /> Compra dentro de MarketPro y revisa el articulo antes de compartir el codigo.</label>
+              <button class="buy-action checkout-primary" type="submit">Comprar de forma segura</button>
+              <div class="checkout-assurance">
+                <span>Identidad verificada</span>
+                <span>Publicacion congelada</span>
+                <span>Codigo unico</span>
+              </div>
             </form>
           `}
           <div class="detail-actions">
@@ -2193,6 +2233,7 @@ const secureCheckout = async (event) => {
   const item = selectedProduct();
   const buyer = currentIdentity();
   const data = new FormData(event.currentTarget);
+  const purchaseConsent = data.get("purchaseConsent") === "on";
   const order = await api("/api/checkout", {
     method: "POST",
     body: JSON.stringify({
@@ -2206,8 +2247,8 @@ const secureCheckout = async (event) => {
         method: data.get("method"),
         note: data.get("note")
       },
-      acceptedRules: data.get("acceptedRules") === "on",
-      declaredInspection: data.get("declaredInspection") === "on"
+      acceptedRules: purchaseConsent,
+      declaredInspection: purchaseConsent
     })
   });
   if (order.error) {
@@ -2221,17 +2262,19 @@ const secureCheckout = async (event) => {
 const confirmDelivery = async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
+  const purchaseVerified = data.get("purchaseVerified") === "on";
+  const code = data.get("code");
   const order = await api(`/api/orders/${state.checkoutOrder.id}/confirm-delivery`, {
     method: "POST",
     body: JSON.stringify({
-      code: data.get("code"),
+      code,
       conditionNote: data.get("conditionNote"),
       checklist: {
-        identityMatched: data.get("identityMatched") === "on",
-        packageIntact: data.get("packageIntact") === "on",
-        itemMatches: data.get("itemMatches") === "on",
-        accessoriesMatch: data.get("accessoriesMatch") === "on",
-        conditionAccepted: data.get("conditionAccepted") === "on"
+        identityMatched: purchaseVerified,
+        packageIntact: purchaseVerified,
+        itemMatches: purchaseVerified,
+        accessoriesMatch: purchaseVerified,
+        conditionAccepted: purchaseVerified
       }
     })
   });
@@ -2240,6 +2283,20 @@ const confirmDelivery = async (event) => {
     return;
   }
   syncOrder(order);
+  const releasedOrder = await api(`/api/orders/${order.id}/release-payment`, {
+    method: "POST",
+    body: JSON.stringify({
+      code,
+      releasedBy: currentIdentity()
+    })
+  });
+  if (releasedOrder.error) {
+    alert(`Entrega confirmada. ${releasedOrder.error}`);
+    render();
+    return;
+  }
+  syncOrder(releasedOrder);
+  alert("Compra finalizada de forma segura.");
   render();
 };
 
