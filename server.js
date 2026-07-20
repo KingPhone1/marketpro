@@ -53,6 +53,7 @@ const EMAIL_FROM = process.env.EMAIL_FROM || "MarketPro <no-reply@marketpro.uy>"
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "";
 const hasSupabaseStore = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 let cloudStoreReady = false;
+let privateBucketReady = false;
 let cloudWriteQueue = Promise.resolve();
 const adminTokens = new Set();
 const requestBuckets = new Map();
@@ -693,6 +694,29 @@ const supabaseHeaders = (extra = {}) => ({
   ...extra
 });
 
+const ensurePrivateBucket = async () => {
+  if (!hasSupabaseStore) return false;
+  try {
+    const bucketUrl = `${SUPABASE_URL}/storage/v1/bucket/${SUPABASE_PRIVATE_BUCKET}`;
+    const existing = await fetch(bucketUrl, { headers: supabaseHeaders() });
+    if (existing.ok) return true;
+    const created = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+      method: "POST",
+      headers: supabaseHeaders(),
+      body: JSON.stringify({
+        id: SUPABASE_PRIVATE_BUCKET,
+        name: SUPABASE_PRIVATE_BUCKET,
+        public: false,
+        file_size_limit: 8388608,
+        allowed_mime_types: ["image/jpeg", "image/png", "image/webp"]
+      })
+    });
+    return created.ok || created.status === 409;
+  } catch {
+    return false;
+  }
+};
+
 const parseDataUrl = (value = "") => {
   const match = String(value).match(/^data:([^;]+);base64,(.+)$/);
   if (!match) return null;
@@ -869,6 +893,7 @@ const initializePersistentStore = async () => {
   }
 
   try {
+    privateBucketReady = await ensurePrivateBucket();
     const cloudStore = await loadStoreFromSupabase();
     if (cloudStore) {
       hydrateRuntimeStore(cloudStore);
@@ -1586,7 +1611,7 @@ app.get("/api/admin/overview", requireAdmin, async (_req, res) => {
     supportTickets: store.supportTickets || [],
     blockedPairs: store.blockedPairs || [],
     adminAudit: store.adminAudit || [],
-    security: { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET), emailEnabled: Boolean(RESEND_API_KEY), privateStorageEnabled: hasSupabaseStore },
+    security: { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET), emailEnabled: Boolean(RESEND_API_KEY), privateStorageEnabled: privateBucketReady },
     memory: store.memory
   });
 });
