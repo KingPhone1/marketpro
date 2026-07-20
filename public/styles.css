@@ -3440,6 +3440,54 @@ img {
   }
 }
 
+.mp-connect-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 18px 0;
+  border: 1px solid #e2e5e9;
+  border-left: 4px solid #c79521;
+  border-radius: 10px;
+  background: #f8f9fa;
+  padding: 18px;
+}
+
+.mp-connect-panel.connected {
+  border-left-color: #17834f;
+  background: #f2f8f5;
+}
+
+.mp-connect-panel h2 {
+  margin: 3px 0 6px;
+  color: #15171a;
+  font-size: 20px;
+}
+
+.mp-connect-panel p,
+.mp-connect-panel small {
+  display: block;
+  margin: 0;
+  color: #606772;
+  line-height: 1.5;
+}
+
+.mp-unavailable {
+  border-left: 4px solid #c79521;
+  background: #fbfaf7;
+}
+
+@media (max-width: 700px) {
+  .mp-connect-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mp-connect-panel button {
+    width: 100%;
+  }
+}
+
 @media (max-width: 420px) {
   .brand-logo {
     width: 48px;

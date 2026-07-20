@@ -36,6 +36,11 @@ const MERCADO_PAGO_ACCESS_TOKEN = process.env.MERCADO_PAGO_ACCESS_TOKEN || "";
 const MERCADO_PAGO_PUBLIC_KEY = process.env.MERCADO_PAGO_PUBLIC_KEY || "";
 const MERCADO_PAGO_WEBHOOK_SECRET = process.env.MERCADO_PAGO_WEBHOOK_SECRET || "";
 const MERCADO_PAGO_CURRENCY = process.env.MERCADO_PAGO_CURRENCY || "USD";
+const MERCADO_PAGO_CLIENT_ID = process.env.MERCADO_PAGO_CLIENT_ID || "";
+const MERCADO_PAGO_CLIENT_SECRET = process.env.MERCADO_PAGO_CLIENT_SECRET || "";
+const MERCADO_PAGO_OAUTH_REDIRECT_URI = process.env.MERCADO_PAGO_OAUTH_REDIRECT_URI || `${APP_BASE_URL}/api/payments/mercadopago/oauth/callback`;
+const MERCADO_PAGO_OAUTH_AUTHORIZE_URL = process.env.MERCADO_PAGO_OAUTH_AUTHORIZE_URL || "https://auth.mercadopago.com.uy/authorization";
+const TOKEN_ENCRYPTION_KEY = process.env.TOKEN_ENCRYPTION_KEY || "";
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const STORE_FILE = path.join(DATA_DIR, "store.json");
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
@@ -46,6 +51,30 @@ const hasSupabaseStore = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 let cloudStoreReady = false;
 let cloudWriteQueue = Promise.resolve();
 const adminTokens = new Set();
+
+const encryptionKey = () => TOKEN_ENCRYPTION_KEY ? crypto.createHash("sha256").update(TOKEN_ENCRYPTION_KEY).digest() : null;
+
+const encryptSecret = (value = "") => {
+  const key = encryptionKey();
+  if (!key || !value) return "";
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(String(value), "utf8"), cipher.final()]);
+  return [iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), encrypted.toString("base64url")].join(".");
+};
+
+const decryptSecret = (payload = "") => {
+  const key = encryptionKey();
+  if (!key || !payload) return "";
+  try {
+    const [iv, tag, encrypted] = String(payload).split(".").map((part) => Buffer.from(part, "base64url"));
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+  } catch {
+    return "";
+  }
+};
 const unsplash = (id, focus = "center") =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1200&h=900&q=86&fm=jpg&ixlib=rb-4.1.0&crop=${focus}`;
 
@@ -118,22 +147,22 @@ const privateInnovations = [
   ["Huella de publicacion", "Congela fotos, precio, descripcion y vendedor al momento de crear la orden.", "Seguridad"],
   ["Prueba de empaque obligatoria", "Antes de entregar, el vendedor sube evidencia del articulo preparado.", "Seguridad"],
   ["Coincidencia por accesorios", "La orden registra caja, cargador, factura, llaves o piezas incluidas.", "Seguridad"],
-  ["Codigo de liberacion temporal", "El codigo vence si no se confirma dentro del plazo acordado.", "Seguridad"],
+  ["Codigo de recepcion unico", "Confirma la entrega dentro de MarketPro sin intervenir en el pago.", "Seguridad"],
   ["Entrega con doble consentimiento", "Comprador y vendedor deben cerrar la operacion desde sus cuentas.", "Seguridad"],
   ["Alerta de salida de plataforma", "Marca conversaciones que intentan llevar pago o entrega fuera de la app.", "Seguridad"],
   ["Score de riesgo silencioso", "El admin ve riesgo por precio raro, cuenta nueva, reportes o cambios bruscos.", "Seguridad"],
   ["Bloqueo por patron repetido", "Detecta textos/fotos repetidas en multiples cuentas.", "Seguridad"],
   ["Mapa privado de incidentes", "El admin visualiza zonas con reportes, demoras o disputas.", "Seguridad"],
   ["Revision reforzada por categoria", "Vehiculos, inmuebles y electronica activan controles mas estrictos.", "Seguridad"],
-  ["Pago retenido por confianza", "La retencion cambia segun reputacion, monto y categoria.", "Pagos"],
-  ["Garantia escalonada", "Operaciones grandes liberan pago en etapas.", "Pagos"],
-  ["Reserva segura", "El comprador puede bloquear un articulo con deposito interno.", "Pagos"],
-  ["Reembolso condicionado", "El reembolso queda ligado a evidencia y decision admin.", "Pagos"],
-  ["Saldo congelado preventivo", "Vendedores con disputa no retiran dinero hasta cierre.", "Pagos"],
+  ["Pago directo verificado", "MarketPro confirma el estado informado por Mercado Pago sin recibir el dinero.", "Pagos"],
+  ["Seguimiento por etapas", "Operaciones grandes registran preparacion, despacho, rastreo y recepcion.", "Pagos"],
+  ["Reserva sin deposito", "El comprador puede solicitar que la publicacion quede reservada mientras coordinan.", "Pagos"],
+  ["Expediente de reclamo", "La evidencia queda preparada para gestionar el reclamo directamente en Mercado Pago.", "Pagos"],
+  ["Cierre preventivo", "Una incidencia pausa la finalizacion interna y conserva toda la evidencia.", "Pagos"],
   ["Oferta formal con vencimiento", "Una oferta aceptada crea compromiso y evita cambios de precio.", "Pagos"],
   ["Precio protegido", "El precio no puede cambiar despues de iniciar checkout.", "Pagos"],
-  ["Comision inteligente", "La comision baja para vendedores limpios y sube con riesgo.", "Pagos"],
-  ["Pago mixto", "Permite parte reserva, parte entrega, parte saldo app.", "Pagos"],
+  ["Planes transparentes", "MarketPro monetiza anuncios y herramientas opcionales, no custodia ventas.", "Pagos"],
+  ["Opciones de entrega", "Permite pago directo por Mercado Pago o pago al retirar cuando corresponda.", "Pagos"],
   ["Recibo verificable", "Cada compra genera comprobante interno con version de publicacion.", "Pagos"],
   ["Chat con semaforo", "El sistema marca mensajes normales, sensibles o peligrosos.", "Mensajeria"],
   ["Minuta automatica", "Resume acuerdo: producto, precio, entrega, condiciones y fecha.", "Mensajeria"],
@@ -158,7 +187,7 @@ const privateInnovations = [
   ["Agenda de entrega integrada", "Compra y vendedor acuerdan fecha sin salir de la app.", "Entrega"],
   ["Punto seguro recomendado", "Sugiere lugares publicos por zona y horario.", "Entrega"],
   ["Entrega con evidencia visual", "Permite foto/video al cerrar una entrega delicada.", "Entrega"],
-  ["Ventana de inspeccion", "El comprador tiene un periodo corto para revisar antes de liberar.", "Entrega"],
+  ["Ventana de inspeccion", "El comprador revisa el producto antes de confirmar la recepcion.", "Entrega"],
   ["Confirmacion por cercania", "Preparado para validar que ambos estuvieron en la zona acordada.", "Entrega"],
   ["Entrega delegada", "Autoriza a un tercero con nombre y documento parcial.", "Entrega"],
   ["Alerta de retraso", "Si se vence el horario, la orden pide reprogramar o reportar.", "Entrega"],
@@ -168,7 +197,7 @@ const privateInnovations = [
 ];
 
 const suspiciousPatterns = [
-  { key: "external-payment", label: "Posible pago externo", pattern: /(transferencia|dep[oó]sito|western union|paypal|fuera de la app|por fuera|bizum|zelle|cuenta bancaria|mercado pago directo)/i },
+  { key: "external-payment", label: "Posible pago externo", pattern: /(transferencia|dep[oó]sito|western union|paypal|fuera de la app|por fuera|bizum|zelle|cuenta bancaria)/i },
   { key: "secret-code", label: "Solicitud de codigo sensible", pattern: /(c[oó]digo|clave|pin|otp|verificaci[oó]n|contrase[nñ]a)/i },
   { key: "pressure", label: "Presion o urgencia", pattern: /(urgente|ya mismo|ap[uú]rate|solo hoy|sin preguntar|no lo pienses)/i },
   { key: "identity-evasion", label: "Evasion de identidad", pattern: /(no tengo documento|sin c[eé]dula|no puedo verificar|otro nombre|no soy yo)/i },
@@ -232,11 +261,16 @@ const verifyPassword = (password = "", user = {}) => {
 
 const publicUser = (user) => {
   if (!user) return null;
-  const { passwordHash, passwordSalt, hash, salt, ...safe } = user;
+  const { passwordHash, passwordSalt, hash, salt, mercadoPagoOAuth, ...safe } = user;
   return {
     ...safe,
     hasPassword: Boolean(passwordHash || hash),
-    authComplete: Boolean(safe.authComplete)
+    authComplete: Boolean(safe.authComplete),
+    mercadoPago: {
+      connected: Boolean(mercadoPagoOAuth?.accessTokenEncrypted),
+      accountId: mercadoPagoOAuth?.userId || "",
+      connectedAt: mercadoPagoOAuth?.connectedAt || ""
+    }
   };
 };
 
@@ -298,7 +332,7 @@ const generateUniqueDeliveryCode = () => {
   let code = "";
   do {
     code = crypto.randomBytes(4).toString("hex").toUpperCase();
-  } while ((store.orders || []).some((order) => order.delivery?.code === code || order.paymentRelease?.releaseCode === code));
+  } while ((store.orders || []).some((order) => order.delivery?.code === code || order.deliveryConfirmation?.code === code));
   return code;
 };
 
@@ -334,7 +368,7 @@ const buildSecurityStamp = (product, req) => {
       "Pago vinculado con Mercado Pago",
       "Chat y orden conservados como evidencia",
       "Vendedor y comprador asociados a identidad",
-      "Disputa bloquea retiro de saldo",
+      "Incidencia conserva evidencia para reclamo",
       "Revision reforzada si hay alerta de riesgo",
       "Codigo de entrega nunca debe compartirse por chat",
       "Huella antifraude compara fotos, precio y descripcion"
@@ -371,22 +405,80 @@ const updateSellerRating = (seller = {}, rating, comment = "") => {
   return ratingSummary;
 };
 
-const createMercadoPagoPreference = async ({ order, product }) => {
-  if (!MERCADO_PAGO_ACCESS_TOKEN) {
-    return {
-      error: "Falta configurar MERCADO_PAGO_ACCESS_TOKEN en el archivo .env del servidor."
-    };
+const mercadoPagoOAuthReady = () => Boolean(
+  MERCADO_PAGO_CLIENT_ID &&
+  MERCADO_PAGO_CLIENT_SECRET &&
+  MERCADO_PAGO_OAUTH_REDIRECT_URI &&
+  TOKEN_ENCRYPTION_KEY
+);
+
+const sellerUserFor = (seller = {}) => {
+  const email = String(seller.email || "").toLowerCase();
+  return (store.users || []).find((user) =>
+    (email && String(user.email || "").toLowerCase() === email) ||
+    (!email && seller.name && user.name === seller.name)
+  );
+};
+
+const exchangeMercadoPagoToken = async (body) => {
+  const response = await fetch("https://api.mercadopago.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    return { error: data.message || data.error || "Mercado Pago rechazo la autorizacion.", details: data };
   }
+  return data;
+};
+
+const sellerMercadoPagoAccess = async (seller = {}) => {
+  const user = sellerUserFor(seller);
+  if (!user?.mercadoPagoOAuth?.accessTokenEncrypted) {
+    return { error: "Este vendedor todavia no conecto su cuenta de Mercado Pago." };
+  }
+  let accessToken = decryptSecret(user.mercadoPagoOAuth.accessTokenEncrypted);
+  if (!accessToken) return { error: "La conexion de Mercado Pago debe renovarse." };
+
+  const expiresAt = new Date(user.mercadoPagoOAuth.expiresAt || 0).getTime();
+  if (expiresAt && expiresAt < Date.now() + 5 * 60 * 1000) {
+    const refreshToken = decryptSecret(user.mercadoPagoOAuth.refreshTokenEncrypted);
+    if (!refreshToken) return { error: "La conexion de Mercado Pago vencio. El vendedor debe conectarla otra vez." };
+    const refreshed = await exchangeMercadoPagoToken({
+      client_id: MERCADO_PAGO_CLIENT_ID,
+      client_secret: MERCADO_PAGO_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken
+    });
+    if (refreshed.error) return refreshed;
+    accessToken = refreshed.access_token;
+    user.mercadoPagoOAuth = {
+      ...user.mercadoPagoOAuth,
+      accessTokenEncrypted: encryptSecret(refreshed.access_token),
+      refreshTokenEncrypted: encryptSecret(refreshed.refresh_token || refreshToken),
+      expiresAt: new Date(Date.now() + Number(refreshed.expires_in || 15552000) * 1000).toISOString(),
+      refreshedAt: new Date().toISOString()
+    };
+    writeStore();
+  }
+  return { user, accessToken };
+};
+
+const createMercadoPagoPreference = async ({ order, product }) => {
+  const sellerAccess = await sellerMercadoPagoAccess(product.seller);
+  if (sellerAccess.error) return sellerAccess;
+  const { user: sellerUser, accessToken } = sellerAccess;
 
   const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${MERCADO_PAGO_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
       external_reference: order.id,
-      notification_url: `${APP_BASE_URL}/api/payments/mercadopago/webhook`,
+      notification_url: `${APP_BASE_URL}/api/payments/mercadopago/webhook?seller=${encodeURIComponent(sellerUser.id)}`,
       back_urls: {
         success: `${APP_BASE_URL}/?payment=success&order=${encodeURIComponent(order.id)}`,
         pending: `${APP_BASE_URL}/?payment=pending&order=${encodeURIComponent(order.id)}`,
@@ -416,7 +508,8 @@ const createMercadoPagoPreference = async ({ order, product }) => {
       metadata: {
         order_id: order.id,
         product_id: product.id,
-        seller: product.seller?.email || product.seller?.name || ""
+        seller: product.seller?.email || product.seller?.name || "",
+        marketpro_seller_id: sellerUser.id
       }
     })
   });
@@ -428,7 +521,11 @@ const createMercadoPagoPreference = async ({ order, product }) => {
       details: data
     };
   }
-  return data;
+  return {
+    ...data,
+    marketProSellerUserId: sellerUser.id,
+    sellerAccountId: sellerUser.mercadoPagoOAuth?.userId || ""
+  };
 };
 
 const createPromotionPreference = async ({ promotion, product }) => {
@@ -626,6 +723,7 @@ const hydrateRuntimeStore = (nextStore = {}) => {
   store.sessions = store.sessions || [];
   store.authAttempts = store.authAttempts || {};
   store.passwordResets = store.passwordResets || [];
+  store.oauthStates = store.oauthStates || [];
 };
 
 const initializePersistentStore = async () => {
@@ -1019,7 +1117,13 @@ app.get("/api/avatar/:name.svg", (req, res) => {
 });
 
 app.get("/api/products", (_req, res) => {
-  res.json(listings);
+  res.json(listings.map((product) => ({
+    ...product,
+    seller: {
+      ...product.seller,
+      mercadoPagoConnected: Boolean(sellerUserFor(product.seller)?.mercadoPagoOAuth?.accessTokenEncrypted)
+    }
+  })));
 });
 
 app.get("/api/conversations", (req, res) => {
@@ -1103,6 +1207,7 @@ app.post("/api/user", (req, res) => {
         : "Pendiente de revision",
     balance: Number(existing?.balance || req.body.balance || 0),
     pendingBalance: Number(existing?.pendingBalance || req.body.pendingBalance || 0),
+    mercadoPagoOAuth: existing?.mercadoPagoOAuth || null,
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...password
@@ -1148,6 +1253,74 @@ app.post("/api/auth/logout", (req, res) => {
   store.sessions = (store.sessions || []).filter((session) => session.token !== token);
   writeStore();
   res.json({ ok: true });
+});
+
+app.post("/api/payments/mercadopago/oauth/start", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Inicia sesion para conectar Mercado Pago." });
+  if (!user.verified) return res.status(403).json({ error: "Tu identidad debe estar aprobada antes de conectar cobros." });
+  if (!mercadoPagoOAuthReady()) {
+    return res.status(503).json({ error: "La conexion de vendedores con Mercado Pago todavia no fue configurada por MarketPro." });
+  }
+  const stateToken = crypto.randomBytes(32).toString("hex");
+  store.oauthStates = [
+    { state: stateToken, userId: user.id, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString() },
+    ...(store.oauthStates || []).filter((item) => new Date(item.expiresAt).getTime() > Date.now()).slice(0, 100)
+  ];
+  writeStore();
+  const authorizationUrl = new URL(MERCADO_PAGO_OAUTH_AUTHORIZE_URL);
+  authorizationUrl.searchParams.set("client_id", MERCADO_PAGO_CLIENT_ID);
+  authorizationUrl.searchParams.set("response_type", "code");
+  authorizationUrl.searchParams.set("platform_id", "mp");
+  authorizationUrl.searchParams.set("state", stateToken);
+  authorizationUrl.searchParams.set("redirect_uri", MERCADO_PAGO_OAUTH_REDIRECT_URI);
+  res.json({ url: authorizationUrl.toString() });
+});
+
+app.get("/api/payments/mercadopago/oauth/callback", async (req, res) => {
+  const stateToken = String(req.query.state || "");
+  const code = String(req.query.code || "");
+  const oauthState = (store.oauthStates || []).find((item) => item.state === stateToken);
+  store.oauthStates = (store.oauthStates || []).filter((item) => item.state !== stateToken && new Date(item.expiresAt).getTime() > Date.now());
+  if (!oauthState || new Date(oauthState.expiresAt).getTime() < Date.now() || !code) {
+    writeStore();
+    return res.redirect("/?mp=error&page=profile");
+  }
+  const user = (store.users || []).find((item) => item.id === oauthState.userId);
+  if (!user) {
+    writeStore();
+    return res.redirect("/?mp=error&page=profile");
+  }
+  const token = await exchangeMercadoPagoToken({
+    client_id: MERCADO_PAGO_CLIENT_ID,
+    client_secret: MERCADO_PAGO_CLIENT_SECRET,
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: MERCADO_PAGO_OAUTH_REDIRECT_URI
+  });
+  if (token.error) {
+    writeStore();
+    return res.redirect("/?mp=error&page=profile");
+  }
+  user.mercadoPagoOAuth = {
+    accessTokenEncrypted: encryptSecret(token.access_token),
+    refreshTokenEncrypted: encryptSecret(token.refresh_token || ""),
+    userId: String(token.user_id || ""),
+    publicKey: String(token.public_key || ""),
+    scope: String(token.scope || ""),
+    expiresAt: new Date(Date.now() + Number(token.expires_in || 15552000) * 1000).toISOString(),
+    connectedAt: new Date().toISOString()
+  };
+  writeStore();
+  res.redirect("/?mp=connected&page=profile");
+});
+
+app.delete("/api/payments/mercadopago/oauth/connection", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Inicia sesion para modificar esta conexion." });
+  user.mercadoPagoOAuth = null;
+  writeStore();
+  res.json({ ok: true, mercadoPago: { connected: false, accountId: "", connectedAt: "" } });
 });
 
 app.post("/api/auth/password-reset/request", (req, res) => {
@@ -1197,8 +1370,10 @@ app.get("/api/seller-dashboard", (_req, res) => {
       active: active.length,
       sold: sold.length,
       grossSales: soldTotal,
-      balance: user.balance + Math.round(soldTotal * 0.92),
-      pendingBalance: user.pendingBalance,
+      balance: 0,
+      pendingBalance: 0,
+      directPayments: true,
+      mercadoPagoConnected: Boolean(user.mercadoPagoOAuth?.accessTokenEncrypted),
       securityScore: user.verified ? 98 : 42
     },
     listings: mine
@@ -1284,8 +1459,8 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
     productId: product.id,
     productTitle: product.title,
     amount: product.price,
-    currency: "USD",
-    status: "Simulacion antiestafa - pago aprobado",
+    currency: MERCADO_PAGO_CURRENCY,
+    status: "Simulacion - pago directo confirmado",
     paymentMethod: "mercadopago",
     buyer,
     seller: product.seller,
@@ -1320,12 +1495,12 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
       buyerAcceptedRules: true,
       buyerDeclaredInspection: true,
       disputeWindowHours: securityStamp.riskLevel === "Alto" ? 72 : 48,
-      releaseRule: "Simulacion privada: valida evidencia, codigo unico y bloqueo por disputa sin cobrar dinero real.",
+      paymentRule: "Simulacion privada: Mercado Pago procesa el dinero directamente para el vendedor; el codigo solo confirma entrega.",
       antiFraud: [
         "Codigo falso rechazado.",
         "Evidencia del vendedor requerida antes de confirmar.",
-        "Checklist del comprador requerido antes de liberar.",
-        "Disputa abierta bloquearia la liberacion.",
+        "Checklist del comprador requerido antes de cerrar la entrega.",
+        "Una incidencia crea evidencia para reclamar en Mercado Pago.",
         "Huella de publicacion congela precio, fotos y descripcion."
       ],
       auditTrail: [
@@ -1334,12 +1509,12 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
         { event: `Riesgo ${securityStamp.riskLevel}`, at: now }
       ]
     },
-    paymentRelease: {
-      status: "Retenido hasta codigo de entrega",
-      releaseCode: deliveryCode,
-      releasedAt: "",
-      releasedBy: "",
-      note: "Simulacion: el pago solo se libera con codigo unico correcto y checklist completo."
+    deliveryConfirmation: {
+      status: "Pendiente de recepcion",
+      code: deliveryCode,
+      confirmedAt: "",
+      confirmedBy: "",
+      note: "El codigo confirma la entrega y no mueve dinero."
     },
     createdAt: now,
     mercadoPago: {
@@ -1348,7 +1523,8 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
       checkoutUrl: "",
       publicKeyConfigured: Boolean(MERCADO_PAGO_PUBLIC_KEY),
       status: "Simulado sin cobro real",
-      note: "No se llamo a Mercado Pago ni se proceso dinero real."
+      note: "No se llamo a Mercado Pago ni se proceso dinero real.",
+      sellerDirectPayment: true
     },
     disputes: []
   };
@@ -1385,28 +1561,27 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
     evidence: "Revision simulada aprobada.",
     confirmedAt: order.delivery.confirmedAt
   };
-  order.paymentRelease = {
-    ...order.paymentRelease,
-    status: "Liberado",
-    releasedAt: new Date().toISOString(),
-    releasedBy: product.seller?.email || product.seller?.name || "Vendedor simulado",
-    note: "Simulacion validada: codigo unico correcto y checklist completo."
+  order.deliveryConfirmation = {
+    ...order.deliveryConfirmation,
+    status: "Confirmada",
+    confirmedAt: order.delivery.confirmedAt,
+    confirmedBy: buyer.email,
+    note: "Recepcion simulada validada con codigo unico y checklist completo."
   };
-  order.status = "Simulacion completada - pago liberado";
-  order.delivery.status = "Cerrada con pago liberado";
+  order.status = "Simulacion completada - entrega confirmada";
+  order.delivery.status = "Completada";
   order.delivery.timeline = [
     ...(order.delivery.timeline || []),
     { event: "Vendedor cargo evidencia previa", at: sellerProof.declaredAt },
     { event: "Entrega marcada en camino", at: order.delivery.tracking.markedAt },
     { event: "Intento con codigo falso rechazado", at: new Date().toISOString() },
-    { event: "Comprador confirmo con checklist y codigo correcto", at: order.delivery.confirmedAt },
-    { event: "Liberacion simulada validada", at: order.paymentRelease.releasedAt }
+    { event: "Comprador confirmo con checklist y codigo correcto", at: order.delivery.confirmedAt }
   ];
   order.security.auditTrail = [
     ...(order.security.auditTrail || []),
     { event: "Codigo falso no coincide con codigo unico", at: new Date().toISOString() },
-    { event: "Checklist completo antes de liberar", at: order.delivery.confirmedAt },
-    { event: "Pago simulado liberado por codigo unico", at: order.paymentRelease.releasedAt }
+    { event: "Checklist completo antes de cerrar entrega", at: order.delivery.confirmedAt },
+    { event: "Codigo confirmo entrega sin intervenir en el pago", at: order.delivery.confirmedAt }
   ];
 
   store.orders = [order, ...(store.orders || [])].slice(0, 500);
@@ -1420,8 +1595,9 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
       wrongCodeRejected,
       sellerProofRequired: Boolean(order.delivery.sellerProofRequired && order.delivery.sellerProof),
       buyerChecklistRequired: Boolean(order.delivery.buyerInspection?.checklist?.itemMatches),
-      disputeWouldBlockRelease: true,
-      paymentReleasedOnlyAfterCode: order.paymentRelease.status === "Liberado" && wrongCodeRejected,
+      disputeCreatesClaimEvidence: true,
+      deliveryClosedOnlyAfterCode: order.deliveryConfirmation.status === "Confirmada" && wrongCodeRejected,
+      paymentUntouchedByDeliveryCode: true,
       noRealCharge: order.mercadoPago.status === "Simulado sin cobro real",
       fingerprintCreated: Boolean(order.security?.stamp?.productFingerprint)
     }
@@ -1430,14 +1606,18 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
 
 const mercadoPagoConfigStatus = () => {
   const checks = [
-    ["Access token", Boolean(MERCADO_PAGO_ACCESS_TOKEN), "MERCADO_PAGO_ACCESS_TOKEN"],
-    ["Public key", Boolean(MERCADO_PAGO_PUBLIC_KEY), "MERCADO_PAGO_PUBLIC_KEY"],
+    ["OAuth Client ID", Boolean(MERCADO_PAGO_CLIENT_ID), "MERCADO_PAGO_CLIENT_ID"],
+    ["OAuth Client Secret", Boolean(MERCADO_PAGO_CLIENT_SECRET), "MERCADO_PAGO_CLIENT_SECRET"],
+    ["Cifrado de tokens", Boolean(TOKEN_ENCRYPTION_KEY), "TOKEN_ENCRYPTION_KEY"],
     ["Webhook secret", Boolean(MERCADO_PAGO_WEBHOOK_SECRET), "MERCADO_PAGO_WEBHOOK_SECRET"],
     ["URL publica", /^https:\/\//.test(APP_BASE_URL), "APP_BASE_URL debe ser https en produccion"],
-    ["Moneda", Boolean(MERCADO_PAGO_CURRENCY), "MERCADO_PAGO_CURRENCY"]
+    ["Redirect OAuth", /^https:\/\//.test(MERCADO_PAGO_OAUTH_REDIRECT_URI), "MERCADO_PAGO_OAUTH_REDIRECT_URI"],
+    ["Cobro de anuncios", Boolean(MERCADO_PAGO_ACCESS_TOKEN), "MERCADO_PAGO_ACCESS_TOKEN"]
   ];
   return {
     ready: checks.every((item) => item[1]),
+    sellerPaymentsReady: mercadoPagoOAuthReady() && Boolean(MERCADO_PAGO_WEBHOOK_SECRET) && /^https:\/\//.test(APP_BASE_URL),
+    adsReady: Boolean(MERCADO_PAGO_ACCESS_TOKEN),
     appBaseUrl: APP_BASE_URL,
     currency: MERCADO_PAGO_CURRENCY,
     webhookUrl: `${APP_BASE_URL}/api/payments/mercadopago/webhook`,
@@ -1465,17 +1645,7 @@ app.post("/api/admin/mercadopago/test-preference", requireAdmin, async (_req, re
       config
     });
   }
-  const testOrder = {
-    id: `mp-test-${Date.now()}`,
-    buyer: {
-      name: "Prueba MarketPro",
-      email: "test_user_123456@testuser.com"
-    },
-    delivery: {
-      phone: "099000000",
-      address: "Prueba MarketPro"
-    }
-  };
+  const testPromotion = { id: `mp-test-${Date.now()}`, amount: 1 };
   const testProduct = {
     id: "marketpro-test",
     title: "Prueba de integracion MarketPro",
@@ -1485,7 +1655,7 @@ app.post("/api/admin/mercadopago/test-preference", requireAdmin, async (_req, re
       name: "MarketPro"
     }
   };
-  const preference = await createMercadoPagoPreference({ order: testOrder, product: testProduct });
+  const preference = await createPromotionPreference({ promotion: testPromotion, product: testProduct });
   if (preference.error) {
     return res.status(502).json(preference);
   }
@@ -1522,13 +1692,12 @@ app.post("/api/admin/users/:id/verify", requireAdmin, (req, res) => {
 });
 
 app.post("/api/products", (req, res) => {
+  const savedSeller = authenticatedUser(req);
+  if (!savedSeller) return res.status(401).json({ error: "Inicia sesion para publicar." });
   const required = ["title", "price", "category", "condition", "description", "location", "seller"];
   const missing = required.filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Faltan datos obligatorios", fields: missing });
   if (!req.body.safetyAccepted) return res.status(400).json({ error: "Debes aceptar el protocolo de seguridad" });
-  const savedSeller = store.users.find((user) =>
-    String(user.email || "").toLowerCase() === String(req.body.seller?.email || "").toLowerCase()
-  );
   if (String(savedSeller?.verificationStatus || req.body.seller?.verificationStatus || "").toLowerCase().includes("rechaz")) {
     return res.status(403).json({ error: "Tu cuenta ha sido rechazada. No cumples con los requisitos para vender." });
   }
@@ -1537,9 +1706,14 @@ app.post("/api/products", (req, res) => {
   const draftProduct = {
     ...req.body,
     seller: {
-      ...req.body.seller,
+      name: savedSeller.name,
+      email: savedSeller.email,
+      avatar: `/api/avatar/${encodeURIComponent(savedSeller.name)}.svg`,
+      rating: Number(savedSeller.rating || 0),
+      ratingCount: Number(savedSeller.ratingCount || 0),
       verified: true,
-      verificationStatus: savedSeller?.verificationStatus || req.body.seller?.verificationStatus || "Verificado por admin"
+      verificationStatus: savedSeller.verificationStatus || "Verificado por admin",
+      mercadoPagoConnected: Boolean(savedSeller.mercadoPagoOAuth?.accessTokenEncrypted)
     }
   };
   const listingRisk = analyzeListingRisk(draftProduct);
@@ -1570,9 +1744,11 @@ app.post("/api/products", (req, res) => {
 });
 
 app.post("/api/promotions", async (req, res) => {
+  const promotionBuyer = authenticatedUser(req);
+  if (!promotionBuyer) return res.status(401).json({ error: "Inicia sesion para destacar una publicacion." });
   const product = listings.find((item) => item.id === req.body.productId);
   if (!product) return res.status(404).json({ error: "Publicacion no encontrada" });
-  const buyerEmail = String(req.body.buyer?.email || "").toLowerCase();
+  const buyerEmail = String(promotionBuyer.email || "").toLowerCase();
   const sellerEmail = String(product.seller?.email || "").toLowerCase();
   if (sellerEmail && buyerEmail && sellerEmail !== buyerEmail) {
     return res.status(403).json({ error: "Solo el vendedor puede pagar el anuncio de su publicacion." });
@@ -1585,7 +1761,7 @@ app.post("/api/promotions", async (req, res) => {
     amount: 1,
     currency: MERCADO_PAGO_CURRENCY,
     status: "Pendiente de pago en Mercado Pago",
-    buyer: req.body.buyer || {},
+    buyer: { id: promotionBuyer.id, name: promotionBuyer.name, email: promotionBuyer.email },
     seller: product.seller,
     createdAt: new Date().toISOString(),
     mercadoPago: {
@@ -1709,8 +1885,8 @@ app.post("/api/checkout", async (req, res) => {
     productId: product.id,
     productTitle: product.title,
     amount: product.price,
-    currency: "USD",
-    status: "Pendiente de pago en Mercado Pago",
+    currency: MERCADO_PAGO_CURRENCY,
+    status: "Pendiente de pago directo en Mercado Pago",
     paymentMethod: "mercadopago",
     buyer: {
       id: buyerUser.id,
@@ -1751,14 +1927,14 @@ app.post("/api/checkout", async (req, res) => {
       buyerAcceptedRules: Boolean(req.body.acceptedRules),
       buyerDeclaredInspection: Boolean(req.body.declaredInspection),
       disputeWindowHours: securityStamp.riskLevel === "Alto" ? 72 : 48,
-      releaseRule: "El pago se procesa mediante Mercado Pago vinculado. MarketPro conserva orden, evidencia y trazabilidad para disputa.",
+      paymentRule: "El pago se realiza directamente en la cuenta de Mercado Pago conectada por el vendedor. MarketPro no recibe, retiene ni libera el dinero.",
       antiFraud: [
         "El vendedor debe subir evidencia del producto embalado.",
         "El comprador confirma recepcion con codigo unico.",
         "Si el producto no coincide, se abre disputa con evidencia de la orden.",
         "El historial de chat, publicacion y orden queda guardado para revision.",
         "La huella de publicacion congela precio, fotos y descripcion.",
-        "Si el score de riesgo sube, el retiro queda bloqueado para revision."
+        "Si existe un problema, MarketPro prepara la evidencia para el reclamo en Mercado Pago."
       ],
       auditTrail: [
         { event: "Orden creada", at: new Date().toISOString() },
@@ -1766,12 +1942,12 @@ app.post("/api/checkout", async (req, res) => {
         { event: `Riesgo ${securityStamp.riskLevel}`, at: new Date().toISOString() }
       ]
     },
-    paymentRelease: {
-      status: "Retenido hasta codigo de entrega",
-      releaseCode: deliveryCode,
-      releasedAt: "",
-      releasedBy: "",
-      note: "El vendedor solo puede solicitar liberacion si el comprador entrega el codigo unico despues de revisar el articulo."
+    deliveryConfirmation: {
+      status: "Pendiente de recepcion",
+      code: deliveryCode,
+      confirmedAt: "",
+      confirmedBy: "",
+      note: "El codigo confirma la entrega dentro de MarketPro. No controla el dinero de Mercado Pago."
     },
     createdAt: new Date().toISOString(),
     mercadoPago: {
@@ -1780,7 +1956,7 @@ app.post("/api/checkout", async (req, res) => {
       checkoutUrl: "",
       publicKeyConfigured: Boolean(MERCADO_PAGO_PUBLIC_KEY),
       status: "Creando preferencia real",
-      note: "Pago procesado por Mercado Pago. MarketPro no almacena tarjetas ni credenciales de pago."
+      note: "Pago directo al vendedor mediante Mercado Pago. MarketPro no recibe dinero ni almacena tarjetas."
     },
     disputes: []
   };
@@ -1797,6 +1973,8 @@ app.post("/api/checkout", async (req, res) => {
   order.mercadoPago.checkoutUrl = preference.init_point || preference.sandbox_init_point || "";
   order.mercadoPago.status = "Preferencia real creada";
   order.mercadoPago.rawStatus = preference.status || "";
+  order.mercadoPago.sellerUserId = preference.marketProSellerUserId || "";
+  order.mercadoPago.sellerAccountId = preference.sellerAccountId || "";
   ensureOrderConversation(order);
 
   store.orders = [order, ...(store.orders || [])];
@@ -1807,12 +1985,16 @@ app.post("/api/checkout", async (req, res) => {
 app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
-  if (!requireOrderRole(req, res, order, "buyer")) return;
+  const buyerActor = requireOrderRole(req, res, order, "buyer");
+  if (!buyerActor) return;
   if (order.disputes?.some((dispute) => dispute.status !== "Cerrada")) {
     return res.status(409).json({ error: "No se puede confirmar entrega con una disputa abierta" });
   }
   if (order.delivery.sellerProofRequired && !order.delivery.sellerProof) {
     return res.status(409).json({ error: "Falta evidencia del vendedor antes de confirmar entrega" });
+  }
+  if (order.paymentNotification?.status !== "approved") {
+    return res.status(409).json({ error: "Mercado Pago todavia no confirmo el pago directo al vendedor." });
   }
   if (String(req.body.code || "").toUpperCase() !== order.delivery.code) {
     return res.status(400).json({ error: "Codigo de entrega incorrecto" });
@@ -1824,8 +2006,8 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   if (missingChecks.length) {
     return res.status(400).json({ error: "Faltan confirmaciones del checklist de recepcion", fields: missingChecks });
   }
-  order.status = "Entrega confirmada - pago liberable";
-  order.delivery.status = "Confirmada por comprador";
+  order.status = "Operacion completada";
+  order.delivery.status = "Completada";
   order.delivery.confirmedAt = new Date().toISOString();
   order.delivery.buyerInspection = {
     checklist,
@@ -1839,13 +2021,18 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   ];
   order.security.auditTrail = [
     ...(order.security.auditTrail || []),
-    { event: "Entrega confirmada con checklist completo", at: order.delivery.confirmedAt }
+    { event: "Entrega confirmada con checklist y codigo unico", at: order.delivery.confirmedAt }
   ];
-  order.paymentRelease = {
-    ...(order.paymentRelease || {}),
-    status: "Liberable con codigo validado",
-    buyerValidatedAt: order.delivery.confirmedAt
+  order.deliveryConfirmation = {
+    ...(order.deliveryConfirmation || {}),
+    status: "Confirmada",
+    code: order.delivery.code,
+    confirmedAt: order.delivery.confirmedAt,
+    confirmedBy: buyerActor.user.email || buyerActor.user.name || "Comprador",
+    note: "Recepcion confirmada en MarketPro. El pago fue procesado directamente por Mercado Pago."
   };
+  listings = listings.map((product) => product.id === order.productId ? { ...product, status: "sold" } : product);
+  store.products = listings;
   writeStore();
   res.json(order);
 });
@@ -1854,37 +2041,6 @@ app.post("/api/orders/:id/release-payment", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
   if (!requireOrderRole(req, res, order, "buyer")) return;
-  if (order.disputes?.some((dispute) => dispute.status !== "Cerrada")) {
-    return res.status(409).json({ error: "No se puede liberar pago con una disputa abierta" });
-  }
-  if (!order.delivery?.buyerInspection) {
-    return res.status(409).json({ error: "El comprador primero debe confirmar recepcion y checklist." });
-  }
-  if (String(req.body.code || "").trim().toUpperCase() !== String(order.paymentRelease?.releaseCode || order.delivery?.code || "").toUpperCase()) {
-    return res.status(400).json({ error: "Codigo unico incorrecto. No se libera el pago." });
-  }
-  if (order.paymentRelease?.status === "Liberado") return res.json(order);
-  const releasedAt = new Date().toISOString();
-  order.paymentRelease = {
-    ...(order.paymentRelease || {}),
-    status: "Liberado",
-    releasedAt,
-    releasedBy: req.body.releasedBy?.email || req.body.releasedBy?.name || "Vendedor",
-    note: "Codigo unico validado. Operacion cerrada y pago habilitado para el vendedor."
-  };
-  order.status = "Pago liberado al vendedor";
-  order.delivery.status = "Cerrada con pago liberado";
-  order.delivery.timeline = [
-    ...(order.delivery.timeline || []),
-    { event: "Pago liberado con codigo unico", at: releasedAt }
-  ];
-  order.security.auditTrail = [
-    ...(order.security.auditTrail || []),
-    { event: "Liberacion de pago validada por codigo unico", at: releasedAt }
-  ];
-  listings = listings.map((product) => product.id === order.productId ? { ...product, status: "sold" } : product);
-  store.products = listings;
-  writeStore();
   res.json(order);
 });
 
@@ -2009,20 +2165,54 @@ app.post("/api/orders/:id/dispute", (req, res) => {
   res.status(201).json(order);
 });
 
-app.post("/api/payments/mercadopago/webhook", async (req, res) => {
+const validMercadoPagoWebhook = (req) => {
+  if (!MERCADO_PAGO_WEBHOOK_SECRET) return !IS_PRODUCTION;
   const signature = String(req.headers["x-signature"] || "");
-  if (MERCADO_PAGO_WEBHOOK_SECRET && !signature) {
-    return res.status(401).json({ error: "Firma de webhook requerida" });
+  const requestId = String(req.headers["x-request-id"] || "");
+  const dataId = String(req.query["data.id"] || req.body?.data?.id || "").toLowerCase();
+  const signatureParts = Object.fromEntries(
+    signature.split(",").map((part) => part.trim().split("=")).filter(([key, value]) => key && value)
+  );
+  if (!signatureParts.ts || !signatureParts.v1) return false;
+  const timestamp = Number(signatureParts.ts);
+  const timestampMs = timestamp > 1e12 ? timestamp : timestamp * 1000;
+  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 10 * 60 * 1000) return false;
+  const manifest = [
+    dataId ? `id:${dataId};` : "",
+    requestId ? `request-id:${requestId};` : "",
+    `ts:${signatureParts.ts};`
+  ].join("");
+  const expected = crypto.createHmac("sha256", MERCADO_PAGO_WEBHOOK_SECRET).update(manifest).digest("hex");
+  const received = String(signatureParts.v1);
+  if (expected.length !== received.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+};
+
+app.post("/api/payments/mercadopago/webhook", async (req, res) => {
+  if (!validMercadoPagoWebhook(req)) {
+    return res.status(401).json({ error: "Firma de Mercado Pago invalida." });
   }
 
   const topic = req.query.topic || req.body.type || req.body.topic;
-  const paymentId = req.query.id || req.body?.data?.id || req.body.id;
+  const paymentId = req.query["data.id"] || req.query.id || req.body?.data?.id || req.body.id;
+  const sellerUserId = String(req.query.seller || "");
   let payment = null;
 
-  if (paymentId && MERCADO_PAGO_ACCESS_TOKEN) {
+  let paymentAccessToken = "";
+  if (sellerUserId) {
+    const sellerUser = (store.users || []).find((user) => user.id === sellerUserId);
+    if (sellerUser) {
+      const sellerAccess = await sellerMercadoPagoAccess({ email: sellerUser.email, name: sellerUser.name });
+      paymentAccessToken = sellerAccess.accessToken || "";
+    }
+  } else {
+    paymentAccessToken = MERCADO_PAGO_ACCESS_TOKEN;
+  }
+
+  if (paymentId && paymentAccessToken) {
     try {
       const response = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
-        headers: { Authorization: `Bearer ${MERCADO_PAGO_ACCESS_TOKEN}` }
+        headers: { Authorization: `Bearer ${paymentAccessToken}` }
       });
       if (response.ok) payment = await response.json();
     } catch {
@@ -2030,20 +2220,31 @@ app.post("/api/payments/mercadopago/webhook", async (req, res) => {
     }
   }
 
-  const externalReference = payment?.external_reference || req.body.external_reference || req.query.external_reference;
+  const externalReference = payment?.external_reference;
   const order = (store.orders || []).find((item) => item.id === externalReference);
   if (order) {
+    const amountMatches = Number(payment?.transaction_amount) === Number(order.amount);
+    const currencyMatches = !payment?.currency_id || payment.currency_id === order.currency;
+    const collectorMatches = !order.mercadoPago?.sellerAccountId || String(payment?.collector_id || "") === String(order.mercadoPago.sellerAccountId);
+    const paymentVerified = Boolean(payment && amountMatches && currencyMatches && collectorMatches);
     order.paymentNotification = {
       topic,
       paymentId: String(paymentId || ""),
-      status: payment?.status || req.body.status || "received",
+      status: paymentVerified ? payment.status : "verification_failed",
       statusDetail: payment?.status_detail || "",
+      amountMatches,
+      currencyMatches,
+      collectorMatches,
       receivedAt: new Date().toISOString()
     };
-    order.status = payment?.status === "approved" ? "Pago aprobado por Mercado Pago" : `Mercado Pago: ${order.paymentNotification.status}`;
+    order.status = paymentVerified && payment.status === "approved"
+      ? "Pago directo confirmado por Mercado Pago"
+      : paymentVerified
+        ? `Mercado Pago: ${payment.status}`
+        : "Pago en revision: los datos no coinciden";
     order.security.auditTrail = [
       ...(order.security.auditTrail || []),
-      { event: `Webhook Mercado Pago ${order.paymentNotification.status}`, at: order.paymentNotification.receivedAt }
+      { event: `Webhook firmado de Mercado Pago: ${order.paymentNotification.status}`, at: order.paymentNotification.receivedAt }
     ];
     writeStore();
   }

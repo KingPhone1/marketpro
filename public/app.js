@@ -35,11 +35,11 @@ const safetyRules = [
 const fraudScenarios = [
   {
     title: "Producto distinto al publicado",
-    text: "El vendedor debe mantener fotos, descripcion y evidencia de empaque. Si el comprador reporta diferencia, el pago queda retenido."
+    text: "El vendedor debe mantener fotos, descripcion y evidencia de empaque. Si algo no coincide, MarketPro prepara el reclamo."
   },
   {
     title: "No envio o falsa entrega",
-    text: "Cada orden genera un codigo unico. Sin codigo confirmado por el comprador, el dinero no se libera."
+    text: "Cada orden genera un codigo unico para confirmar la recepcion, cerrar la operacion y habilitar la calificacion."
   },
   {
     title: "Identidad falsa",
@@ -55,13 +55,13 @@ const fraudScenarios = [
   },
   {
     title: "Disputa por estado del articulo",
-    text: "El comprador tiene ventana de disputa; el pago queda retenido hasta decision del admin."
+    text: "MarketPro conserva publicacion, chat, evidencia y rastreo para gestionar el reclamo directamente en Mercado Pago."
   }
 ];
 
 const shieldControls = [
   ["Pago externo", "Bloquea o advierte transferencias, efectivo, cripto y pagos directos fuera de MarketPro."],
-  ["Codigo sensible", "Marca pedidos de OTP, clave, PIN o codigo de entrega antes de liberar informacion."],
+  ["Codigo sensible", "Marca pedidos de OTP, clave, PIN o codigo de entrega antes de confirmar la recepcion."],
   ["Entrega dudosa", "Detecta terceros sin documento, cadetes improvisados o entrega sin revision."],
   ["Producto cambiado", "Congela fotos, precio, descripcion y vendedor al crear la orden."],
   ["Presion indebida", "Alerta mensajes con urgencia artificial o intento de cerrar sin revisar."],
@@ -90,7 +90,7 @@ const initialView = () => {
   if (location.pathname === "/support") return "support";
   if (location.pathname === "/security") return "security";
   const page = new URLSearchParams(location.search).get("page");
-  return ["legal", "support", "security", "orders"].includes(page) ? page : "feed";
+  return ["legal", "support", "security", "orders", "profile"].includes(page) ? page : "feed";
 };
 
 const state = {
@@ -441,7 +441,7 @@ const sellerReliability = (item) => [
   "Identidad validada",
   sellerHasRating(item.seller) ? `${Number(item.seller.rating).toFixed(1)}/5 reputacion real` : "Sin calificaciones todavia",
   "Chat auditado",
-  "Pago protegido"
+  "Pago directo en Mercado Pago"
 ];
 
 const securityLedger = (item) => {
@@ -456,9 +456,9 @@ const securityLedger = (item) => {
       </div>
       <ul>
         <li>Publicacion congelada al comprar</li>
-        <li>Pago procesado por Mercado Pago vinculado</li>
+        <li>Pago directo a la cuenta Mercado Pago del vendedor</li>
         <li>Chat monitoreado contra fraude</li>
-        <li>Disputa bloquea retiro del vendedor</li>
+        <li>Incidencia prepara evidencia para reclamo</li>
         <li>Riesgo de publicacion: ${escapeHtml(risk.level)}${risk.flags?.length ? ` (${escapeHtml(risk.flags.slice(0, 2).join(", "))})` : ""}</li>
       </ul>
     </section>
@@ -486,10 +486,10 @@ const deliveryWorkflow = (order) => {
   const isBuyer = role === "Compra";
   const isSeller = role === "Venta";
   const tracking = order.delivery?.tracking;
-  const released = order.paymentRelease?.status === "Liberado";
+  const completed = order.deliveryConfirmation?.status === "Confirmada" || order.delivery?.status === "Completada" || order.paymentRelease?.status === "Liberado";
   const nextAction = hasOpenDispute
     ? "La operacion esta pausada mientras se revisa la disputa."
-    : released
+    : completed
       ? "Compra finalizada y protegida."
       : isSeller && !proof
         ? "Carga la evidencia del articulo antes de enviarlo."
@@ -506,14 +506,14 @@ const deliveryWorkflow = (order) => {
     <section class="delivery-workflow simple-delivery-flow">
       <div class="delivery-status">
         <span>Tu proximo paso</span>
-        <strong>${escapeHtml(order.paymentRelease?.status || order.delivery.status)}</strong>
+        <strong>${escapeHtml(order.delivery?.status || order.status)}</strong>
         <small>${escapeHtml(nextAction)}</small>
       </div>
       <div class="delivery-steps">
         <span class="done">1. Orden</span>
         <span class="${proof ? "done" : ""}">2. Preparacion</span>
         <span class="${tracking ? "done" : ""}">3. Envio</span>
-        <span class="${hasOpenDispute ? "danger" : released ? "done" : ""}">4. Entrega</span>
+        <span class="${hasOpenDispute ? "danger" : completed ? "done" : ""}">4. Entrega</span>
       </div>
       ${proof && isSeller ? `
         <div class="proof-summary">
@@ -563,21 +563,13 @@ const deliveryWorkflow = (order) => {
           <button class="buy-action" type="submit">Confirmar y finalizar compra</button>
         </form>
       ` : ""}
-      ${isBuyer && inspection && !released && !hasOpenDispute ? `
-        <form class="secure-subform release-form" id="releasePaymentForm">
-          <strong>Finalizar liberacion</strong>
-          <small>La entrega ya fue validada. Repite el codigo solamente si la liberacion automatica no se completo.</small>
-          <input name="code" required placeholder="Codigo unico de esta orden" />
-          <button class="buy-action" type="submit">Finalizar compra</button>
-        </form>
-      ` : ""}
-      ${released ? `
+      ${completed ? `
         <div class="proof-summary release-ok">
           <strong>Compra completada</strong>
-          <span>Entrega validada y operacion cerrada el ${escapeHtml(order.paymentRelease.releasedAt || "")}</span>
+          <span>Entrega validada y operacion cerrada el ${escapeHtml(order.deliveryConfirmation?.confirmedAt || order.delivery?.confirmedAt || order.paymentRelease?.releasedAt || "")}</span>
         </div>
       ` : ""}
-      ${isBuyer && released && !order.sellerRating ? `
+      ${isBuyer && completed && !order.sellerRating ? `
         <form class="secure-subform rating-form" id="sellerRatingForm">
           <strong>Calificar vendedor</strong>
           <select name="rating" required>
@@ -598,7 +590,7 @@ const deliveryWorkflow = (order) => {
           <span>${ratingStars(order.sellerRating.rating)} - ${Number(order.sellerRating.rating).toFixed(1)}/5</span>
         </div>
       ` : ""}
-      ${!released ? `
+      ${!completed ? `
         <details class="dispute-drawer">
           <summary>Algo no esta bien</summary>
           <form class="secure-subform dispute-form" id="disputeForm">
@@ -649,7 +641,7 @@ const productCard = (item) => `
       <div class="price">${money(item.price)}</div>
       ${item.promoted ? `<div class="ad-badge">Anuncio destacado</div>` : ""}
       <div class="security-strip">
-        <span>Pago protegido</span>
+        <span>Pago directo MP</span>
       </div>
       <div class="card-meta">${escapeHtml(item.location)}</div>
       <div class="card-foot">
@@ -749,9 +741,15 @@ const visibleOrders = () => {
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 };
 
+const orderCompleted = (order) => Boolean(
+  order.deliveryConfirmation?.status === "Confirmada" ||
+  order.delivery?.status === "Completada" ||
+  order.paymentRelease?.status === "Liberado"
+);
+
 const orderPhase = (order) => {
   if (order.disputes?.some((item) => item.status !== "Cerrada")) return ["Disputa", "danger"];
-  if (order.paymentRelease?.status === "Liberado") return ["Completada", "done"];
+  if (orderCompleted(order)) return ["Completada", "done"];
   if (order.delivery?.buyerInspection) return ["Recepcion validada", "active"];
   if (order.delivery?.tracking) return ["En entrega", "active"];
   if (order.delivery?.sellerProof) return ["Evidencia cargada", "active"];
@@ -778,7 +776,7 @@ const orderCard = (order) => {
           <i class="${order.delivery?.sellerProof ? "done" : ""}"></i>
           <i class="${order.delivery?.tracking ? "done" : ""}"></i>
           <i class="${order.delivery?.buyerInspection ? "done" : ""}"></i>
-          <i class="${order.paymentRelease?.status === "Liberado" ? "done" : ""}"></i>
+          <i class="${orderCompleted(order) ? "done" : ""}"></i>
         </div>
       </div>
       <button class="secondary-btn" data-open-order="${order.id}">Ver flujo</button>
@@ -789,7 +787,7 @@ const orderCard = (order) => {
 const ordersSummary = () => {
   const orders = visibleOrders();
   const openDisputes = orders.filter((order) => order.disputes?.some((item) => item.status !== "Cerrada")).length;
-  const completed = orders.filter((order) => order.paymentRelease?.status === "Liberado").length;
+  const completed = orders.filter(orderCompleted).length;
   return `
     <section class="seller-metrics order-metrics">
       <div class="metric-card"><span>Operaciones</span><strong>${orders.length}</strong></div>
@@ -925,7 +923,7 @@ const orderDetailView = () => {
         <section class="order-detail-card">
           <p class="eyebrow">Pago</p>
           <h2>${escapeHtml(order.mercadoPago?.status || order.status)}</h2>
-          <p class="muted">${escapeHtml(order.paymentRelease?.note || "Pago procesado por Mercado Pago vinculado.")}</p>
+          <p class="muted">${escapeHtml(order.mercadoPago?.note || "Pago directo al vendedor mediante Mercado Pago. MarketPro no recibe ni retiene dinero.")}</p>
           ${order.mercadoPago?.checkoutUrl ? `<a class="buy-action checkout-link" href="${escapeHtml(order.mercadoPago.checkoutUrl)}" target="_blank" rel="noopener">Abrir Mercado Pago</a>` : ""}
         </section>
         <section class="order-detail-card">
@@ -955,7 +953,7 @@ const securityView = () => `
     ${securityProtocol()}
     <section class="panel secure-flow-panel">
       <p class="eyebrow">Entrega con codigo unico</p>
-      <h2>El vendedor no recibe liberacion si el comprador no entrega el codigo correcto.</h2>
+      <h2>El codigo confirma la recepcion y cierra la operacion dentro de MarketPro.</h2>
       <div class="secure-flow">
         <span>1. Orden y pago por Mercado Pago</span>
         <span>2. Publicacion congelada</span>
@@ -1002,7 +1000,7 @@ const legalView = () => `
       <div class="legal-grid">
         <article><strong>Datos de cuenta</strong><span>Gmail, contrasena protegida, telefono, cedula, foto de rostro y foto frontal del documento para revision admin.</span></article>
         <article><strong>Operaciones</strong><span>Publicaciones, chats, ordenes, evidencias, reportes, pagos derivados a Mercado Pago y estados de entrega.</span></article>
-        <article><strong>Pagos</strong><span>MarketPro no almacena tarjetas. El pago se realiza en Mercado Pago vinculado a la app.</span></article>
+        <article><strong>Pagos</strong><span>MarketPro no almacena tarjetas ni recibe el dinero. El pago se realiza directamente al vendedor en Mercado Pago.</span></article>
         <article><strong>Eliminacion</strong><span>Desde Mi cuenta puedes solicitar/eliminar tu cuenta. Tus publicaciones quedan pausadas para evitar operaciones incompletas.</span></article>
         <article><strong>Moderacion</strong><span>Reportes de publicaciones, chats y disputas quedan disponibles para el admin.</span></article>
         <article><strong>Seguridad</strong><span>No compartas codigos antes de revisar el articulo. El codigo unico cambia por cada orden.</span></article>
@@ -1208,7 +1206,7 @@ const feedView = () => {
       <section class="luxury-strip closing-strip">
         <article><span>01</span><strong>Validacion de vendedor</strong><p>Las publicaciones se habilitan con perfil revisado.</p></article>
         <article><span>02</span><strong>Checkout interno</strong><p>Direccion, metodo y comprobante quedan en la orden.</p></article>
-        <article><span>03</span><strong>Entrega confirmada</strong><p>El pago se libera cuando la recepcion queda validada.</p></article>
+        <article><span>03</span><strong>Entrega confirmada</strong><p>El codigo cierra la operacion y habilita la calificacion.</p></article>
       </section>
       <div class="closing-shield">
         ${shieldMatrix()}
@@ -1294,7 +1292,7 @@ const detailView = () => {
               <small>La orden, el chat, el pago y la entrega ya estan vinculados.</small>
               <button class="buy-action" type="button" data-open-order="${escapeHtml(state.checkoutOrder.id)}">Ver mi compra</button>
             </section>
-          ` : `
+          ` : item.seller?.mercadoPagoConnected ? `
             <form class="checkout-box simple-checkout" id="checkoutForm">
               <input type="hidden" name="paymentMethod" value="mercadopago" />
               <div class="checkout-heading">
@@ -1302,7 +1300,7 @@ const detailView = () => {
                   <span>Compra protegida</span>
                   <strong>${money(item.price)}</strong>
                 </div>
-                <small>Pagas en Mercado Pago. MarketPro protege la orden y la entrega.</small>
+                <small>Pagas directamente en la cuenta de Mercado Pago del vendedor. MarketPro no recibe el dinero.</small>
               </div>
               <div class="checkout-mini-steps" aria-label="Proceso de compra">
                 <span class="active">1. Entrega</span>
@@ -1329,6 +1327,14 @@ const detailView = () => {
                 <span>Codigo unico</span>
               </div>
             </form>
+          ` : `
+            <section class="checkout-box simple-checkout mp-unavailable">
+              <div class="checkout-heading">
+                <div><span>Compra temporalmente no disponible</span><strong>${money(item.price)}</strong></div>
+                <small>Este vendedor debe conectar su cuenta de Mercado Pago antes de recibir compras.</small>
+              </div>
+              <div class="checkout-assurance"><span>Sin cobros intermediados</span><span>Cuenta del vendedor requerida</span><span>Checkout oficial MP</span></div>
+            </section>
           `}
           <div class="detail-actions">
             <button class="buy-action" id="messageSeller">Contactar vendedor</button>
@@ -1686,12 +1692,12 @@ const profileView = () => {
         </div>
         <section class="seller-metrics">
           <div class="metric-card">
-            <span>Saldo disponible</span>
-            <strong>${money(stats.balance)}</strong>
+            <span>Mercado Pago</span>
+            <strong>${state.user.mercadoPago?.connected ? "Conectado" : "Pendiente"}</strong>
           </div>
           <div class="metric-card">
-            <span>Saldo pendiente</span>
-            <strong>${money(stats.pendingBalance)}</strong>
+            <span>Ventas registradas</span>
+            <strong>${money(stats.grossSales || 0)}</strong>
           </div>
           <div class="metric-card">
             <span>Publicaciones activas</span>
@@ -1701,6 +1707,17 @@ const profileView = () => {
             <span>Vendidos</span>
             <strong>${stats.sold}</strong>
           </div>
+        </section>
+        <section class="mp-connect-panel ${state.user.mercadoPago?.connected ? "connected" : ""}">
+          <div>
+            <p class="eyebrow">Cobros directos</p>
+            <h2>${state.user.mercadoPago?.connected ? "Tu Mercado Pago esta conectado" : "Conecta tu cuenta de Mercado Pago"}</h2>
+            <p class="muted">Los compradores pagan directamente en tu cuenta. MarketPro no recibe, retiene ni devuelve el dinero de tus ventas.</p>
+            ${state.user.mercadoPago?.connected ? `<small>Cuenta autorizada ${escapeHtml(state.user.mercadoPago.accountId || "")}</small>` : ""}
+          </div>
+          ${state.user.mercadoPago?.connected
+            ? `<button class="secondary-btn" type="button" id="disconnectMercadoPago">Desconectar</button>`
+            : `<button class="buy-action" type="button" id="connectMercadoPago">Conectar Mercado Pago</button>`}
         </section>
         <div class="profile-list">
           <button class="profile-tab ${state.profileTab === "active" ? "active" : ""}" data-profile-tab="active">Activos</button>
@@ -1855,7 +1872,6 @@ const bindEvents = () => {
   document.querySelector("#messageSeller")?.addEventListener("click", startConversation);
   document.querySelector("#checkoutForm")?.addEventListener("submit", secureCheckout);
   document.querySelector("#deliveryConfirmForm")?.addEventListener("submit", confirmDelivery);
-  document.querySelector("#releasePaymentForm")?.addEventListener("submit", releasePayment);
   document.querySelector("#sellerRatingForm")?.addEventListener("submit", rateSeller);
   document.querySelector("#sellerProofForm")?.addEventListener("submit", submitSellerProof);
   document.querySelector("#markTransitForm")?.addEventListener("submit", markOrderInTransit);
@@ -1884,6 +1900,8 @@ const bindEvents = () => {
   document.querySelector("#listingForm")?.addEventListener("input", updatePreview);
   document.querySelector("#listingForm")?.addEventListener("submit", publishListing);
   document.querySelector("#promotionForm")?.addEventListener("submit", promoteFromForm);
+  document.querySelector("#connectMercadoPago")?.addEventListener("click", connectMercadoPago);
+  document.querySelector("#disconnectMercadoPago")?.addEventListener("click", disconnectMercadoPago);
   document.querySelector("#photoInput")?.addEventListener("change", previewPhotos);
   document.querySelector("#authForm")?.addEventListener("submit", authenticate);
 
@@ -2086,7 +2104,8 @@ const publishListing = async (event) => {
         rating: 0,
         ratingCount: 0,
         verified: state.user.verified,
-        verificationStatus: state.user.verificationStatus
+        verificationStatus: state.user.verificationStatus,
+        mercadoPagoConnected: Boolean(state.user.mercadoPago?.connected)
       },
       verified: true,
       safeMeetup: true,
@@ -2228,6 +2247,27 @@ const submitSupport = async (event) => {
   event.currentTarget.reset();
 };
 
+const connectMercadoPago = async () => {
+  const result = await api("/api/payments/mercadopago/oauth/start", { method: "POST", body: "{}" });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  window.location.assign(result.url);
+};
+
+const disconnectMercadoPago = async () => {
+  if (!confirm("Las nuevas compras quedaran deshabilitadas hasta que vuelvas a conectar Mercado Pago. ¿Desconectar?")) return;
+  const result = await api("/api/payments/mercadopago/oauth/connection", { method: "DELETE" });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  state.user = { ...state.user, mercadoPago: result.mercadoPago };
+  localStorage.setItem("marketUser", JSON.stringify(state.user));
+  render();
+};
+
 const secureCheckout = async (event) => {
   event.preventDefault();
   const item = selectedProduct();
@@ -2283,39 +2323,7 @@ const confirmDelivery = async (event) => {
     return;
   }
   syncOrder(order);
-  const releasedOrder = await api(`/api/orders/${order.id}/release-payment`, {
-    method: "POST",
-    body: JSON.stringify({
-      code,
-      releasedBy: currentIdentity()
-    })
-  });
-  if (releasedOrder.error) {
-    alert(`Entrega confirmada. ${releasedOrder.error}`);
-    render();
-    return;
-  }
-  syncOrder(releasedOrder);
-  alert("Compra finalizada de forma segura.");
-  render();
-};
-
-const releasePayment = async (event) => {
-  event.preventDefault();
-  const data = new FormData(event.currentTarget);
-  const order = await api(`/api/orders/${state.checkoutOrder.id}/release-payment`, {
-    method: "POST",
-    body: JSON.stringify({
-      code: data.get("code"),
-      releasedBy: currentIdentity()
-    })
-  });
-  if (order.error) {
-    alert(order.error);
-    return;
-  }
-  syncOrder(order);
-  alert("Pago liberado con codigo unico validado.");
+  alert("Entrega confirmada. La operacion quedo completada en MarketPro.");
   render();
 };
 
