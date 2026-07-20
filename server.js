@@ -726,6 +726,60 @@ const publicChatFor = (chat, identity) => {
   };
 };
 
+const trackingRequiredFor = (carrier = "") =>
+  /dac|ues|correo|mirtrans|depunta|agencia|transporte|envio/i.test(String(carrier || ""));
+
+const ensureOrderConversation = (order) => {
+  if (!order) return null;
+  const existing = chats.find((chat) => chat.orderId === order.id);
+  if (existing) {
+    order.chatId = existing.id;
+    return existing;
+  }
+  const seller = {
+    id: String(order.seller?.email || order.seller?.name || ""),
+    name: order.seller?.name || "Vendedor",
+    email: order.seller?.email || "",
+    avatar: order.seller?.avatar || "/mp-logo.svg"
+  };
+  const buyer = {
+    id: String(order.buyer?.id || order.buyer?.email || order.buyer?.name || ""),
+    name: order.buyer?.name || "Comprador",
+    email: order.buyer?.email || "",
+    phone: order.buyer?.phone || "",
+    avatar: order.buyer?.avatar || `/api/avatar/${encodeURIComponent(order.buyer?.name || "Comprador")}.svg`
+  };
+  const chat = {
+    id: `chat-order-${Date.now()}`,
+    orderId: order.id,
+    productId: order.productId,
+    buyer: buyer.name,
+    buyerId: buyer.id,
+    seller: seller.name,
+    sellerId: seller.id,
+    productTitle: `Orden ${order.id} - ${order.productTitle}`,
+    avatar: seller.avatar,
+    participants: [buyer, seller],
+    createdAt: new Date().toISOString(),
+    lastMessageAt: new Date().toISOString(),
+    messages: [
+      {
+        id: `msg-${Date.now()}-order-system`,
+        from: "system",
+        senderId: "system",
+        senderName: "MarketPro",
+        text: "Chat vinculado a la orden. No compartas el codigo de entrega antes de revisar el articulo.",
+        time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
+        createdAt: new Date().toISOString()
+      }
+    ]
+  };
+  chats = [chat, ...chats];
+  store.conversations = chats;
+  order.chatId = chat.id;
+  return chat;
+};
+
 app.get("/api/demo-photo/:seed.svg", (req, res) => {
   const seed = clean(req.params.seed, 34) || "marketpro";
   const label = seed.replaceAll("-", " ");
@@ -1283,9 +1337,10 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
   order.delivery.status = "Evidencia del vendedor cargada";
   order.delivery.tracking = {
     method: delivery.method,
-    trackingCode: "SIM-TRACK-001",
-    carrier: "Entrega simulada",
-    note: "Despacho simulado para validar protocolo.",
+    trackingCode: "DAC-SIM-001",
+    carrier: "DAC",
+    note: "Despacho simulado para validar protocolo con rastreo obligatorio.",
+    trackingRequired: true,
     markedAt: new Date().toISOString()
   };
   order.delivery.status = "En camino";
@@ -1327,6 +1382,8 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
   ];
 
   store.orders = [order, ...(store.orders || [])].slice(0, 500);
+  ensureOrderConversation(order);
+  store.orders = store.orders.map((item) => item.id === order.id ? order : item);
   writeStore();
   res.status(201).json({
     order,
@@ -1695,6 +1752,7 @@ app.post("/api/checkout", async (req, res) => {
   order.mercadoPago.checkoutUrl = preference.init_point || preference.sandbox_init_point || "";
   order.mercadoPago.status = "Preferencia real creada";
   order.mercadoPago.rawStatus = preference.status || "";
+  ensureOrderConversation(order);
 
   store.orders = [order, ...(store.orders || [])];
   writeStore();
@@ -1844,17 +1902,28 @@ app.post("/api/orders/:id/mark-in-transit", (req, res) => {
   if (order.delivery.sellerProofRequired && !order.delivery.sellerProof) {
     return res.status(409).json({ error: "Antes de despachar se debe cargar evidencia del vendedor" });
   }
+  const carrier = String(req.body.carrier || "").trim();
+  const trackingCode = String(req.body.trackingCode || "").trim();
+  if (!carrier) return res.status(400).json({ error: "Indica empresa, agencia o entrega personal." });
+  if (trackingRequiredFor(carrier) && !trackingCode) {
+    return res.status(400).json({ error: "Para envios por agencia como DAC, UES, Correo o similares, el codigo de rastreo es obligatorio." });
+  }
   order.delivery.status = "En camino";
   order.delivery.tracking = {
     method: req.body.method || order.delivery.method,
-    trackingCode: req.body.trackingCode || "",
-    carrier: req.body.carrier || "",
+    trackingCode,
+    carrier,
     note: req.body.note || "",
+    trackingRequired: trackingRequiredFor(carrier),
     markedAt: new Date().toISOString()
   };
   order.delivery.timeline = [
     ...(order.delivery.timeline || []),
-    { event: "Entrega marcada en camino", at: order.delivery.tracking.markedAt }
+    { event: `Entrega en camino por ${carrier}${trackingCode ? ` con rastreo ${trackingCode}` : ""}`, at: order.delivery.tracking.markedAt }
+  ];
+  order.security.auditTrail = [
+    ...(order.security.auditTrail || []),
+    { event: `Tracking registrado: ${carrier}${trackingCode ? ` / ${trackingCode}` : " / sin rastreo por entrega personal"}`, at: order.delivery.tracking.markedAt }
   ];
   writeStore();
   res.json(order);
@@ -1957,6 +2026,14 @@ app.post("/api/payments/mercadopago/webhook", async (req, res) => {
 
 app.post("/api/conversations", (req, res) => {
   const buyer = requestIdentity(req);
+  if (req.body.orderId) {
+    const order = (store.orders || []).find((item) => item.id === req.body.orderId);
+    if (!order) return res.status(404).json({ error: "Orden no encontrada para crear chat." });
+    const chat = ensureOrderConversation(order);
+    store.orders = (store.orders || []).map((item) => item.id === order.id ? order : item);
+    writeStore();
+    return res.status(201).json(chat);
+  }
   const sellerId = String(req.body.sellerEmail || req.body.sellerName || "");
   const existing = chats.find((chat) =>
     chat.productId === req.body.productId &&
@@ -1973,6 +2050,7 @@ app.post("/api/conversations", (req, res) => {
 
   const chat = {
     id: `chat-${Date.now()}`,
+    orderId: req.body.orderId || "",
     productId: req.body.productId,
     buyer: buyer.name,
     buyerId: buyer.id,

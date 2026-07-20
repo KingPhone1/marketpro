@@ -98,6 +98,7 @@ const state = {
   conversations: [],
   view: initialView(),
   selectedProductId: null,
+  selectedOrderId: null,
   selectedChatId: null,
   checkoutOrder: null,
   orders: [],
@@ -512,8 +513,17 @@ const deliveryWorkflow = (order) => {
       ${proof && !order.delivery.tracking ? `
         <form class="secure-subform" id="markTransitForm">
           <strong>Marcar entrega en camino</strong>
-          <input name="carrier" placeholder="Repartidor, empresa o entrega personal" />
-          <input name="trackingCode" placeholder="Codigo de seguimiento opcional" />
+          <select name="carrier" required>
+            <option value="">Empresa o metodo</option>
+            <option>DAC</option>
+            <option>UES</option>
+            <option>Correo Uruguayo</option>
+            <option>Mirtrans</option>
+            <option>DePunta</option>
+            <option>Agencia local</option>
+            <option>Entrega personal verificada</option>
+          </select>
+          <input name="trackingCode" placeholder="Codigo de rastreo obligatorio para envios" />
           <input name="note" placeholder="Nota de traslado" />
           <button class="secondary-btn" type="submit">Marcar en camino</button>
         </form>
@@ -733,7 +743,7 @@ const orderCard = (order) => {
           <b>${escapeHtml(phase)}</b>
         </div>
         <strong>${escapeHtml(order.productTitle)}</strong>
-        <small>${escapeHtml(order.id)} · ${money(order.amount)} · ${escapeHtml(order.paymentMethod || "mercadopago")}</small>
+        <small>${escapeHtml(order.id)} - ${money(order.amount)} - ${escapeHtml(order.delivery?.method || "Entrega")} - ${escapeHtml(order.paymentMethod || "mercadopago")}</small>
         <div class="order-progress">
           <i class="done"></i>
           <i class="${order.delivery?.sellerProof ? "done" : ""}"></i>
@@ -797,6 +807,111 @@ const ordersView = () => `
     ${ordersPanel()}
   </main>
 `;
+
+const currentOrder = () =>
+  state.orders.find((order) => order.id === state.selectedOrderId) ||
+  state.orders.find((order) => order.id === state.checkoutOrder?.id) ||
+  state.checkoutOrder ||
+  null;
+
+const orderTimeline = (order) => {
+  const items = [
+    ...(order.delivery?.timeline || []),
+    ...(order.security?.auditTrail || []).map((item) => ({ ...item, security: true }))
+  ]
+    .filter((item) => item.event)
+    .sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
+  return `
+    <section class="order-detail-card order-timeline-card">
+      <p class="eyebrow">Auditoria</p>
+      <h2>Linea de tiempo</h2>
+      <div class="order-timeline">
+        ${items.length ? items.map((item) => `
+          <div>
+            <span>${escapeHtml(item.security ? "Shield" : "Orden")}</span>
+            <strong>${escapeHtml(item.event)}</strong>
+            <small>${escapeHtml(item.at || "")}</small>
+          </div>
+        `).join("") : `<div class="empty">Todavia no hay eventos.</div>`}
+      </div>
+    </section>
+  `;
+};
+
+const orderChatCard = (order) => {
+  const chat = state.conversations.find((item) => item.orderId === order.id || item.id === order.chatId);
+  return `
+    <section class="order-detail-card">
+      <p class="eyebrow">Chat vinculado</p>
+      <h2>Conversacion de esta orden</h2>
+      <p class="muted">Todo acuerdo, evidencia o alerta queda unido a la orden para reclamos y revision admin.</p>
+      ${chat ? `
+        <div class="linked-chat">
+          <img src="${escapeHtml(chat.avatar || order.seller?.avatar || "/mp-logo.svg")}" alt="${escapeHtml(chat.seller || "Vendedor")}" />
+          <div>
+            <strong>${escapeHtml(chat.productTitle || order.productTitle)}</strong>
+            <span>${escapeHtml((chat.messages || []).at(-1)?.text || "Chat seguro activo")}</span>
+          </div>
+          <button class="secondary-btn" data-chat="${escapeHtml(chat.id)}">Abrir chat</button>
+        </div>
+      ` : `
+        <button class="secondary-btn" data-order-chat="${escapeHtml(order.id)}">Crear chat de orden</button>
+      `}
+    </section>
+  `;
+};
+
+const orderDetailView = () => {
+  const order = currentOrder();
+  if (!order) return ordersView();
+  const product = state.products.find((item) => item.id === order.productId);
+  const [phase, phaseClass] = orderPhase(order);
+  const image = order.snapshot?.images?.[0] || product?.images?.[0] || "/mp-logo.svg";
+  state.checkoutOrder = order;
+  return `
+    ${sidebar()}
+    <main>
+      <div class="toolbar-row">
+        <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
+      </div>
+      <button class="text-btn" data-view="orders">Volver a ordenes</button>
+      <section class="panel order-detail-hero ${phaseClass}">
+        <img src="${escapeHtml(image)}" alt="${escapeHtml(order.productTitle)}" />
+        <div>
+          <p class="eyebrow">Orden protegida</p>
+          <h1>${escapeHtml(order.productTitle)}</h1>
+          <div class="order-topline"><span>${escapeHtml(orderRole(order))}</span><b>${escapeHtml(phase)}</b></div>
+          <p class="muted">Orden ${escapeHtml(order.id)} - ${money(order.amount)} - ${escapeHtml(order.paymentMethod || "Mercado Pago")}</p>
+        </div>
+      </section>
+      <section class="order-detail-grid">
+        <section class="order-detail-card">
+          <p class="eyebrow">Partes</p>
+          <h2>Comprador y vendedor</h2>
+          <div class="party-grid">
+            <div><span>Comprador</span><strong>${escapeHtml(order.buyer?.name || "Comprador")}</strong><small>${escapeHtml(order.buyer?.email || order.buyer?.phone || "")}</small></div>
+            <div><span>Vendedor</span><strong>${escapeHtml(order.seller?.name || "Vendedor")}</strong><small>${escapeHtml(order.seller?.email || "")}</small></div>
+          </div>
+        </section>
+        <section class="order-detail-card">
+          <p class="eyebrow">Pago</p>
+          <h2>${escapeHtml(order.mercadoPago?.status || order.status)}</h2>
+          <p class="muted">${escapeHtml(order.paymentRelease?.note || "Pago procesado por Mercado Pago vinculado.")}</p>
+          ${order.mercadoPago?.checkoutUrl ? `<a class="buy-action checkout-link" href="${escapeHtml(order.mercadoPago.checkoutUrl)}" target="_blank" rel="noopener">Abrir Mercado Pago</a>` : ""}
+        </section>
+        <section class="order-detail-card">
+          <p class="eyebrow">Entrega</p>
+          <h2>${escapeHtml(order.delivery?.status || "Pendiente")}</h2>
+          <p class="muted">${escapeHtml(order.delivery?.address || "")} - ${escapeHtml(order.delivery?.city || "")}</p>
+          ${order.delivery?.tracking ? `<div class="tracking-chip"><strong>${escapeHtml(order.delivery.tracking.carrier || "Envio")}</strong><span>${escapeHtml(order.delivery.tracking.trackingCode || "Sin codigo")}</span></div>` : `<div class="tracking-chip pending"><strong>Tracking pendiente</strong><span>Si usa DAC/UES/Correo, el codigo es obligatorio.</span></div>`}
+        </section>
+      </section>
+      ${orderChatCard(order)}
+      ${deliveryWorkflow(order)}
+      ${orderTimeline(order)}
+    </main>
+  `;
+};
 
 const securityView = () => `
   <main>
@@ -1623,6 +1738,7 @@ const view = () =>
     messages: messagesView,
     profile: profileView,
     orders: ordersView,
+    orderDetail: orderDetailView,
     security: securityView,
     support: supportView,
     legal: legalView
@@ -1760,8 +1876,12 @@ const bindEvents = () => {
       const order = state.orders.find((item) => item.id === button.dataset.openOrder);
       if (!order) return;
       state.checkoutOrder = order;
-      navigate("detail", { selectedProductId: order.productId, galleryIndex: 0 });
+      navigate("orderDetail", { selectedOrderId: order.id });
     });
+  });
+
+  document.querySelectorAll("[data-order-chat]").forEach((button) => {
+    button.addEventListener("click", () => startOrderConversation(button.dataset.orderChat));
   });
 
   document.querySelectorAll("[data-promote]").forEach((button) => {
@@ -1944,6 +2064,15 @@ const publishListing = async (event) => {
   navigate("detail", { selectedProductId: product.id, galleryIndex: 0 });
 };
 
+const syncOrder = (order) => {
+  if (!order || order.error) return order;
+  state.checkoutOrder = order;
+  state.selectedOrderId = order.id;
+  const exists = state.orders.some((item) => item.id === order.id);
+  state.orders = exists ? state.orders.map((item) => (item.id === order.id ? order : item)) : [order, ...state.orders];
+  return order;
+};
+
 const startConversation = async () => {
   const item = selectedProduct();
   const buyer = currentIdentity();
@@ -1960,6 +2089,31 @@ const startConversation = async () => {
   });
   const exists = state.conversations.some((conversation) => conversation.id === chat.id);
   state.conversations = exists ? state.conversations : [chat, ...state.conversations];
+  navigate("messages", { selectedChatId: chat.id });
+};
+
+const startOrderConversation = async (orderId) => {
+  const order = state.orders.find((item) => item.id === orderId) || state.checkoutOrder;
+  if (!order) return;
+  const chat = await api("/api/conversations", {
+    method: "POST",
+    body: JSON.stringify({
+      orderId: order.id,
+      productId: order.productId,
+      productTitle: `Orden ${order.id} - ${order.productTitle}`,
+      sellerName: order.seller?.name,
+      sellerEmail: order.seller?.email || "",
+      sellerAvatar: order.seller?.avatar || "/mp-logo.svg",
+      buyer: order.buyer || currentIdentity()
+    })
+  });
+  if (chat.error) {
+    alert(chat.error);
+    return;
+  }
+  const exists = state.conversations.some((conversation) => conversation.id === chat.id);
+  state.conversations = exists ? state.conversations.map((item) => (item.id === chat.id ? chat : item)) : [chat, ...state.conversations];
+  state.orders = state.orders.map((item) => (item.id === order.id ? { ...item, chatId: chat.id } : item));
   navigate("messages", { selectedChatId: chat.id });
 };
 
@@ -2060,8 +2214,8 @@ const secureCheckout = async (event) => {
     alert(`${order.error}${order.details ? "\nRevisa credenciales o cuenta de Mercado Pago." : ""}`);
     return;
   }
-  state.checkoutOrder = order;
-  render();
+  syncOrder(order);
+  navigate("orderDetail", { selectedOrderId: order.id });
 };
 
 const confirmDelivery = async (event) => {
@@ -2085,7 +2239,7 @@ const confirmDelivery = async (event) => {
     alert(order.error);
     return;
   }
-  state.checkoutOrder = order;
+  syncOrder(order);
   render();
 };
 
@@ -2103,7 +2257,7 @@ const releasePayment = async (event) => {
     alert(order.error);
     return;
   }
-  state.checkoutOrder = order;
+  syncOrder(order);
   alert("Pago liberado con codigo unico validado.");
   render();
 };
@@ -2122,7 +2276,7 @@ const rateSeller = async (event) => {
     alert(order.error);
     return;
   }
-  state.checkoutOrder = order;
+  syncOrder(order);
   state.products = (await api("/api/products")).map(normalizeProduct);
   await refreshSellerDashboard();
   alert("Gracias por calificar al vendedor.");
@@ -2178,7 +2332,7 @@ const submitSellerProof = async (event) => {
     alert(order.error);
     return;
   }
-  state.checkoutOrder = order;
+  syncOrder(order);
   render();
 };
 
@@ -2197,7 +2351,7 @@ const markOrderInTransit = async (event) => {
     alert(order.error);
     return;
   }
-  state.checkoutOrder = order;
+  syncOrder(order);
   render();
 };
 
@@ -2218,7 +2372,7 @@ const openDispute = async (event) => {
     alert(order.error);
     return;
   }
-  state.checkoutOrder = order;
+  syncOrder(order);
   render();
 };
 
