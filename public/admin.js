@@ -74,6 +74,10 @@ const loginView = () => `
         <label>contrasena admin</label>
         <input name="password" type="password" required placeholder="contrasena" />
       </div>
+      <div class="field">
+        <label>codigo de seguridad</label>
+        <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Solo si esta activado" />
+      </div>
       <button class="sell-action" type="submit">Entrar al admin</button>
     </form>
   </section>
@@ -171,6 +175,8 @@ const dashboardView = () => {
   const reports = overview.reports || [];
   const supportTickets = overview.supportTickets || [];
   const blockedPairs = overview.blockedPairs || [];
+  const adminAudit = overview.adminAudit || [];
+  const security = overview.security || {};
   const disputes = orders.flatMap((order) => (order.disputes || []).map((dispute) => ({ ...dispute, order })));
   const pending = pendingUsers.length;
   const verified = approvedUsers.length;
@@ -198,6 +204,20 @@ const dashboardView = () => {
     </section>
 
     ${mercadoPagoView()}
+
+    <section class="panel">
+      <div class="admin-section-head">
+        <div><p class="eyebrow">Control interno</p><h1>Seguridad y auditoria</h1></div>
+      </div>
+      <div class="mp-checks">
+        <article class="${security.twoFactorEnabled ? "ok" : "missing"}"><span>${security.twoFactorEnabled ? "OK" : "Pendiente"}</span><strong>Doble factor admin</strong><small>Codigo temporal adicional a la contrasena.</small></article>
+        <article class="${security.privateStorageEnabled ? "ok" : "missing"}"><span>${security.privateStorageEnabled ? "OK" : "Pendiente"}</span><strong>Documentos privados</strong><small>Almacenamiento separado para rostro y cedula.</small></article>
+        <article class="${security.emailEnabled ? "ok" : "missing"}"><span>${security.emailEnabled ? "OK" : "Pendiente"}</span><strong>Correo transaccional</strong><small>Recuperacion y avisos de verificacion.</small></article>
+      </div>
+      <div class="admin-orders">
+        ${adminAudit.slice(0, 12).map((item) => `<article class="admin-order"><div><strong>${escapeHtml(item.action)}</strong><span>${escapeHtml(item.createdAt)}</span></div><div><small>Origen</small><b>${escapeHtml(item.ip || "Privado")}</b></div></article>`).join("") || `<div class="empty">La auditoria comenzara con el proximo acceso.</div>`}
+      </div>
+    </section>
 
     ${privateRoadmapView()}
 
@@ -342,10 +362,11 @@ const bindEvents = () => {
   document.querySelector("#adminLoginForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const password = new FormData(event.currentTarget).get("password");
+    const code = new FormData(event.currentTarget).get("code");
     try {
       const result = await api("/api/admin/login", {
         method: "POST",
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ password, code })
       });
       state.token = result.token;
       sessionStorage.setItem("mpAdminToken", state.token);

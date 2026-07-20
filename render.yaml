@@ -24,13 +24,29 @@ services:
         value: marketpro_store
       - key: SUPABASE_STORE_ID
         value: production
+      - key: SUPABASE_PRIVATE_BUCKET
+        value: marketpro-private
       - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_TOTP_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
         sync: false
       - key: MERCADO_PAGO_ACCESS_TOKEN
         sync: false
       - key: MERCADO_PAGO_PUBLIC_KEY
         sync: false
       - key: MERCADO_PAGO_WEBHOOK_SECRET
+        sync: false
+      - key: MERCADO_PAGO_CLIENT_ID
+        sync: false
+      - key: MERCADO_PAGO_CLIENT_SECRET
+        sync: false
+      - key: MERCADO_PAGO_OAUTH_REDIRECT_URI
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
         sync: false
       - key: MERCADO_PAGO_CURRENCY
         value: USD

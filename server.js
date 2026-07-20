@@ -47,10 +47,15 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_STORE_TABLE = process.env.SUPABASE_STORE_TABLE || "marketpro_store";
 const SUPABASE_STORE_ID = process.env.SUPABASE_STORE_ID || "production";
+const SUPABASE_PRIVATE_BUCKET = process.env.SUPABASE_PRIVATE_BUCKET || "marketpro-private";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const EMAIL_FROM = process.env.EMAIL_FROM || "MarketPro <no-reply@marketpro.uy>";
+const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "";
 const hasSupabaseStore = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 let cloudStoreReady = false;
 let cloudWriteQueue = Promise.resolve();
 const adminTokens = new Set();
+const requestBuckets = new Map();
 
 const encryptionKey = () => TOKEN_ENCRYPTION_KEY ? crypto.createHash("sha256").update(TOKEN_ENCRYPTION_KEY).digest() : null;
 
@@ -74,6 +79,72 @@ const decryptSecret = (payload = "") => {
   } catch {
     return "";
   }
+};
+
+const base32Bytes = (value = "") => {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const cleanValue = String(value).toUpperCase().replace(/[^A-Z2-7]/g, "");
+  let bits = "";
+  for (const character of cleanValue) bits += alphabet.indexOf(character).toString(2).padStart(5, "0");
+  const bytes = [];
+  for (let index = 0; index + 8 <= bits.length; index += 8) bytes.push(parseInt(bits.slice(index, index + 8), 2));
+  return Buffer.from(bytes);
+};
+
+const validTotp = (code = "") => {
+  if (!ADMIN_TOTP_SECRET) return true;
+  const received = String(code).replace(/\D/g, "");
+  if (received.length !== 6) return false;
+  const key = base32Bytes(ADMIN_TOTP_SECRET);
+  const counter = Math.floor(Date.now() / 30000);
+  return [-1, 0, 1].some((offset) => {
+    const buffer = Buffer.alloc(8);
+    buffer.writeBigUInt64BE(BigInt(counter + offset));
+    const digest = crypto.createHmac("sha1", key).update(buffer).digest();
+    const position = digest[digest.length - 1] & 15;
+    const number = (digest.readUInt32BE(position) & 0x7fffffff) % 1000000;
+    return crypto.timingSafeEqual(Buffer.from(String(number).padStart(6, "0")), Buffer.from(received));
+  });
+};
+
+const sendEmail = async ({ to, subject, html }) => {
+  if (!RESEND_API_KEY || !to) return { sent: false, reason: "not-configured" };
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html })
+    });
+    return response.ok ? { sent: true } : { sent: false, reason: `email-${response.status}` };
+  } catch {
+    return { sent: false, reason: "network" };
+  }
+};
+
+const notifyUser = (email, title, message, type = "info", link = "") => {
+  if (!email) return;
+  store.notifications = [
+    { id: `notice-${Date.now()}-${crypto.randomBytes(2).toString("hex")}`, email: String(email).toLowerCase(), title, message, type, link, read: false, createdAt: new Date().toISOString() },
+    ...(store.notifications || [])
+  ].slice(0, 1000);
+};
+
+const adminAudit = (req, action, details = {}) => {
+  store.adminAudit = [
+    { id: `audit-${Date.now()}`, action, details, ip: String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim(), createdAt: new Date().toISOString() },
+    ...(store.adminAudit || [])
+  ].slice(0, 500);
+};
+
+const rateLimit = ({ windowMs = 60000, max = 20, key = "general" } = {}) => (req, res, next) => {
+  const identity = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "local").split(",")[0].trim();
+  const bucketKey = `${key}:${identity}`;
+  const now = Date.now();
+  const entries = (requestBuckets.get(bucketKey) || []).filter((time) => now - time < windowMs);
+  if (entries.length >= max) return res.status(429).json({ error: "Demasiados intentos. Espera unos minutos y vuelve a probar." });
+  entries.push(now);
+  requestBuckets.set(bucketKey, entries);
+  next();
 };
 const unsplash = (id, focus = "center") =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1200&h=900&q=86&fm=jpg&ixlib=rb-4.1.0&crop=${focus}`;
@@ -249,21 +320,31 @@ const analyzeListingRisk = (product = {}) => {
   };
 };
 
-const hashPassword = (password = "", salt = crypto.randomBytes(12).toString("hex")) => ({
+const hashPassword = (password = "", salt = crypto.randomBytes(16).toString("hex")) => ({
   passwordSalt: salt,
-  passwordHash: crypto.createHash("sha256").update(`${salt}:${password}`).digest("hex")
+  passwordHash: crypto.scryptSync(String(password), salt, 64).toString("hex"),
+  passwordAlgorithm: "scrypt"
 });
 
 const verifyPassword = (password = "", user = {}) => {
   if (!user.passwordHash || !user.passwordSalt) return true;
-  return hashPassword(password, user.passwordSalt).passwordHash === user.passwordHash;
+  if (user.passwordAlgorithm === "scrypt") {
+    const expected = Buffer.from(user.passwordHash, "hex");
+    const received = crypto.scryptSync(String(password), user.passwordSalt, 64);
+    return expected.length === received.length && crypto.timingSafeEqual(expected, received);
+  }
+  return crypto.createHash("sha256").update(`${user.passwordSalt}:${password}`).digest("hex") === user.passwordHash;
 };
 
 const publicUser = (user) => {
   if (!user) return null;
-  const { passwordHash, passwordSalt, hash, salt, mercadoPagoOAuth, ...safe } = user;
+  const { passwordHash, passwordSalt, passwordAlgorithm, hash, salt, mercadoPagoOAuth, privateMedia, documentPhoto, ...safe } = user;
   return {
     ...safe,
+    profilePhoto: typeof safe.profilePhoto === "string" && !safe.profilePhoto.startsWith("data:")
+      ? safe.profilePhoto
+      : `/api/avatar/${encodeURIComponent(safe.name || "Usuario")}.svg`,
+    documentPhoto: Boolean(documentPhoto || privateMedia?.document),
     hasPassword: Boolean(passwordHash || hash),
     authComplete: Boolean(safe.authComplete),
     mercadoPago: {
@@ -281,7 +362,7 @@ const createUserSession = (user, req) => {
   const token = crypto.randomBytes(32).toString("hex");
   const now = new Date();
   const session = {
-    token,
+    tokenHash: crypto.createHash("sha256").update(token).digest("hex"),
     userId: user.id,
     email: user.email,
     createdAt: now.toISOString(),
@@ -290,18 +371,23 @@ const createUserSession = (user, req) => {
     userAgent: String(req.headers["user-agent"] || "").slice(0, 160)
   };
   store.sessions = [session, ...(store.sessions || []).filter((item) => item.userId !== user.id).slice(0, 8)];
-  return session;
+  return { ...session, token };
 };
 
 const authTokenFrom = (req) => String(req.headers.authorization || "").replace("Bearer ", "").trim();
 
-const authenticatedUser = (req) => {
-  const token = authTokenFrom(req);
-  if (!token) return null;
-  const session = (store.sessions || []).find((item) => item.token === token);
+const userFromSessionToken = (token = "") => {
+  const tokenHash = crypto.createHash("sha256").update(String(token)).digest("hex");
+  const session = (store.sessions || []).find((item) => item.tokenHash === tokenHash || item.token === token);
   if (!session || new Date(session.expiresAt).getTime() < Date.now()) return null;
   session.lastSeenAt = new Date().toISOString();
   return store.users.find((user) => user.id === session.userId || String(user.email || "").toLowerCase() === String(session.email || "").toLowerCase()) || null;
+};
+
+const authenticatedUser = (req) => {
+  const token = authTokenFrom(req);
+  if (!token) return null;
+  return userFromSessionToken(token);
 };
 
 const authAttemptState = (email = "") => {
@@ -607,6 +693,52 @@ const supabaseHeaders = (extra = {}) => ({
   ...extra
 });
 
+const parseDataUrl = (value = "") => {
+  const match = String(value).match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return { contentType: match[1], bytes: Buffer.from(match[2], "base64") };
+};
+
+const uploadPrivateMedia = async (userId, kind, value) => {
+  const parsed = parseDataUrl(value);
+  if (!parsed) return null;
+  const extension = parsed.contentType.includes("png") ? "png" : parsed.contentType.includes("webp") ? "webp" : "jpg";
+  const objectPath = `${userId}/${kind}-${Date.now()}.${extension}`;
+  if (hasSupabaseStore) {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_PRIVATE_BUCKET}/${objectPath}`, {
+        method: "POST",
+        headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": parsed.contentType, "x-upsert": "true" },
+        body: parsed.bytes
+      });
+      if (response.ok) return { provider: "supabase", path: objectPath, contentType: parsed.contentType };
+    } catch {}
+  }
+  const encrypted = encryptSecret(value);
+  return encrypted ? { provider: "encrypted", encrypted, contentType: parsed.contentType } : { provider: "legacy", value, contentType: parsed.contentType };
+};
+
+const privateMediaDataUrl = async (media) => {
+  if (!media) return "";
+  if (media.provider === "encrypted") return decryptSecret(media.encrypted);
+  if (media.provider === "legacy") return media.value || "";
+  if (media.provider === "supabase" && hasSupabaseStore) {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/storage/v1/object/authenticated/${SUPABASE_PRIVATE_BUCKET}/${media.path}`, { headers: supabaseHeaders() });
+      if (!response.ok) return "";
+      const bytes = Buffer.from(await response.arrayBuffer());
+      return `data:${media.contentType || "image/jpeg"};base64,${bytes.toString("base64")}`;
+    } catch { return ""; }
+  }
+  return "";
+};
+
+const adminUser = async (user) => ({
+  ...publicUser(user),
+  profilePhoto: await privateMediaDataUrl(user.privateMedia?.profile) || (String(user.profilePhoto || "").startsWith("data:") ? user.profilePhoto : ""),
+  documentPhoto: await privateMediaDataUrl(user.privateMedia?.document) || (String(user.documentPhoto || "").startsWith("data:") ? user.documentPhoto : "")
+});
+
 const loadStoreFromSupabase = async () => {
   if (!hasSupabaseStore) return null;
   const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_STORE_TABLE}?id=eq.${encodeURIComponent(SUPABASE_STORE_ID)}&select=store_data`;
@@ -724,6 +856,8 @@ const hydrateRuntimeStore = (nextStore = {}) => {
   store.authAttempts = store.authAttempts || {};
   store.passwordResets = store.passwordResets || [];
   store.oauthStates = store.oauthStates || [];
+  store.notifications = store.notifications || [];
+  store.adminAudit = store.adminAudit || [];
 };
 
 const initializePersistentStore = async () => {
@@ -760,6 +894,11 @@ app.use((req, res, next) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.set("Pragma", "no-cache");
   res.set("Expires", "0");
+  res.set("X-Content-Type-Options", "nosniff");
+  res.set("X-Frame-Options", "DENY");
+  res.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.set("Permissions-Policy", "camera=(self), geolocation=(self), microphone=()");
+  if (IS_PRODUCTION) res.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 });
 app.use(express.static(path.join(__dirname, "public")));
@@ -790,12 +929,11 @@ const decodeHeader = (value, fallback = "") => {
     return String(value || fallback);
   }
 };
-const requestIdentity = (req) => ({
-  id: String(req.headers["x-user-id"] || req.body?.buyer?.id || "guest"),
-  name: decodeHeader(req.headers["x-user-name"], req.body?.buyer?.name || "Comprador"),
-  email: String(req.headers["x-user-email"] || req.body?.buyer?.email || ""),
-  avatar: String(req.body?.buyer?.avatar || `/api/avatar/${encodeURIComponent(decodeHeader(req.headers["x-user-name"], "Comprador"))}.svg`)
-});
+const requestIdentity = (req) => {
+  const user = authenticatedUser(req);
+  if (user) return { id: user.id, name: user.name, email: user.email, avatar: `/api/avatar/${encodeURIComponent(user.name || "Usuario")}.svg` };
+  return { id: "guest", name: "Invitado", email: "", avatar: "/mp-logo.svg" };
+};
 
 const sameOrderParty = (user, party = {}) => {
   if (!user) return false;
@@ -1127,6 +1265,7 @@ app.get("/api/products", (_req, res) => {
 });
 
 app.get("/api/conversations", (req, res) => {
+  if (!authenticatedUser(req)) return res.json([]);
   const identity = requestIdentity(req);
   res.json(chats.filter((chat) => isParticipant(chat, identity)).map((chat) => publicChatFor(chat, identity)));
 });
@@ -1135,6 +1274,23 @@ app.get("/api/orders", (req, res) => {
   const user = authenticatedUser(req);
   if (!user) return res.json([]);
   res.json((store.orders || []).filter((order) => sameOrderParty(user, order.buyer) || sameOrderParty(user, order.seller)));
+});
+
+app.get("/api/notifications", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.json([]);
+  const email = String(user.email || "").toLowerCase();
+  res.json((store.notifications || []).filter((item) => item.email === email).slice(0, 60));
+});
+
+app.post("/api/notifications/:id/read", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Sesion requerida" });
+  const notice = (store.notifications || []).find((item) => item.id === req.params.id && item.email === String(user.email || "").toLowerCase());
+  if (!notice) return res.status(404).json({ error: "Alerta no encontrada" });
+  notice.read = true;
+  writeStore();
+  res.json(notice);
 });
 
 app.get("/api/user", (req, res) => {
@@ -1169,7 +1325,7 @@ app.delete("/api/user", (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/user", (req, res) => {
+app.post("/api/user", rateLimit({ windowMs: 15 * 60 * 1000, max: 8, key: "register" }), async (req, res) => {
   const required = ["name", "email", "password", "phone", "cedula", "exactLocation", "profilePhoto", "documentPhoto"];
   const missing = required.filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Faltan datos de verificacion", fields: missing });
@@ -1186,18 +1342,27 @@ app.post("/api/user", (req, res) => {
     return res.status(401).json({ error: "La contrasena no coincide con esa cuenta" });
   }
   const password = existing?.passwordHash
-    ? { passwordHash: existing.passwordHash, passwordSalt: existing.passwordSalt }
+    ? { passwordHash: existing.passwordHash, passwordSalt: existing.passwordSalt, passwordAlgorithm: existing.passwordAlgorithm }
     : hashPassword(req.body.password);
 
+  const userId = existing?.id || req.body.id || `user-${Date.now()}`;
+  const [profileMedia, documentMedia] = await Promise.all([
+    uploadPrivateMedia(userId, "profile", req.body.profilePhoto),
+    uploadPrivateMedia(userId, "document-front", req.body.documentPhoto)
+  ]);
   const user = {
-    id: existing?.id || req.body.id || `user-${Date.now()}`,
+    id: userId,
     name: req.body.name,
     email,
     phone: req.body.phone,
     cedula: req.body.cedula,
     exactLocation: req.body.exactLocation,
-    profilePhoto: req.body.profilePhoto,
-    documentPhoto: req.body.documentPhoto,
+    profilePhoto: `/api/avatar/${encodeURIComponent(req.body.name)}.svg`,
+    documentPhoto: true,
+    privateMedia: {
+      profile: profileMedia || existing?.privateMedia?.profile || null,
+      document: documentMedia || existing?.privateMedia?.document || null
+    },
     authComplete: true,
     verified: existing?.verified || false,
     verificationStatus: String(existing?.verificationStatus || "").toLowerCase().includes("rechaz")
@@ -1224,11 +1389,12 @@ app.post("/api/user", (req, res) => {
     ...store.verificationRequests.filter((item) => item.userId !== user.id)
   ];
   const session = createUserSession(user, req);
+  notifyUser(user.email, "Verificacion recibida", "Tu identidad quedo en revision. Te avisaremos cuando el administrador termine el control.", "verification", "/?page=profile");
   writeStore();
   res.status(201).json({ ...publicUser(user), sessionToken: session.token });
 });
 
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 12, key: "login" }), (req, res) => {
   const email = String(req.body.email || "").toLowerCase().trim();
   const password = String(req.body.password || "");
   if (!email || !password) return res.status(400).json({ error: "Gmail y contrasena son obligatorios." });
@@ -1243,6 +1409,7 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(401).json({ error: "Gmail o contrasena incorrectos." });
   }
   clearFailedLogin(email);
+  if (!user.passwordAlgorithm) Object.assign(user, hashPassword(password));
   const session = createUserSession(user, req);
   writeStore();
   res.json({ ...publicUser(user), sessionToken: session.token });
@@ -1250,7 +1417,8 @@ app.post("/api/auth/login", (req, res) => {
 
 app.post("/api/auth/logout", (req, res) => {
   const token = authTokenFrom(req);
-  store.sessions = (store.sessions || []).filter((session) => session.token !== token);
+  const tokenHash = crypto.createHash("sha256").update(String(token)).digest("hex");
+  store.sessions = (store.sessions || []).filter((session) => session.token !== token && session.tokenHash !== tokenHash);
   writeStore();
   res.json({ ok: true });
 });
@@ -1323,7 +1491,7 @@ app.delete("/api/payments/mercadopago/oauth/connection", (req, res) => {
   res.json({ ok: true, mercadoPago: { connected: false, accountId: "", connectedAt: "" } });
 });
 
-app.post("/api/auth/password-reset/request", (req, res) => {
+app.post("/api/auth/password-reset/request", rateLimit({ windowMs: 30 * 60 * 1000, max: 5, key: "password-reset" }), async (req, res) => {
   const email = String(req.body.email || "").toLowerCase().trim();
   const user = userByEmail(email);
   if (!user) return res.json({ ok: true, message: "Si la cuenta existe, se genero un codigo de recuperacion." });
@@ -1333,10 +1501,15 @@ app.post("/api/auth/password-reset/request", (req, res) => {
     ...(store.passwordResets || []).filter((item) => item.email !== email).slice(0, 10)
   ];
   writeStore();
+  const emailResult = await sendEmail({
+    to: email,
+    subject: "Codigo para recuperar tu cuenta MarketPro",
+    html: `<p>Tu codigo de recuperacion es:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>Vence en 20 minutos. Si no lo pediste, ignora este mensaje.</p>`
+  });
   res.json({
     ok: true,
-    message: "Codigo de recuperacion generado. En produccion se enviaria por email.",
-    demoCode: code
+    message: emailResult.sent ? "Te enviamos el codigo por email." : "Codigo generado. El servicio de correo aun no esta configurado.",
+    ...(IS_PRODUCTION ? {} : { demoCode: code })
   });
 });
 
@@ -1386,20 +1559,23 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-app.post("/api/admin/login", (req, res) => {
+app.post("/api/admin/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 8, key: "admin-login" }), (req, res) => {
   if (req.body.password !== ADMIN_PASSWORD) {
     return res.status(401).json({ error: "Contraseña incorrecta" });
   }
+  if (!validTotp(req.body.code)) return res.status(401).json({ error: "Codigo de seguridad incorrecto" });
   const token = crypto.randomBytes(24).toString("hex");
   adminTokens.add(token);
-  res.json({ token });
+  adminAudit(req, "admin_login", { twoFactor: Boolean(ADMIN_TOTP_SECRET) });
+  writeStore();
+  res.json({ token, twoFactor: Boolean(ADMIN_TOTP_SECRET) });
 });
 
-app.get("/api/admin/overview", requireAdmin, (_req, res) => {
-  const users = store.users.map((user) => ({
-    ...publicUser(user),
+app.get("/api/admin/overview", requireAdmin, async (_req, res) => {
+  const users = await Promise.all(store.users.map(async (user) => ({
+    ...await adminUser(user),
     listings: listings.filter((item) => item.seller?.email === user.email || item.seller?.name === user.name).length
-  }));
+  })));
   res.json({
     users,
     verificationRequests: store.verificationRequests,
@@ -1409,6 +1585,8 @@ app.get("/api/admin/overview", requireAdmin, (_req, res) => {
     reports: store.reports || [],
     supportTickets: store.supportTickets || [],
     blockedPairs: store.blockedPairs || [],
+    adminAudit: store.adminAudit || [],
+    security: { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET), emailEnabled: Boolean(RESEND_API_KEY), privateStorageEnabled: hasSupabaseStore },
     memory: store.memory
   });
 });
@@ -1679,6 +1857,19 @@ app.post("/api/admin/users/:id/verify", requireAdmin, (req, res) => {
     : "Atencion: tu cuenta ha sido rechazada. No cumples con los requisitos.";
   user.reviewedAt = new Date().toISOString();
   user.reviewNote = req.body.note || "";
+  adminAudit(req, approved ? "user_approved" : "user_rejected", { userId: user.id, email: user.email });
+  notifyUser(
+    user.email,
+    approved ? "Cuenta aprobada" : "Cuenta rechazada",
+    approved ? "Tu identidad fue aprobada. Ya puedes publicar y conectar Mercado Pago." : "Tu cuenta no cumple los requisitos de verificacion. Revisa tus datos y contacta soporte.",
+    approved ? "success" : "danger",
+    "/?page=profile"
+  );
+  sendEmail({
+    to: user.email,
+    subject: approved ? "Tu cuenta MarketPro fue aprobada" : "Resultado de verificacion MarketPro",
+    html: `<p>Hola ${String(user.name || "").replace(/[<>]/g, "")},</p><p>${approved ? "Tu identidad fue aprobada. Ya puedes publicar y vender." : "Tu cuenta fue rechazada porque no cumple los requisitos de verificacion. Puedes comunicarte con soporte para revisarla."}</p>`
+  }).catch(() => {});
 
   store.verificationRequests = store.verificationRequests.map((request) =>
     request.userId === user.id
@@ -1789,7 +1980,11 @@ app.post("/api/promotions", async (req, res) => {
 app.put("/api/products/:id", (req, res) => {
   const index = listings.findIndex((item) => item.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: "Publicacion no encontrada" });
-  listings[index] = { ...listings[index], ...req.body };
+  const owner = authenticatedUser(req);
+  if (!owner || !sameOrderParty(owner, listings[index].seller)) return res.status(403).json({ error: "Solo el vendedor puede modificar esta publicacion." });
+  const allowedFields = ["title", "price", "category", "condition", "description", "location", "images", "status"];
+  const updates = Object.fromEntries(allowedFields.filter((field) => Object.hasOwn(req.body, field)).map((field) => [field, req.body[field]]));
+  listings[index] = { ...listings[index], ...updates, updatedAt: new Date().toISOString() };
   store.products = listings;
   writeStore();
   res.json(listings[index]);
@@ -1826,6 +2021,10 @@ app.post("/api/products/:id/report", (req, res) => {
 });
 
 app.delete("/api/products/:id", (req, res) => {
+  const product = listings.find((item) => item.id === req.params.id);
+  const owner = authenticatedUser(req);
+  if (!product) return res.status(404).json({ error: "Publicacion no encontrada" });
+  if (!owner || !sameOrderParty(owner, product.seller)) return res.status(403).json({ error: "Solo el vendedor puede eliminar esta publicacion." });
   const before = listings.length;
   listings = listings.filter((item) => item.id !== req.params.id);
   store.products = listings;
@@ -1833,7 +2032,7 @@ app.delete("/api/products/:id", (req, res) => {
   res.json({ deleted: listings.length !== before });
 });
 
-app.post("/api/support", (req, res) => {
+app.post("/api/support", rateLimit({ windowMs: 10 * 60 * 1000, max: 6, key: "support" }), (req, res) => {
   const identity = requestIdentity(req);
   const required = ["topic", "message"];
   const missing = required.filter((field) => !req.body[field]);
@@ -1853,7 +2052,7 @@ app.post("/api/support", (req, res) => {
   res.status(201).json(ticket);
 });
 
-app.post("/api/checkout", async (req, res) => {
+app.post("/api/checkout", rateLimit({ windowMs: 10 * 60 * 1000, max: 12, key: "checkout" }), async (req, res) => {
   const buyerUser = authenticatedUser(req);
   if (!buyerUser) return res.status(401).json({ error: "Inicia sesion para comprar de forma segura." });
   if (!buyerUser.authComplete) {
@@ -1978,6 +2177,8 @@ app.post("/api/checkout", async (req, res) => {
   ensureOrderConversation(order);
 
   store.orders = [order, ...(store.orders || [])];
+  notifyUser(buyerUser.email, "Compra iniciada", `La orden ${order.id} fue creada. Completa el pago directamente en Mercado Pago.`, "order", `/?page=orders`);
+  notifyUser(product.seller?.email, "Nueva compra", `${buyerUser.name} inicio una compra de ${product.title}.`, "order", `/?page=orders`);
   writeStore();
   res.status(201).json(order);
 });
@@ -2033,6 +2234,7 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   };
   listings = listings.map((product) => product.id === order.productId ? { ...product, status: "sold" } : product);
   store.products = listings;
+  notifyUser(order.seller?.email, "Entrega confirmada", `El comprador confirmo la recepcion de ${order.productTitle}.`, "success", "/?page=orders");
   writeStore();
   res.json(order);
 });
@@ -2097,6 +2299,7 @@ app.post("/api/orders/:id/seller-proof", (req, res) => {
     ...(order.security.auditTrail || []),
     { event: "Evidencia de vendedor registrada", at: order.delivery.sellerProof.declaredAt }
   ];
+  notifyUser(order.buyer?.email, "Producto preparado", `El vendedor cargo la evidencia de empaque de ${order.productTitle}.`, "order", "/?page=orders");
   writeStore();
   res.json(order);
 });
@@ -2131,6 +2334,7 @@ app.post("/api/orders/:id/mark-in-transit", (req, res) => {
     ...(order.security.auditTrail || []),
     { event: `Tracking registrado: ${carrier}${trackingCode ? ` / ${trackingCode}` : " / sin rastreo por entrega personal"}`, at: order.delivery.tracking.markedAt }
   ];
+  notifyUser(order.buyer?.email, "Envio en camino", `${order.productTitle} fue despachado por ${carrier}${trackingCode ? ` con rastreo ${trackingCode}` : ""}.`, "order", "/?page=orders");
   writeStore();
   res.json(order);
 });
@@ -2161,6 +2365,8 @@ app.post("/api/orders/:id/dispute", (req, res) => {
     ...(order.security.auditTrail || []),
     { event: "Disputa bloquea cierre de entrega", at: dispute.createdAt }
   ];
+  notifyUser(order.buyer?.email, "Disputa abierta", `Se abrio una revision para la orden ${order.id}.`, "danger", "/?page=orders");
+  notifyUser(order.seller?.email, "Disputa abierta", `Se abrio una revision para la orden ${order.id}.`, "danger", "/?page=orders");
   writeStore();
   res.status(201).json(order);
 });
@@ -2278,15 +2484,20 @@ app.post("/api/payments/mercadopago/webhook", async (req, res) => {
 
 app.post("/api/conversations", (req, res) => {
   const buyer = requestIdentity(req);
+  if (buyer.id === "guest") return res.status(401).json({ error: "Inicia sesion para abrir un chat." });
   if (req.body.orderId) {
     const order = (store.orders || []).find((item) => item.id === req.body.orderId);
     if (!order) return res.status(404).json({ error: "Orden no encontrada para crear chat." });
+    if (!requireOrderRole(req, res, order, "party")) return;
     const chat = ensureOrderConversation(order);
     store.orders = (store.orders || []).map((item) => item.id === order.id ? order : item);
     writeStore();
     return res.status(201).json(chat);
   }
-  const sellerId = String(req.body.sellerEmail || req.body.sellerName || "");
+  const product = listings.find((item) => item.id === req.body.productId);
+  if (!product) return res.status(404).json({ error: "Publicacion no encontrada para crear chat." });
+  if (sameOrderParty(authenticatedUser(req), product.seller)) return res.status(400).json({ error: "No puedes abrir un chat de compra contigo mismo." });
+  const sellerId = String(product.seller?.email || product.seller?.name || "");
   const existing = chats.find((chat) =>
     chat.productId === req.body.productId &&
     chat.buyerId === buyer.id &&
@@ -2295,9 +2506,9 @@ app.post("/api/conversations", (req, res) => {
   if (existing) return res.json(existing);
   const seller = {
     id: sellerId,
-    name: req.body.sellerName,
-    email: req.body.sellerEmail || "",
-    avatar: req.body.sellerAvatar
+    name: product.seller?.name,
+    email: product.seller?.email || "",
+    avatar: product.seller?.avatar
   };
 
   const chat = {
@@ -2308,7 +2519,7 @@ app.post("/api/conversations", (req, res) => {
     buyerId: buyer.id,
     seller: seller.name,
     sellerId: seller.id,
-    productTitle: req.body.productTitle,
+    productTitle: product.title,
     avatar: seller.avatar,
     participants: [buyer, seller],
     createdAt: new Date().toISOString(),
@@ -2335,6 +2546,7 @@ app.post("/api/conversations/:id/report", (req, res) => {
   const chat = chats.find((item) => item.id === req.params.id);
   if (!chat) return res.status(404).json({ error: "Chat no encontrado" });
   const reporter = requestIdentity(req);
+  if (reporter.id === "guest" || !isParticipant(chat, reporter)) return res.status(403).json({ error: "Solo los participantes pueden reportar este chat." });
   const report = {
     id: `report-${Date.now()}`,
     type: "chat",
@@ -2358,6 +2570,7 @@ app.post("/api/conversations/:id/block", (req, res) => {
   const chat = chats.find((item) => item.id === req.params.id);
   if (!chat) return res.status(404).json({ error: "Chat no encontrado" });
   const identity = requestIdentity(req);
+  if (identity.id === "guest" || !isParticipant(chat, identity)) return res.status(403).json({ error: "Solo los participantes pueden bloquear este chat." });
   const other = (chat.participants || []).find((participant) =>
     String(participant.id) !== String(identity.id) && String(participant.email || "") !== String(identity.email || "")
   );
@@ -2382,12 +2595,15 @@ app.post("/api/conversations/:id/block", (req, res) => {
 wss.on("connection", (socket) => {
   socket.identity = null;
   socket.on("message", (raw) => {
-    const payload = JSON.parse(raw.toString());
+    let payload;
+    try { payload = JSON.parse(raw.toString()); } catch { return; }
     if (payload.type === "hello") {
-      socket.identity = payload.identity || null;
+      const user = userFromSessionToken(String(payload.token || ""));
+      socket.identity = user ? { id: user.id, name: user.name, email: user.email } : null;
       return;
     }
     if (payload.type !== "message") return;
+    if (!socket.identity) return;
     const chat = chats.find((item) => item.id === payload.chatId);
     const sender = payload.message?.senderId || socket.identity?.id || "";
     if (!chat || !participantIds(chat).has(String(sender))) return;

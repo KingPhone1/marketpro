@@ -102,6 +102,7 @@ const state = {
   selectedChatId: null,
   checkoutOrder: null,
   orders: [],
+  notifications: [],
   orderTab: "all",
   paymentMethod: "mercadopago",
   galleryIndex: 0,
@@ -261,15 +262,17 @@ const loadData = async () => {
     state.user = null;
     localStorage.removeItem("marketUser");
   }
-  const [products, conversations, savedUser, orders] = await Promise.all([
+  const [products, conversations, savedUser, orders, notifications] = await Promise.all([
     api("/api/products"),
     api("/api/conversations"),
     api("/api/user"),
-    api("/api/orders")
+    api("/api/orders"),
+    api("/api/notifications")
   ]);
   state.products = products.map(normalizeProduct);
   state.conversations = conversations;
   state.orders = Array.isArray(orders) ? orders : [];
+  state.notifications = Array.isArray(notifications) ? notifications : [];
   if (
     hasCompleteAccess(savedUser) &&
     (!hasCompleteAccess(state.user) || !state.user?.email || state.user.email === savedUser.email)
@@ -308,7 +311,7 @@ const connectSocket = () => {
   if (state.socket?.readyState === WebSocket.OPEN || state.socket?.readyState === WebSocket.CONNECTING) return;
   state.socket = new WebSocket(`${protocol}://${location.host}`);
   state.socket.addEventListener("open", () => {
-    state.socket.send(JSON.stringify({ type: "hello", identity: currentIdentity() }));
+    state.socket.send(JSON.stringify({ type: "hello", token: state.authToken }));
   });
   state.socket.addEventListener("message", (event) => {
     const payload = JSON.parse(event.data);
@@ -342,6 +345,7 @@ const topbar = () => `
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
       <button class="nav-btn ${state.view === "profile" ? "active" : ""}" data-view="profile">Mi cuenta</button>
       <button class="nav-btn ${state.view === "orders" ? "active" : ""}" data-view="orders">Ordenes</button>
+      <button class="nav-btn ${state.view === "notifications" ? "active" : ""}" data-view="notifications">Alertas${state.notifications.filter((item) => !item.read).length ? ` (${state.notifications.filter((item) => !item.read).length})` : ""}</button>
       <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
       <button class="nav-btn ${state.view === "security" ? "active" : ""}" data-view="security">Seguridad</button>
       <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
@@ -357,6 +361,7 @@ const topbar = () => `
     <button class="${state.view === "compose" ? "active" : ""}" data-view="compose" aria-label="Vender"><span>＋</span><small>Vender</small></button>
     <button class="${state.view === "orders" ? "active" : ""}" data-view="orders" aria-label="Ordenes"><span>□</span><small>Ordenes</small></button>
     <button class="${state.view === "messages" ? "active" : ""}" data-view="messages" aria-label="Chats"><span>✉</span><small>Chats</small></button>
+    <button class="${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas"><span>!</span><small>Alertas${state.notifications.filter((item) => !item.read).length ? ` ${state.notifications.filter((item) => !item.read).length}` : ""}</small></button>
     <button class="${state.view === "profile" ? "active" : ""}" data-view="profile" aria-label="Perfil"><span>◉</span><small>Perfil</small></button>
   </nav>
 `;
@@ -1787,6 +1792,25 @@ const profileView = () => {
   `;
 };
 
+const notificationsView = () => `
+  <main class="content full-content">
+    <section class="panel notifications-panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">Actividad</p><h1>Alertas</h1></div>
+        <span class="muted">${state.notifications.filter((item) => !item.read).length} sin leer</span>
+      </div>
+      <div class="notification-list">
+        ${state.notifications.length ? state.notifications.map((item) => `
+          <button class="notification-item ${item.read ? "read" : "unread"}" data-notification="${item.id}" data-notification-link="${escapeHtml(item.link || "")}">
+            <span class="notification-dot"></span>
+            <span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message)}</small><time>${escapeHtml(new Date(item.createdAt).toLocaleString("es-UY"))}</time></span>
+          </button>
+        `).join("") : `<div class="empty">No tienes alertas nuevas.</div>`}
+      </div>
+    </section>
+  </main>
+`;
+
 const view = () =>
   ({
     feed: feedView,
@@ -1795,6 +1819,7 @@ const view = () =>
     messages: messagesView,
     profile: profileView,
     orders: ordersView,
+    notifications: notificationsView,
     orderDetail: orderDetailView,
     security: securityView,
     support: supportView,
@@ -1822,6 +1847,16 @@ const render = () => {
 const bindEvents = () => {
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => navigate(button.dataset.view));
+  });
+
+  document.querySelectorAll("[data-notification]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const id = button.dataset.notification;
+      await api(`/api/notifications/${id}/read`, { method: "POST", body: "{}" });
+      state.notifications = state.notifications.map((item) => item.id === id ? { ...item, read: true } : item);
+      const page = new URL(button.dataset.notificationLink || location.href, location.origin).searchParams.get("page");
+      if (page) navigate(page); else render();
+    });
   });
 
   document.querySelectorAll("[data-filter-toggle]").forEach((button) => {
