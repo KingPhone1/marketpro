@@ -90,7 +90,7 @@ const initialView = () => {
   if (location.pathname === "/support") return "support";
   if (location.pathname === "/security") return "security";
   const page = new URLSearchParams(location.search).get("page");
-  return ["legal", "support", "security"].includes(page) ? page : "feed";
+  return ["legal", "support", "security", "orders"].includes(page) ? page : "feed";
 };
 
 const state = {
@@ -100,6 +100,8 @@ const state = {
   selectedProductId: null,
   selectedChatId: null,
   checkoutOrder: null,
+  orders: [],
+  orderTab: "all",
   paymentMethod: "mercadopago",
   galleryIndex: 0,
   query: "",
@@ -258,13 +260,15 @@ const loadData = async () => {
     state.user = null;
     localStorage.removeItem("marketUser");
   }
-  const [products, conversations, savedUser] = await Promise.all([
+  const [products, conversations, savedUser, orders] = await Promise.all([
     api("/api/products"),
     api("/api/conversations"),
-    api("/api/user")
+    api("/api/user"),
+    api("/api/orders")
   ]);
   state.products = products.map(normalizeProduct);
   state.conversations = conversations;
+  state.orders = Array.isArray(orders) ? orders : [];
   if (
     hasCompleteAccess(savedUser) &&
     (!hasCompleteAccess(state.user) || !state.user?.email || state.user.email === savedUser.email)
@@ -336,6 +340,7 @@ const topbar = () => `
     <div class="top-actions">
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
       <button class="nav-btn ${state.view === "profile" ? "active" : ""}" data-view="profile">Mi cuenta</button>
+      <button class="nav-btn ${state.view === "orders" ? "active" : ""}" data-view="orders">Ordenes</button>
       <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
       <button class="nav-btn ${state.view === "security" ? "active" : ""}" data-view="security">Seguridad</button>
       <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
@@ -349,6 +354,7 @@ const topbar = () => `
   <nav class="mobile-tabs">
     <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed" aria-label="Inicio"><span>⌂</span><small>Inicio</small></button>
     <button class="${state.view === "compose" ? "active" : ""}" data-view="compose" aria-label="Vender"><span>＋</span><small>Vender</small></button>
+    <button class="${state.view === "orders" ? "active" : ""}" data-view="orders" aria-label="Ordenes"><span>□</span><small>Ordenes</small></button>
     <button class="${state.view === "messages" ? "active" : ""}" data-view="messages" aria-label="Chats"><span>✉</span><small>Chats</small></button>
     <button class="${state.view === "profile" ? "active" : ""}" data-view="profile" aria-label="Perfil"><span>◉</span><small>Perfil</small></button>
   </nav>
@@ -671,6 +677,125 @@ const offerSummary = () => `
     <h2>Compra simple. Venta verificada.</h2>
     <p>Publicaciones claras, chat conectado, pago por Mercado Pago y entrega con codigo unico.</p>
   </section>
+`;
+
+const orderRole = (order) => {
+  const email = String(state.user?.email || "").toLowerCase();
+  const name = String(state.user?.name || "");
+  if (email && String(order.buyer?.email || "").toLowerCase() === email) return "Compra";
+  if (email && String(order.seller?.email || "").toLowerCase() === email) return "Venta";
+  if (name && order.buyer?.name === name) return "Compra";
+  if (name && order.seller?.name === name) return "Venta";
+  return "Operacion";
+};
+
+const visibleOrders = () => {
+  const identity = currentIdentity();
+  const email = String(identity.email || "").toLowerCase();
+  const name = String(identity.name || "");
+  return (state.orders || [])
+    .filter((order) => {
+      const involved =
+        !state.user?.email ||
+        String(order.buyer?.email || "").toLowerCase() === email ||
+        String(order.seller?.email || "").toLowerCase() === email ||
+        order.buyer?.name === name ||
+        order.seller?.name === name;
+      if (!involved) return false;
+      if (state.orderTab === "buying") return orderRole(order) === "Compra";
+      if (state.orderTab === "selling") return orderRole(order) === "Venta";
+      if (state.orderTab === "disputes") return order.disputes?.some((item) => item.status !== "Cerrada");
+      return true;
+    })
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+};
+
+const orderPhase = (order) => {
+  if (order.disputes?.some((item) => item.status !== "Cerrada")) return ["Disputa", "danger"];
+  if (order.paymentRelease?.status === "Liberado") return ["Completada", "done"];
+  if (order.delivery?.buyerInspection) return ["Recepcion validada", "active"];
+  if (order.delivery?.tracking) return ["En entrega", "active"];
+  if (order.delivery?.sellerProof) return ["Evidencia cargada", "active"];
+  if (/aprobado/i.test(order.status || "")) return ["Pago aprobado", "active"];
+  return ["Pago pendiente", "pending"];
+};
+
+const orderCard = (order) => {
+  const [phase, phaseClass] = orderPhase(order);
+  const product = state.products.find((item) => item.id === order.productId);
+  const image = order.snapshot?.images?.[0] || product?.images?.[0] || "/mp-logo.svg";
+  return `
+    <article class="order-card ${phaseClass}">
+      <img src="${escapeHtml(image)}" alt="${escapeHtml(order.productTitle)}" />
+      <div>
+        <div class="order-topline">
+          <span>${escapeHtml(orderRole(order))}</span>
+          <b>${escapeHtml(phase)}</b>
+        </div>
+        <strong>${escapeHtml(order.productTitle)}</strong>
+        <small>${escapeHtml(order.id)} · ${money(order.amount)} · ${escapeHtml(order.paymentMethod || "mercadopago")}</small>
+        <div class="order-progress">
+          <i class="done"></i>
+          <i class="${order.delivery?.sellerProof ? "done" : ""}"></i>
+          <i class="${order.delivery?.tracking ? "done" : ""}"></i>
+          <i class="${order.delivery?.buyerInspection ? "done" : ""}"></i>
+          <i class="${order.paymentRelease?.status === "Liberado" ? "done" : ""}"></i>
+        </div>
+      </div>
+      <button class="secondary-btn" data-open-order="${order.id}">Ver flujo</button>
+    </article>
+  `;
+};
+
+const ordersSummary = () => {
+  const orders = visibleOrders();
+  const openDisputes = orders.filter((order) => order.disputes?.some((item) => item.status !== "Cerrada")).length;
+  const completed = orders.filter((order) => order.paymentRelease?.status === "Liberado").length;
+  return `
+    <section class="seller-metrics order-metrics">
+      <div class="metric-card"><span>Operaciones</span><strong>${orders.length}</strong></div>
+      <div class="metric-card"><span>Completadas</span><strong>${completed}</strong></div>
+      <div class="metric-card"><span>Disputas</span><strong>${openDisputes}</strong></div>
+      <div class="metric-card"><span>Proteccion</span><strong>Activa</strong></div>
+    </section>
+  `;
+};
+
+const ordersPanel = () => {
+  const orders = visibleOrders();
+  return `
+    <section class="panel orders-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Centro de ordenes</p>
+          <h1>Compras, ventas y entregas en un solo panel.</h1>
+          <p class="muted">Cada orden conserva precio, vendedor, comprador, evidencia, chat y codigo unico para reducir estafas.</p>
+        </div>
+      </div>
+      ${ordersSummary()}
+      <div class="order-tabs">
+        ${[
+          ["all", "Todas"],
+          ["buying", "Compras"],
+          ["selling", "Ventas"],
+          ["disputes", "Disputas"]
+        ].map(([id, label]) => `<button class="${state.orderTab === id ? "active" : ""}" data-order-tab="${id}">${label}</button>`).join("")}
+      </div>
+      <div class="orders-list">
+        ${orders.length ? orders.map(orderCard).join("") : `<div class="empty">Todavia no hay ordenes para esta vista.</div>`}
+      </div>
+    </section>
+  `;
+};
+
+const ordersView = () => `
+  ${sidebar()}
+  <main>
+    <div class="toolbar-row">
+      <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
+    </div>
+    ${ordersPanel()}
+  </main>
 `;
 
 const securityView = () => `
@@ -1427,6 +1552,7 @@ const profileView = () => {
           <button class="profile-tab ${state.profileTab === "sold" ? "active" : ""}" data-profile-tab="sold">Vendidos</button>
         </div>
       </section>
+      ${ordersPanel()}
       <section class="panel promotion-panel">
         <div>
           <p class="eyebrow">Anuncio principal</p>
@@ -1496,6 +1622,7 @@ const view = () =>
     compose: composeView,
     messages: messagesView,
     profile: profileView,
+    orders: ordersView,
     security: securityView,
     support: supportView,
     legal: legalView
@@ -1618,6 +1745,22 @@ const bindEvents = () => {
     button.addEventListener("click", () => {
       state.profileTab = button.dataset.profileTab;
       render();
+    });
+  });
+
+  document.querySelectorAll("[data-order-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.orderTab = button.dataset.orderTab;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-open-order]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === button.dataset.openOrder);
+      if (!order) return;
+      state.checkoutOrder = order;
+      navigate("detail", { selectedProductId: order.productId, galleryIndex: 0 });
     });
   });
 

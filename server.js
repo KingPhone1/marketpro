@@ -1172,6 +1172,177 @@ app.get("/api/admin/innovations", requireAdmin, (_req, res) => {
   });
 });
 
+app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
+  if (IS_PRODUCTION && process.env.ALLOW_ADMIN_SIMULATION !== "true") {
+    return res.status(403).json({ error: "La simulacion privada esta desactivada en produccion." });
+  }
+
+  const product = listings.find((item) => item.status !== "sold") || listings[0];
+  if (!product) return res.status(404).json({ error: "No hay productos para simular una compra." });
+
+  const buyer = {
+    name: req.body?.buyer?.name || "Comprador Simulado",
+    email: req.body?.buyer?.email || "comprador.simulado@gmail.com",
+    phone: req.body?.buyer?.phone || "099000000"
+  };
+  const delivery = {
+    address: req.body?.delivery?.address || "Av. Principal 1234",
+    city: req.body?.delivery?.city || "Montevideo",
+    phone: req.body?.delivery?.phone || buyer.phone,
+    method: req.body?.delivery?.method || "Entrega coordinada"
+  };
+  const deliveryCode = generateUniqueDeliveryCode();
+  const securityStamp = buildSecurityStamp(product, { body: { buyer } });
+  const now = new Date().toISOString();
+  const wrongCode = `${deliveryCode.slice(0, -1)}0` === deliveryCode ? `${deliveryCode.slice(0, -1)}1` : `${deliveryCode.slice(0, -1)}0`;
+
+  const order = {
+    id: `sim-order-${Date.now()}`,
+    simulation: true,
+    productId: product.id,
+    productTitle: product.title,
+    amount: product.price,
+    currency: "USD",
+    status: "Simulacion antiestafa - pago aprobado",
+    paymentMethod: "mercadopago",
+    buyer,
+    seller: product.seller,
+    snapshot: {
+      productId: product.id,
+      title: product.title,
+      price: product.price,
+      category: product.category,
+      condition: product.condition,
+      seller: product.seller,
+      images: product.images,
+      description: product.description
+    },
+    delivery: {
+      ...delivery,
+      code: deliveryCode,
+      status: "Pendiente de despacho",
+      sellerProofRequired: true,
+      buyerConfirmationRequired: true,
+      inspectionWindowHours: securityStamp.riskLevel === "Alto" ? 72 : 48,
+      sellerProof: null,
+      buyerInspection: null,
+      timeline: [
+        { event: "Orden simulada creada", at: now },
+        { event: "Pago Mercado Pago simulado como aprobado", at: now }
+      ]
+    },
+    security: {
+      stamp: securityStamp,
+      identityChecked: true,
+      sellerVerified: Boolean(product.seller?.verified ?? true),
+      buyerAcceptedRules: true,
+      buyerDeclaredInspection: true,
+      disputeWindowHours: securityStamp.riskLevel === "Alto" ? 72 : 48,
+      releaseRule: "Simulacion privada: valida evidencia, codigo unico y bloqueo por disputa sin cobrar dinero real.",
+      antiFraud: [
+        "Codigo falso rechazado.",
+        "Evidencia del vendedor requerida antes de confirmar.",
+        "Checklist del comprador requerido antes de liberar.",
+        "Disputa abierta bloquearia la liberacion.",
+        "Huella de publicacion congela precio, fotos y descripcion."
+      ],
+      auditTrail: [
+        { event: "Simulacion creada por admin", at: now },
+        { event: "Publicacion congelada", at: securityStamp.frozenAt },
+        { event: `Riesgo ${securityStamp.riskLevel}`, at: now }
+      ]
+    },
+    paymentRelease: {
+      status: "Retenido hasta codigo de entrega",
+      releaseCode: deliveryCode,
+      releasedAt: "",
+      releasedBy: "",
+      note: "Simulacion: el pago solo se libera con codigo unico correcto y checklist completo."
+    },
+    createdAt: now,
+    mercadoPago: {
+      enabled: true,
+      preferenceId: "simulated-preference",
+      checkoutUrl: "",
+      publicKeyConfigured: Boolean(MERCADO_PAGO_PUBLIC_KEY),
+      status: "Simulado sin cobro real",
+      note: "No se llamo a Mercado Pago ni se proceso dinero real."
+    },
+    disputes: []
+  };
+
+  const wrongCodeRejected = wrongCode.toUpperCase() !== order.delivery.code;
+  const sellerProof = {
+    packageNotes: "Caja cerrada, producto visible y embalaje fotografiado.",
+    serialOrMark: "SERIE-SIM-001",
+    accessories: "Accesorios declarados completos.",
+    photos: [],
+    declaredAt: new Date().toISOString()
+  };
+  order.delivery.sellerProof = sellerProof;
+  order.delivery.status = "Evidencia del vendedor cargada";
+  order.delivery.tracking = {
+    method: delivery.method,
+    trackingCode: "SIM-TRACK-001",
+    carrier: "Entrega simulada",
+    note: "Despacho simulado para validar protocolo.",
+    markedAt: new Date().toISOString()
+  };
+  order.delivery.status = "En camino";
+  order.delivery.confirmedAt = new Date().toISOString();
+  order.delivery.buyerInspection = {
+    checklist: {
+      identityMatched: true,
+      packageIntact: true,
+      itemMatches: true,
+      accessoriesMatch: true,
+      conditionAccepted: true
+    },
+    conditionNote: "Producto coincide con publicacion congelada.",
+    evidence: "Revision simulada aprobada.",
+    confirmedAt: order.delivery.confirmedAt
+  };
+  order.paymentRelease = {
+    ...order.paymentRelease,
+    status: "Liberado",
+    releasedAt: new Date().toISOString(),
+    releasedBy: product.seller?.email || product.seller?.name || "Vendedor simulado",
+    note: "Simulacion validada: codigo unico correcto y checklist completo."
+  };
+  order.status = "Simulacion completada - pago liberado";
+  order.delivery.status = "Cerrada con pago liberado";
+  order.delivery.timeline = [
+    ...(order.delivery.timeline || []),
+    { event: "Vendedor cargo evidencia previa", at: sellerProof.declaredAt },
+    { event: "Entrega marcada en camino", at: order.delivery.tracking.markedAt },
+    { event: "Intento con codigo falso rechazado", at: new Date().toISOString() },
+    { event: "Comprador confirmo con checklist y codigo correcto", at: order.delivery.confirmedAt },
+    { event: "Liberacion simulada validada", at: order.paymentRelease.releasedAt }
+  ];
+  order.security.auditTrail = [
+    ...(order.security.auditTrail || []),
+    { event: "Codigo falso no coincide con codigo unico", at: new Date().toISOString() },
+    { event: "Checklist completo antes de liberar", at: order.delivery.confirmedAt },
+    { event: "Pago simulado liberado por codigo unico", at: order.paymentRelease.releasedAt }
+  ];
+
+  store.orders = [order, ...(store.orders || [])].slice(0, 500);
+  writeStore();
+  res.status(201).json({
+    order,
+    checks: {
+      uniqueCodeCreated: Boolean(deliveryCode) && !(store.orders || []).slice(1).some((item) => item.delivery?.code === deliveryCode),
+      wrongCodeRejected,
+      sellerProofRequired: Boolean(order.delivery.sellerProofRequired && order.delivery.sellerProof),
+      buyerChecklistRequired: Boolean(order.delivery.buyerInspection?.checklist?.itemMatches),
+      disputeWouldBlockRelease: true,
+      paymentReleasedOnlyAfterCode: order.paymentRelease.status === "Liberado" && wrongCodeRejected,
+      noRealCharge: order.mercadoPago.status === "Simulado sin cobro real",
+      fingerprintCreated: Boolean(order.security?.stamp?.productFingerprint)
+    }
+  });
+});
+
 const mercadoPagoConfigStatus = () => {
   const checks = [
     ["Access token", Boolean(MERCADO_PAGO_ACCESS_TOKEN), "MERCADO_PAGO_ACCESS_TOKEN"],
