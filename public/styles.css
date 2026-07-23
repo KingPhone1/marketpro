@@ -3476,6 +3476,110 @@ img {
   }
 }
 
+/* MarketPro motion system: GSAP controls transforms; CSS keeps the surfaces stable. */
+:root {
+  --motion-gold: #c89b3c;
+  --motion-ink: #11120f;
+  --motion-paper: #f4f1ea;
+}
+
+body {
+  background:
+    linear-gradient(180deg, rgba(200, 155, 60, 0.045), transparent 28rem),
+    var(--motion-paper);
+}
+
+.view-surface main {
+  isolation: isolate;
+}
+
+.hero-panel,
+.hero-visual-frame,
+.gallery-main,
+.card-image {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.hero-panel {
+  border-color: rgba(17, 18, 15, 0.12);
+  box-shadow: 0 28px 72px rgba(18, 16, 12, 0.1);
+}
+
+.hero-visual-frame,
+.gallery-main,
+.card-image {
+  overflow: hidden;
+  will-change: transform, clip-path;
+}
+
+.hero-visual-frame img,
+.gallery-main img,
+.card-image img {
+  will-change: transform;
+  transform-origin: 50% 50%;
+}
+
+.product-card {
+  border-color: rgba(17, 18, 15, 0.11);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 34px rgba(18, 16, 12, 0.075);
+  transition: border-color 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
+}
+
+.product-card:hover {
+  border-color: rgba(200, 155, 60, 0.46);
+  background: #fff;
+  box-shadow: 0 24px 52px rgba(18, 16, 12, 0.13);
+}
+
+.product-card .card-body {
+  position: relative;
+  background: linear-gradient(180deg, #fff 0%, #fdfcf9 100%);
+}
+
+.product-card .price {
+  color: var(--motion-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.command-bar,
+.luxury-strip,
+.shield-matrix,
+.offer-summary {
+  box-shadow: 0 18px 50px rgba(18, 16, 12, 0.075);
+}
+
+@media (max-width: 900px) {
+  .hero-panel,
+  .product-card,
+  .command-bar,
+  .luxury-strip,
+  .shield-matrix,
+  .offer-summary {
+    box-shadow: 0 12px 28px rgba(18, 16, 12, 0.075);
+  }
+
+  .hero-visual-frame,
+  .gallery-main,
+  .card-image,
+  .hero-visual-frame img,
+  .gallery-main img,
+  .card-image img {
+    will-change: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-surface *,
+  .entry-shell * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .mp-connect-panel {
   display: flex;
   align-items: center;

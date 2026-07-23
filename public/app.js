@@ -1,6 +1,173 @@
 ﻿const app = document.querySelector("#app");
 
 let deferredInstallPrompt = null;
+let motionMatchMedia = null;
+let motionRefreshFrame = null;
+let lastAnimatedViewKey = -1;
+
+const destroyMotion = () => {
+  if (motionRefreshFrame) cancelAnimationFrame(motionRefreshFrame);
+  motionRefreshFrame = null;
+  motionMatchMedia?.revert();
+  motionMatchMedia = null;
+};
+
+const initMotion = (animateRoute = true) => {
+  const gsap = window.gsap;
+  const ScrollTrigger = window.ScrollTrigger;
+  if (!gsap || !ScrollTrigger) return;
+
+  gsap.registerPlugin(ScrollTrigger);
+  motionMatchMedia = gsap.matchMedia();
+  motionMatchMedia.add(
+    {
+      reduceMotion: "(prefers-reduced-motion: reduce)",
+      desktop: "(min-width: 901px)",
+      mobile: "(max-width: 900px)"
+    },
+    (context) => {
+      const { reduceMotion, desktop } = context.conditions;
+      const surface = document.querySelector(".view-surface") || document.querySelector(".entry-shell");
+      if (!surface || reduceMotion) return;
+
+      if (animateRoute) {
+        const routeSections = surface.querySelectorAll(
+          "main > .hero-panel, main > .command-bar, main > .featured-rail, main > .content-head, main > .panel, main > .detail-grid, main > .compose-grid"
+        );
+        gsap.from(routeSections, {
+          autoAlpha: 0,
+          y: desktop ? 30 : 16,
+          duration: 0.72,
+          stagger: 0.07,
+          ease: "power3.out",
+          clearProps: "opacity,visibility,transform"
+        });
+      }
+
+      const hero = surface.querySelector(".hero-panel");
+      const heroFrame = hero?.querySelector(".hero-visual-frame");
+      const heroImage = heroFrame?.querySelector("img");
+      if (heroFrame && heroImage) {
+        gsap.fromTo(
+          heroFrame,
+          { scale: desktop ? 0.94 : 0.98, clipPath: "inset(6% 8% round 24px)" },
+          {
+            scale: desktop ? 1.045 : 1,
+            clipPath: "inset(0% 0% round 12px)",
+            ease: "none",
+            scrollTrigger: {
+              trigger: hero,
+              start: "top 82%",
+              end: "bottom 18%",
+              scrub: desktop ? 1.1 : false
+            }
+          }
+        );
+        gsap.fromTo(
+          heroImage,
+          { scale: 1.16, yPercent: -3 },
+          {
+            scale: 1.02,
+            yPercent: desktop ? 5 : 0,
+            ease: "none",
+            scrollTrigger: {
+              trigger: hero,
+              start: "top bottom",
+              end: "bottom top",
+              scrub: desktop ? 1.25 : false
+            }
+          }
+        );
+      }
+
+      gsap.utils.toArray(".product-card", surface).forEach((card, index) => {
+        const imageWrap = card.querySelector(".card-image");
+        const image = imageWrap?.querySelector("img");
+        if (animateRoute) {
+          gsap.from(card, {
+            autoAlpha: 0,
+            y: desktop ? 34 : 18,
+            scale: 0.985,
+            duration: 0.65,
+            delay: Math.min(index % 4, 3) * 0.045,
+            ease: "power3.out",
+            clearProps: "opacity,visibility,transform",
+            scrollTrigger: { trigger: card, start: "top 94%", once: true }
+          });
+        }
+        if (imageWrap && image) {
+          gsap.fromTo(
+            imageWrap,
+            { clipPath: "inset(4% 5% round 10px)" },
+            {
+              clipPath: "inset(0% 0% round 0px)",
+              ease: "none",
+              scrollTrigger: {
+                trigger: card,
+                start: "top 96%",
+                end: "bottom 52%",
+                scrub: desktop ? 0.8 : false
+              }
+            }
+          );
+          gsap.fromTo(
+            image,
+            { scale: 1.13, yPercent: -2 },
+            {
+              scale: 1.01,
+              yPercent: desktop ? 3 : 0,
+              ease: "none",
+              scrollTrigger: {
+                trigger: card,
+                start: "top bottom",
+                end: "bottom top",
+                scrub: desktop ? 1 : false
+              }
+            }
+          );
+        }
+      });
+
+      gsap.utils
+        .toArray(".command-bar, .luxury-strip, .shield-matrix, .offer-summary, .similar-section", surface)
+        .forEach((section) => {
+          gsap.from(section, {
+            autoAlpha: 0,
+            y: desktop ? 36 : 18,
+            duration: 0.7,
+            ease: "power3.out",
+            clearProps: "opacity,visibility,transform",
+            scrollTrigger: { trigger: section, start: "top 90%", once: true }
+          });
+        });
+
+      const galleryImage = surface.querySelector(".gallery-main img");
+      if (galleryImage) {
+        gsap.fromTo(
+          galleryImage,
+          { scale: 1.08 },
+          {
+            scale: 1,
+            ease: "none",
+            scrollTrigger: {
+              trigger: galleryImage,
+              start: "top 86%",
+              end: "bottom 18%",
+              scrub: desktop ? 1 : false
+            }
+          }
+        );
+      }
+    }
+  );
+
+  motionRefreshFrame = requestAnimationFrame(() => {
+    document.querySelectorAll(".view-surface img").forEach((image) => {
+      if (!image.complete) image.addEventListener("load", () => ScrollTrigger.refresh(), { once: true });
+    });
+    ScrollTrigger.refresh();
+  });
+};
 
 const getSessionId = () => {
   const existing = localStorage.getItem("marketSessionId");
@@ -1827,10 +1994,14 @@ const view = () =>
   })[state.view]();
 
 const render = () => {
+  destroyMotion();
+  const animateRoute = state.viewKey !== lastAnimatedViewKey;
+  lastAnimatedViewKey = state.viewKey;
   const publicView = ["security", "support", "legal"].includes(state.view);
   if (!hasCompleteAccess() && !publicView) {
     app.innerHTML = `<div class="app-shell">${entryGate()}</div>`;
     bindEvents();
+    initMotion(animateRoute);
     return;
   }
   app.innerHTML = `
@@ -1842,6 +2013,7 @@ const render = () => {
     </div>
   `;
   bindEvents();
+  initMotion(animateRoute);
 };
 
 const bindEvents = () => {

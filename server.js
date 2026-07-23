@@ -926,6 +926,7 @@ app.use((req, res, next) => {
   if (IS_PRODUCTION) res.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 });
+app.use("/vendor/gsap", express.static(path.join(__dirname, "node_modules", "gsap", "dist"), { maxAge: IS_PRODUCTION ? "30d" : 0 }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/admin", (_req, res) => {
