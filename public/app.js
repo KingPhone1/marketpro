@@ -179,6 +179,40 @@ const initMotion = (animateRoute = true) => {
           clearProps: "opacity,visibility,transform"
         });
       }
+
+      if (desktop) {
+        document.querySelectorAll(
+          ".nav-btn, .sell-action, .buy-action, .filter-toggle, .secondary-btn, .send-btn, .text-btn, .ai-agent-launcher"
+        ).forEach((button) => {
+          button.classList.add("motion-control");
+          button.onpointermove = (event) => {
+            const bounds = button.getBoundingClientRect();
+            const localX = event.clientX - bounds.left;
+            const localY = event.clientY - bounds.top;
+            button.style.setProperty("--motion-x", `${localX}px`);
+            button.style.setProperty("--motion-y", `${localY}px`);
+            gsap.to(button, {
+              x: (localX - bounds.width / 2) * 0.07,
+              y: (localY - bounds.height / 2) * 0.1,
+              duration: 0.35,
+              ease: "power2.out",
+              overwrite: "auto"
+            });
+          };
+          button.onpointerleave = () => {
+            gsap.to(button, { x: 0, y: 0, duration: 0.5, ease: "elastic.out(1, 0.55)", overwrite: "auto" });
+          };
+          button.onpointerdown = () => gsap.to(button, { scale: 0.975, duration: 0.1, overwrite: "auto" });
+          button.onpointerup = () => gsap.to(button, { scale: 1, duration: 0.24, ease: "power2.out", overwrite: "auto" });
+        });
+
+        const brand = document.querySelector(".brand");
+        const logo = brand?.querySelector(".brand-logo");
+        if (brand && logo) {
+          brand.onpointerenter = () => gsap.to(logo, { scale: 1.045, rotation: 0.8, duration: 0.45, ease: "power3.out" });
+          brand.onpointerleave = () => gsap.to(logo, { scale: 1, rotation: 0, duration: 0.65, ease: "elastic.out(1, 0.6)" });
+        }
+      }
     }
   );
 
@@ -302,7 +336,10 @@ const state = {
     distance: "50",
     condition: "Todas"
   },
-  filtersOpen: JSON.parse(localStorage.getItem("marketFiltersOpen") ?? "true"),
+  filtersOpen:
+    window.innerWidth <= 760
+      ? false
+      : JSON.parse(localStorage.getItem("marketFiltersOpen") ?? "true"),
   profileTab: "active",
   user: JSON.parse(localStorage.getItem("marketUser")) || null,
   authToken: localStorage.getItem("marketAuthToken") || "",
