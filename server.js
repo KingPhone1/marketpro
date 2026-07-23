@@ -30,7 +30,7 @@ const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 3085;
 const HOST = process.env.HOST || "0.0.0.0";
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (IS_PRODUCTION ? "" : "MPadmin2026!");
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const APP_BASE_URL = (process.env.APP_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
 const MERCADO_PAGO_ACCESS_TOKEN = process.env.MERCADO_PAGO_ACCESS_TOKEN || "";
 const MERCADO_PAGO_PUBLIC_KEY = process.env.MERCADO_PAGO_PUBLIC_KEY || "";
@@ -51,12 +51,27 @@ const SUPABASE_PRIVATE_BUCKET = process.env.SUPABASE_PRIVATE_BUCKET || "marketpr
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM = process.env.EMAIL_FROM || "MarketPro <no-reply@marketpro.uy>";
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const hasSupabaseStore = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 let cloudStoreReady = false;
 let privateBucketReady = false;
 let cloudWriteQueue = Promise.resolve();
 const adminTokens = new Set();
 const requestBuckets = new Map();
+const demoListingIds = new Set(products.map((product) => product.id));
+
+const isRealListing = (product = {}) => {
+  const sellerEmail = String(product.seller?.email || "").toLowerCase();
+  const images = Array.isArray(product.images) ? product.images : [];
+  return !demoListingIds.has(product.id) &&
+    product.source !== "demo" &&
+    !sellerEmail.endsWith("@demo.local") &&
+    !sellerEmail.endsWith("@market.local") &&
+    !images.some((image) => /\/api\/(?:demo-photo|placeholder)\//i.test(String(image)));
+};
+const isPublicListing = (product = {}) =>
+  isRealListing(product) && (!product.status || product.status === "active");
 
 const encryptionKey = () => TOKEN_ENCRYPTION_KEY ? crypto.createHash("sha256").update(TOKEN_ENCRYPTION_KEY).digest() : null;
 
@@ -1281,7 +1296,7 @@ app.get("/api/avatar/:name.svg", (req, res) => {
 });
 
 app.get("/api/products", (_req, res) => {
-  res.json(listings.map((product) => ({
+  res.json(listings.filter(isPublicListing).map((product) => ({
     ...product,
     seller: {
       ...product.seller,
@@ -1586,6 +1601,9 @@ const requireAdmin = (req, res, next) => {
 };
 
 app.post("/api/admin/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 8, key: "admin-login" }), (req, res) => {
+  if (!ADMIN_PASSWORD) {
+    return res.status(503).json({ error: "El acceso administrativo todavía no está configurado." });
+  }
   if (req.body.password !== ADMIN_PASSWORD) {
     return res.status(401).json({ error: "Contraseña incorrecta" });
   }
@@ -1600,12 +1618,12 @@ app.post("/api/admin/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 8, key: 
 app.get("/api/admin/overview", requireAdmin, async (_req, res) => {
   const users = await Promise.all(store.users.map(async (user) => ({
     ...await adminUser(user),
-    listings: listings.filter((item) => item.seller?.email === user.email || item.seller?.name === user.name).length
+    listings: listings.filter((item) => isRealListing(item) && (item.seller?.email === user.email || item.seller?.name === user.name)).length
   })));
   res.json({
     users,
     verificationRequests: store.verificationRequests,
-    products: listings,
+    products: listings.filter(isRealListing),
     conversations: chats,
     orders: store.orders || [],
     reports: store.reports || [],
@@ -1936,6 +1954,7 @@ app.post("/api/products", (req, res) => {
   const listingRisk = analyzeListingRisk(draftProduct);
   const product = {
     id: `item-${Date.now()}`,
+    source: "verified-user",
     status: "active",
     verified: true,
     safeMeetup: true,
@@ -2056,6 +2075,70 @@ app.delete("/api/products/:id", (req, res) => {
   store.products = listings;
   writeStore();
   res.json({ deleted: listings.length !== before });
+});
+
+const assistantFallback = (question = "", context = {}) => {
+  const text = `${question} ${context.error || ""}`.toLowerCase();
+  if (/publicar|vende|foto|imagen/.test(text)) {
+    return "Para publicar, tu identidad debe estar aprobada y debes subir al menos dos fotos reales. Revisa que título, precio, ubicación y descripción estén completos. Si tu cuenta sigue pendiente, espera la revisión del administrador.";
+  }
+  if (/pago|mercado pago|cobro|tarjeta/.test(text)) {
+    return "MarketPro deriva el pago a Mercado Pago y no almacena tarjetas. Verifica que el vendedor tenga Mercado Pago conectado, vuelve a abrir la orden y no pagues por enlaces enviados fuera del chat.";
+  }
+  if (/entrar|acceso|contrase|gmail|cuenta|sesion/.test(text)) {
+    return "Comprueba el correo y la contraseña, evita espacios agregados por el autocompletado y prueba nuevamente. Si no recuerdas la clave, usa Recuperar contraseña. Nunca compartas códigos recibidos por correo.";
+  }
+  if (/chat|mensaje|conex|internet|red/.test(text)) {
+    return "Revisa tu conexión y vuelve a abrir Mensajes. La conversación se guarda en tu cuenta; evita continuar por WhatsApp o transferencias externas mientras resolvemos el problema.";
+  }
+  if (/verific|cedula|documento|rostro/.test(text)) {
+    return "La cédula debe verse completa por el frente y la foto del rostro debe ser clara. Confirma también teléfono y ubicación. Los documentos solo quedan disponibles para la revisión privada del administrador.";
+  }
+  return "Puedo ayudarte a resolverlo. Intenta repetir la acción una vez y dime en qué pantalla ocurrió. Si el error continúa, abre Soporte; MarketPro conservará el contexto técnico sin compartir tus documentos ni datos de pago.";
+};
+
+const responseText = (payload = {}) => {
+  if (payload.output_text) return payload.output_text;
+  return (payload.output || [])
+    .flatMap((item) => item.content || [])
+    .filter((item) => item.type === "output_text")
+    .map((item) => item.text)
+    .join("\n");
+};
+
+app.post("/api/assistant", rateLimit({ windowMs: 10 * 60 * 1000, max: 20, key: "assistant" }), async (req, res) => {
+  const question = String(req.body.question || "").trim().slice(0, 700);
+  const context = {
+    view: String(req.body.context?.view || "").slice(0, 40),
+    action: String(req.body.context?.action || "").slice(0, 80),
+    error: String(req.body.context?.error || "").slice(0, 400),
+    status: Number(req.body.context?.status || 0)
+  };
+  if (!question) return res.status(400).json({ error: "Escribe brevemente qué necesitas resolver." });
+
+  if (!OPENAI_API_KEY) {
+    return res.json({ answer: assistantFallback(question, context), mode: "diagnostic" });
+  }
+
+  try {
+    const aiResponse = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(12000),
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        max_output_tokens: 320,
+        instructions: "Eres el asistente de soporte de MarketPro. Responde en español claro, breve y seguro. Ayuda a resolver errores de acceso, publicación, chat, verificación y Mercado Pago. MarketPro no retiene dinero, no almacena tarjetas y no garantiza protección total. Nunca pidas contraseñas, códigos, cédula, fotos de identidad, ubicación exacta ni datos bancarios. Recomienda mantener chat y pago dentro de MarketPro y Mercado Pago. Si no puedes resolverlo, indica cómo abrir Soporte.",
+        input: JSON.stringify({ question, context })
+      })
+    });
+    if (!aiResponse.ok) throw new Error(`OpenAI ${aiResponse.status}`);
+    const payload = await aiResponse.json();
+    const answer = responseText(payload).trim();
+    res.json({ answer: answer || assistantFallback(question, context), mode: answer ? "ai" : "diagnostic" });
+  } catch (error) {
+    res.json({ answer: assistantFallback(question, context), mode: "diagnostic", recovered: true });
+  }
 });
 
 app.post("/api/support", rateLimit({ windowMs: 10 * 60 * 1000, max: 6, key: "support" }), (req, res) => {

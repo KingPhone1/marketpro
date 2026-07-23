@@ -287,6 +287,12 @@ const state = {
   authToken: localStorage.getItem("marketAuthToken") || "",
   authMode: "login",
   canInstallPwa: false,
+  assistantOpen: false,
+  assistantBusy: false,
+  assistantLastError: null,
+  assistantMessages: [
+    { role: "assistant", text: "Hola. Puedo ayudarte con acceso, publicaciones, chat, verificación y pagos." }
+  ],
   sessionId: getSessionId(),
   viewKey: 0,
   sellerDashboard: null,
@@ -355,7 +361,8 @@ const filteredProducts = () => {
     const categoryMatch = state.filters.category === "Todo" || item.category === state.filters.category;
     const minMatch = !state.filters.minPrice || item.price >= Number(state.filters.minPrice);
     const maxMatch = !state.filters.maxPrice || item.price <= Number(state.filters.maxPrice);
-    const distanceMatch = item.distance <= Number(state.filters.distance || 50);
+    const itemDistance = Number(item.distance);
+    const distanceMatch = !Number.isFinite(itemDistance) || itemDistance <= Number(state.filters.distance || 50);
     const conditionMatch = state.filters.condition === "Todas" || item.condition === state.filters.condition;
     return textMatch && categoryMatch && minMatch && maxMatch && distanceMatch && conditionMatch;
   }).sort((a, b) => Number(Boolean(b.promoted)) - Number(Boolean(a.promoted)));
@@ -408,6 +415,7 @@ const navigate = (view, payload = {}) => {
 };
 
 const api = async (path, options = {}) => {
+  const { assistant = true, ...requestOptions } = options;
   const identity = currentIdentity();
   const headers = {
     "Content-Type": "application/json",
@@ -415,13 +423,122 @@ const api = async (path, options = {}) => {
     "X-User-Name": encodeURIComponent(identity.name),
     "X-User-Email": identity.email,
     ...(state.authToken ? { Authorization: `Bearer ${state.authToken}` } : {}),
-    ...(options.headers || {})
+    ...(requestOptions.headers || {})
   };
-  const response = await fetch(path, {
-    ...options,
-    headers
+  try {
+    const response = await fetch(path, { ...requestOptions, headers });
+    const body = await response.text();
+    let data = {};
+    try {
+      data = body ? JSON.parse(body) : {};
+    } catch {
+      data = { error: "La respuesta del servidor no pudo interpretarse." };
+    }
+    const expectedGuestRequest = response.status === 401 && ["/api/user", "/api/orders", "/api/notifications", "/api/conversations"].includes(path);
+    if (!response.ok && assistant && !expectedGuestRequest) {
+      recordAssistantIssue(data.error || `Error ${response.status}`, { path, status: response.status });
+    }
+    return data;
+  } catch {
+    const message = "No pudimos conectar con MarketPro. Revisa tu conexión e intenta nuevamente.";
+    if (assistant) recordAssistantIssue(message, { path, status: 0 });
+    return { error: message };
+  }
+};
+
+const assistantWidget = () => `
+  <aside class="ai-agent ${state.assistantOpen ? "open" : ""}" id="aiAgentRoot" aria-live="polite">
+    ${state.assistantOpen ? `
+      <section class="ai-agent-panel" role="dialog" aria-label="Asistente MarketPro">
+        <header>
+          <div><span>MP</span><strong>Asistente</strong></div>
+          <button type="button" data-assistant-close aria-label="Cerrar asistente">×</button>
+        </header>
+        <div class="ai-agent-messages">
+          ${state.assistantMessages.slice(-6).map((message) => `<p class="${message.role}">${escapeHtml(message.text)}</p>`).join("")}
+          ${state.assistantBusy ? `<p class="assistant typing">Analizando…</p>` : ""}
+        </div>
+        <div class="ai-agent-suggestions">
+          <button type="button" data-assistant-prompt="No puedo publicar">No puedo publicar</button>
+          <button type="button" data-assistant-prompt="Tengo un problema con el pago">Problema con pago</button>
+          <button type="button" data-assistant-prompt="No puedo entrar a mi cuenta">No puedo entrar</button>
+        </div>
+        <form id="aiAgentForm">
+          <input name="question" maxlength="700" autocomplete="off" placeholder="Describe el problema" required />
+          <button type="submit" aria-label="Enviar">Enviar</button>
+        </form>
+        <small>No compartas contraseñas, códigos ni documentos.</small>
+      </section>
+    ` : ""}
+    <button class="ai-agent-launcher" type="button" data-assistant-open aria-label="Abrir asistente">
+      <span>MP</span><b>Ayuda</b>${state.assistantLastError ? `<i></i>` : ""}
+    </button>
+  </aside>
+`;
+
+const refreshAssistantWidget = () => {
+  const current = document.querySelector("#aiAgentRoot");
+  if (!current) return;
+  current.outerHTML = assistantWidget();
+  bindAssistantEvents();
+};
+
+const recordAssistantIssue = (message, details = {}) => {
+  const normalized = String(message || "Ocurrió un error inesperado.").slice(0, 400);
+  state.assistantLastError = { message: normalized, ...details };
+  const previous = state.assistantMessages.at(-1);
+  if (previous?.text !== normalized) {
+    state.assistantMessages.push({ role: "assistant", text: `Detecté un problema: ${normalized}` });
+  }
+  state.assistantOpen = true;
+  queueMicrotask(refreshAssistantWidget);
+};
+
+const askAssistant = async (question) => {
+  const cleanQuestion = String(question || "").trim();
+  if (!cleanQuestion || state.assistantBusy) return;
+  state.assistantMessages.push({ role: "user", text: cleanQuestion });
+  state.assistantBusy = true;
+  refreshAssistantWidget();
+  const result = await api("/api/assistant", {
+    method: "POST",
+    assistant: false,
+    body: JSON.stringify({
+      question: cleanQuestion,
+      context: {
+        view: state.view,
+        action: state.assistantLastError?.path || "",
+        error: state.assistantLastError?.message || "",
+        status: state.assistantLastError?.status || 0
+      }
+    })
   });
-  return response.json();
+  state.assistantBusy = false;
+  state.assistantMessages.push({
+    role: "assistant",
+    text: result.answer || result.error || "No pude completar el diagnóstico. Abre Soporte para que revisemos el caso."
+  });
+  refreshAssistantWidget();
+};
+
+const bindAssistantEvents = () => {
+  document.querySelector("[data-assistant-open]")?.addEventListener("click", () => {
+    state.assistantOpen = true;
+    state.assistantLastError = null;
+    refreshAssistantWidget();
+  });
+  document.querySelector("[data-assistant-close]")?.addEventListener("click", () => {
+    state.assistantOpen = false;
+    refreshAssistantWidget();
+  });
+  document.querySelectorAll("[data-assistant-prompt]").forEach((button) => {
+    button.addEventListener("click", () => askAssistant(button.dataset.assistantPrompt));
+  });
+  document.querySelector("#aiAgentForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    askAssistant(form.get("question"));
+  });
 };
 
 const loadData = async () => {
@@ -510,13 +627,10 @@ const topbar = () => `
     </div>
     <div class="top-actions">
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
-      <button class="nav-btn ${state.view === "profile" ? "active" : ""}" data-view="profile">Mi cuenta</button>
       <button class="nav-btn ${state.view === "orders" ? "active" : ""}" data-view="orders">Ordenes</button>
-      <button class="nav-btn ${state.view === "notifications" ? "active" : ""}" data-view="notifications">Alertas${state.notifications.filter((item) => !item.read).length ? ` (${state.notifications.filter((item) => !item.read).length})` : ""}</button>
       <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
-      <button class="nav-btn ${state.view === "security" ? "active" : ""}" data-view="security">Seguridad</button>
+      <button class="nav-btn compact-alert ${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas">Alertas${state.notifications.filter((item) => !item.read).length ? ` <b>${state.notifications.filter((item) => !item.read).length}</b>` : ""}</button>
       <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
-      <button class="cart-btn ${state.view === "profile" ? "active" : ""}" data-view="profile">0</button>
       <button class="avatar-btn ${state.view === "profile" ? "active" : ""}" data-view="profile" title="Perfil">${state.user ? state.user.name[0] : "E"}</button>
     </div>
   </header>
@@ -559,19 +673,6 @@ const pwaInstallCard = () => `
 
 const sidebar = () => `
   <aside class="sidebar ${state.filtersOpen ? "open" : ""}">
-    <div class="side-block">
-      <h2>Departamentos</h2>
-      <div class="category-list">
-        ${categories
-          .map(
-            (category) => `
-            <button class="category-btn ${state.filters.category === category ? "active" : ""}" data-category="${category}">
-              <span>${escapeHtml(category)}</span>
-            </button>`
-          )
-          .join("")}
-      </div>
-    </div>
     <div class="side-block">
       <h2>Filtros</h2>
       <div class="filters">
@@ -1340,50 +1441,33 @@ const feedView = () => {
   return `
     ${sidebar()}
     <main>
-      <div class="toolbar-row">
-        <button type="button" class="filter-toggle" data-filter-toggle>
-          ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
-        </button>
-      </div>
-      <section class="hero-panel">
+      <section class="hero-panel ${products.length ? "" : "hero-empty"}">
         <div>
-          <p class="eyebrow">MarketPro verificado</p>
-          <h1>Compra y vende con verificacion real.</h1>
-          <p>Vendedores revisados, pago vinculado y entrega protegida por codigo unico.</p>
+          <p class="eyebrow">Compra y venta verificada</p>
+          <h1>Articulos reales.<br />Personas verificadas.</h1>
+          <p>Publicaciones creadas por usuarios aprobados. Pago por Mercado Pago y seguimiento dentro de MarketPro.</p>
+          <div class="hero-cta-stack">
+            <button class="sell-action hero-action" data-view="compose">Vender</button>
+          </div>
           <div class="hero-metrics">
-            <span><strong>${products.length}</strong> publicaciones</span>
-            <span><strong>Pago</strong> protegido</span>
+            <span><strong>${products.length}</strong> publicaciones reales</span>
             <span><strong>ID</strong> verificada</span>
           </div>
         </div>
         ${heroVisual()}
-        <div class="hero-cta-stack">
-          <button class="sell-action hero-action" data-view="compose">Vender</button>
-          <button class="buy-action hero-action" data-view="profile">Verificarme</button>
-        </div>
       </section>
-      ${commandBar()}
-      ${featuredRail()}
       <div class="content-head">
         <div>
-          <h2>Catalogo verificado</h2>
-          <div class="muted">${products.length} resultados</div>
+          <h2>Publicaciones</h2>
+          <div class="muted">${products.length} articulos verificados</div>
         </div>
+        <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Filtros"}</button>
       </div>
       ${
         products.length
           ? `<section class="grid">${products.map(productCard).join("")}</section>`
-          : `<div class="empty">No encontramos articulos con esos filtros.</div>`
+          : `<div class="empty real-listings-empty"><strong>Aun no hay publicaciones reales.</strong><span>Se mostrarán aquí cuando un usuario verificado publique su artículo.</span><button class="sell-action" data-view="compose">Publicar el primero</button></div>`
       }
-      <section class="luxury-strip closing-strip">
-        <article><span>01</span><strong>Validacion de vendedor</strong><p>Las publicaciones se habilitan con perfil revisado.</p></article>
-        <article><span>02</span><strong>Checkout interno</strong><p>Direccion, metodo y comprobante quedan en la orden.</p></article>
-        <article><span>03</span><strong>Entrega confirmada</strong><p>El codigo cierra la operacion y habilita la calificacion.</p></article>
-      </section>
-      <div class="closing-shield">
-        ${shieldMatrix()}
-      </div>
-      ${offerSummary()}
     </main>
   `;
 };
@@ -1999,7 +2083,7 @@ const render = () => {
   lastAnimatedViewKey = state.viewKey;
   const publicView = ["security", "support", "legal"].includes(state.view);
   if (!hasCompleteAccess() && !publicView) {
-    app.innerHTML = `<div class="app-shell">${entryGate()}</div>`;
+    app.innerHTML = `<div class="app-shell">${entryGate()}${assistantWidget()}</div>`;
     bindEvents();
     initMotion(animateRoute);
     return;
@@ -2010,6 +2094,7 @@ const render = () => {
       ${pwaInstallCard()}
       <div class="main-layout view-surface ${state.filtersOpen ? "" : "filters-collapsed"}" data-view-key="${state.viewKey}">${view()}</div>
       ${appFooter()}
+      ${assistantWidget()}
     </div>
   `;
   bindEvents();
@@ -2017,6 +2102,7 @@ const render = () => {
 };
 
 const bindEvents = () => {
+  bindAssistantEvents();
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => navigate(button.dataset.view));
   });
@@ -2888,6 +2974,21 @@ window.addEventListener("appinstalled", () => {
   deferredInstallPrompt = null;
   state.canInstallPwa = false;
   render();
+});
+
+window.addEventListener("error", (event) => {
+  if (!event.error) return;
+  recordAssistantIssue("Esta pantalla encontró un error inesperado. El asistente puede ayudarte a continuar.", {
+    path: state.view,
+    status: 0
+  });
+});
+
+window.addEventListener("unhandledrejection", () => {
+  recordAssistantIssue("Una acción no pudo completarse. Revisa la conexión o consulta al asistente.", {
+    path: state.view,
+    status: 0
+  });
 });
 
 loadData();
