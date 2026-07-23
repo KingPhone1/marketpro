@@ -5,6 +5,16 @@ let pendingChatAttachment = "";
 let motionMatchMedia = null;
 let motionRefreshFrame = null;
 let lastAnimatedViewKey = -1;
+let splashDismissed = false;
+
+const dismissSplash = () => {
+  if (splashDismissed) return;
+  splashDismissed = true;
+  const splash = document.querySelector("#marketSplash");
+  if (!splash) return;
+  requestAnimationFrame(() => splash.classList.add("is-leaving"));
+  window.setTimeout(() => splash.remove(), 720);
+};
 
 const destroyMotion = () => {
   if (motionRefreshFrame) cancelAnimationFrame(motionRefreshFrame);
@@ -631,6 +641,7 @@ const loadData = async () => {
   state.selectedChatId = conversations[0]?.id || null;
   connectSocket();
   render();
+  window.setTimeout(dismissSplash, 1250);
 };
 
 const normalizeProduct = (item) => ({

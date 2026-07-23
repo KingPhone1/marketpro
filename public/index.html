@@ -11,13 +11,23 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="/mp-logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon-192.png?v=56" />
-    <link rel="stylesheet" href="/styles.css?v=75" />
+    <link rel="stylesheet" href="/styles.css?v=76" />
   </head>
   <body>
+    <div id="marketSplash" class="market-splash" role="status" aria-label="Cargando MarketPro">
+      <div class="market-splash-glow" aria-hidden="true"></div>
+      <div class="market-splash-content">
+        <img class="market-splash-logo" src="/mp-logo.svg" alt="" />
+        <div class="market-splash-name" aria-label="MarketPro">
+          <span>M</span><span>A</span><span>R</span><span>K</span><span>E</span><span>T</span><span>P</span><span>R</span><span>O</span>
+        </div>
+        <div class="market-splash-line" aria-hidden="true"><i></i></div>
+      </div>
+    </div>
     <div id="app"></div>
     <script src="/vendor/gsap/gsap.min.js?v=3.13.0"></script>
     <script src="/vendor/gsap/ScrollTrigger.min.js?v=3.13.0"></script>
-    <script type="module" src="/app.js?v=75"></script>
+    <script type="module" src="/app.js?v=76"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js"));
