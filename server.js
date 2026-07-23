@@ -26,7 +26,7 @@ loadEnvFile();
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, maxPayload: 2 * 1024 * 1024 });
 const PORT = process.env.PORT || 3085;
 const HOST = process.env.HOST || "0.0.0.0";
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
@@ -72,6 +72,42 @@ const isRealListing = (product = {}) => {
 };
 const isPublicListing = (product = {}) =>
   isRealListing(product) && (!product.status || product.status === "active");
+
+const listingTimestamp = (product = {}) => {
+  const explicit = new Date(product.createdAt || product.updatedAt || "").getTime();
+  if (Number.isFinite(explicit)) return explicit;
+  const match = String(product.id || "").match(/^item-(\d{10,})$/);
+  return match ? Number(match[1]) : 0;
+};
+
+const duplicateListingKey = (product = {}) => [
+  String(product.seller?.email || product.seller?.name || "").trim().toLowerCase(),
+  String(product.title || "").trim().toLowerCase().replace(/\s+/g, " "),
+  Number(product.price || 0).toFixed(2),
+  String(product.location || "").trim().toLowerCase().replace(/\s+/g, " ")
+].join("|");
+
+const dedupeRapidListings = (items = []) => {
+  const ordered = [...items].sort((a, b) => listingTimestamp(a) - listingTimestamp(b));
+  const latestByKey = new Map();
+  const removedIds = new Set();
+  ordered.forEach((product) => {
+    if (!isRealListing(product) || (product.status && product.status !== "active")) return;
+    const timestamp = listingTimestamp(product);
+    const key = duplicateListingKey(product);
+    if (!timestamp || !key) return;
+    const previous = latestByKey.get(key);
+    if (previous && timestamp - previous.timestamp <= 10 * 60 * 1000) {
+      removedIds.add(product.id);
+      return;
+    }
+    latestByKey.set(key, { id: product.id, timestamp });
+  });
+  return {
+    listings: items.filter((product) => !removedIds.has(product.id)),
+    removedIds: [...removedIds]
+  };
+};
 
 const encryptionKey = () => TOKEN_ENCRYPTION_KEY ? crypto.createHash("sha256").update(TOKEN_ENCRYPTION_KEY).digest() : null;
 
@@ -880,6 +916,15 @@ const hydrateRuntimeStore = (nextStore = {}) => {
   listings = store.products?.length ? store.products : [...products];
   chats = store.conversations?.length ? store.conversations : [...conversations];
   listings = normalizeDemoImages(listings);
+  const duplicateCleanup = dedupeRapidListings(listings);
+  listings = duplicateCleanup.listings;
+  if (duplicateCleanup.removedIds.length) {
+    store.memory.duplicateCleanup = {
+      removed: duplicateCleanup.removedIds.length,
+      ids: duplicateCleanup.removedIds,
+      at: new Date().toISOString()
+    };
+  }
   chats = normalizeChats(chats).filter((chat) => !["chat-1", "chat-2"].includes(chat.id) && chat.buyerId !== "buyer-demo");
   store.products = listings;
   store.conversations = chats;
@@ -1951,6 +1996,15 @@ app.post("/api/products", (req, res) => {
       mercadoPagoConnected: Boolean(savedSeller.mercadoPagoOAuth?.accessTokenEncrypted)
     }
   };
+  const duplicate = listings.find((item) =>
+    isRealListing(item) &&
+    (!item.status || item.status === "active") &&
+    duplicateListingKey(item) === duplicateListingKey(draftProduct) &&
+    Date.now() - listingTimestamp(item) <= 10 * 60 * 1000
+  );
+  if (duplicate) {
+    return res.json({ ...duplicate, duplicatePrevented: true });
+  }
   const listingRisk = analyzeListingRisk(draftProduct);
   const product = {
     id: `item-${Date.now()}`,
@@ -1960,6 +2014,7 @@ app.post("/api/products", (req, res) => {
     safeMeetup: true,
     reportCount: 0,
     postedAt: "Hace unos segundos",
+    createdAt: new Date().toISOString(),
     ...draftProduct,
     security: {
       listingRisk,
@@ -2651,6 +2706,76 @@ app.post("/api/conversations", (req, res) => {
   res.status(201).json(chat);
 });
 
+app.post("/api/conversations/:id/messages", (req, res) => {
+  const sender = requestIdentity(req);
+  const chat = chats.find((item) => item.id === req.params.id);
+  if (!chat) return res.status(404).json({ error: "Chat no encontrado." });
+  if (sender.id === "guest" || !isParticipant(chat, sender)) {
+    return res.status(403).json({ error: "Solo los participantes pueden enviar mensajes." });
+  }
+  const blocked = chat.blocked || (store.blockedPairs || []).some((item) => item.chatId === chat.id);
+  if (blocked) return res.status(403).json({ error: "Este chat está bloqueado por seguridad." });
+
+  const text = String(req.body.text || "").trim().slice(0, 2000);
+  const rawAttachment = String(req.body.attachment || "");
+  const attachment = /^data:image\/(?:jpeg|png|webp);base64,/i.test(rawAttachment) && rawAttachment.length <= 1400000
+    ? rawAttachment
+    : "";
+  if (!text && !attachment) return res.status(400).json({ error: "Escribe un mensaje o añade una foto válida." });
+  if (rawAttachment && !attachment) return res.status(413).json({ error: "La foto es demasiado grande o tiene un formato no permitido." });
+
+  const risk = analyzeTextRisk(text);
+  const message = {
+    id: `msg-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+    from: "user",
+    senderId: sender.id,
+    senderName: sender.name,
+    senderAvatar: sender.avatar,
+    text,
+    attachment,
+    risk,
+    time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
+    createdAt: new Date().toISOString()
+  };
+  const systemMessage = risk.level === "Alto"
+    ? {
+        id: `msg-${Date.now()}-risk`,
+        from: "system",
+        senderId: "system",
+        senderName: "MarketPro Shield",
+        text: `Alerta antifraude: detectamos ${risk.flags.join(", ")}. No compartas codigos, claves ni pagos por fuera de MarketPro.`,
+        risk,
+        time: message.time,
+        createdAt: new Date().toISOString()
+      }
+    : null;
+
+  chats = chats.map((item) => item.id === chat.id
+    ? {
+        ...item,
+        lastMessageAt: message.createdAt,
+        riskEvents: risk.level !== "Bajo"
+          ? [...(item.riskEvents || []), { level: risk.level, flags: risk.flags, at: message.createdAt }]
+          : item.riskEvents || [],
+        messages: systemMessage ? [...item.messages, message, systemMessage] : [...item.messages, message]
+      }
+    : item
+  );
+  store.conversations = chats;
+  writeStore();
+
+  const allowedIds = participantIds(chat);
+  wss.clients.forEach((client) => {
+    const clientId = String(client.identity?.id || "");
+    const clientEmail = String(client.identity?.email || "");
+    if (client.readyState === 1 && (allowedIds.has(clientId) || allowedIds.has(clientEmail))) {
+      client.send(JSON.stringify({ type: "message", chatId: chat.id, message }));
+      if (systemMessage) client.send(JSON.stringify({ type: "message", chatId: chat.id, message: systemMessage }));
+    }
+  });
+  res.status(201).json({ message, systemMessage });
+});
+
 app.post("/api/conversations/:id/report", (req, res) => {
   const chat = chats.find((item) => item.id === req.params.id);
   if (!chat) return res.status(404).json({ error: "Chat no encontrado" });
@@ -2714,12 +2839,28 @@ wss.on("connection", (socket) => {
     if (payload.type !== "message") return;
     if (!socket.identity) return;
     const chat = chats.find((item) => item.id === payload.chatId);
-    const sender = payload.message?.senderId || socket.identity?.id || "";
-    if (!chat || !participantIds(chat).has(String(sender))) return;
+    if (!chat || !isParticipant(chat, socket.identity)) return;
     const blocked = (store.blockedPairs || []).some((item) => item.chatId === chat.id);
     if (blocked || chat.blocked) return;
-    const risk = analyzeTextRisk(payload.message?.text || "");
-    payload.message.risk = risk;
+    const text = String(payload.message?.text || "").trim().slice(0, 2000);
+    const rawAttachment = String(payload.message?.attachment || "");
+    const attachment = /^data:image\/(?:jpeg|png|webp);base64,/i.test(rawAttachment) && rawAttachment.length <= 1400000
+      ? rawAttachment
+      : "";
+    if (!text && !attachment) return;
+    const message = {
+      id: /^msg-[a-z0-9-]+$/i.test(String(payload.message?.id || "")) ? payload.message.id : `msg-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+      from: "user",
+      senderId: socket.identity.id,
+      senderName: socket.identity.name,
+      senderAvatar: `/api/avatar/${encodeURIComponent(socket.identity.name || "Usuario")}.svg`,
+      text,
+      attachment,
+      time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
+      createdAt: new Date().toISOString()
+    };
+    const risk = analyzeTextRisk(message.text);
+    message.risk = risk;
     const systemRiskMessage = risk.level === "Alto"
       ? {
           id: `msg-${Date.now()}-risk`,
@@ -2735,7 +2876,7 @@ wss.on("connection", (socket) => {
 
     chats = chats.map((chat) => {
       if (chat.id !== payload.chatId) return chat;
-      const exists = chat.messages.some((message) => message.id && message.id === payload.message.id);
+      const exists = chat.messages.some((savedMessage) => savedMessage.id && savedMessage.id === message.id);
       if (exists) return chat;
       const riskEvents = risk.level !== "Bajo"
         ? [...(chat.riskEvents || []), { level: risk.level, flags: risk.flags, at: new Date().toISOString() }]
@@ -2743,8 +2884,8 @@ wss.on("connection", (socket) => {
       return {
         ...chat,
         riskEvents,
-        lastMessageAt: payload.message.createdAt || new Date().toISOString(),
-        messages: systemRiskMessage ? [...chat.messages, payload.message, systemRiskMessage] : [...chat.messages, payload.message]
+        lastMessageAt: message.createdAt,
+        messages: systemRiskMessage ? [...chat.messages, message, systemRiskMessage] : [...chat.messages, message]
       };
     });
     store.conversations = chats;
@@ -2755,7 +2896,7 @@ wss.on("connection", (socket) => {
       const clientId = String(client.identity?.id || "");
       const clientEmail = String(client.identity?.email || "");
       if (client.readyState === 1 && (allowedIds.has(clientId) || allowedIds.has(clientEmail))) {
-        client.send(JSON.stringify(payload));
+        client.send(JSON.stringify({ type: "message", chatId: chat.id, message }));
         if (systemRiskMessage) client.send(JSON.stringify({ type: "message", chatId: payload.chatId, message: systemRiskMessage }));
       }
     });

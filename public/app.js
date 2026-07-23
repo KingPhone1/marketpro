@@ -1,6 +1,7 @@
 ﻿const app = document.querySelector("#app");
 
 let deferredInstallPrompt = null;
+let pendingChatAttachment = "";
 let motionMatchMedia = null;
 let motionRefreshFrame = null;
 let lastAnimatedViewKey = -1;
@@ -157,6 +158,26 @@ const initMotion = (animateRoute = true) => {
             }
           }
         );
+      }
+
+      if (animateRoute && surface.querySelector(".chat-shell")) {
+        gsap.from(".chat-row", {
+          autoAlpha: 0,
+          x: desktop ? -18 : 0,
+          y: desktop ? 0 : 10,
+          duration: 0.45,
+          stagger: 0.055,
+          ease: "power2.out",
+          clearProps: "opacity,visibility,transform"
+        });
+        gsap.from(".bubble", {
+          autoAlpha: 0,
+          x: (index, element) => element.classList.contains("me") ? 18 : -18,
+          duration: 0.42,
+          stagger: 0.035,
+          ease: "power2.out",
+          clearProps: "opacity,visibility,transform"
+        });
       }
     }
   );
@@ -371,7 +392,7 @@ const filteredProducts = () => {
 const currentIdentity = () => {
   const name = state.user?.name || `Visitante ${state.sessionId.slice(-4).toUpperCase()}`;
   return {
-    id: state.user?.email || state.sessionId,
+    id: state.user?.id || state.user?.email || state.sessionId,
     name,
     email: state.user?.email || "",
     avatar: state.user ? `/api/avatar/${encodeURIComponent(state.user.name)}.svg` : `/api/avatar/${encodeURIComponent(name)}.svg`
@@ -401,7 +422,9 @@ const scrollToTop = () => {
 };
 
 const isMyMessage = (message) => {
-  if (message.senderId) return message.senderId === currentIdentity().id;
+  if (message.senderId) {
+    return [currentIdentity().id, state.user?.email].filter(Boolean).map(String).includes(String(message.senderId));
+  }
   return message.from === "me";
 };
 
@@ -1739,22 +1762,19 @@ const messagesView = () => {
   const active = state.conversations.find((chat) => chat.id === state.selectedChatId) || state.conversations[0];
   if (active && state.selectedChatId !== active.id) state.selectedChatId = active.id;
   return `
-    ${sidebar()}
-    <main>
-      <div class="toolbar-row">
-        <button type="button" class="filter-toggle" data-filter-toggle>
-          ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
-        </button>
-      </div>
+    <main class="messages-page">
       <section class="panel chat-shell">
       <aside class="chat-sidebar">
-        <h2 class="panel-title">Chats seguros</h2>
+        <div class="chat-sidebar-head">
+          <span>Mensajes</span>
+          <small>${state.conversations.length} conversaciones</small>
+        </div>
         <div class="chat-list">
           ${state.conversations
             .map(
               (chat) => `
               <button class="chat-row ${chat.id === state.selectedChatId ? "active" : ""}" data-chat="${chat.id}">
-                <img src="${chat.avatar}" alt="${escapeHtml(chat.seller)}" />
+                <img src="${chat.avatar || `/api/avatar/${encodeURIComponent(chat.seller || "Usuario")}.svg`}" alt="${escapeHtml(chat.seller)}" />
                 <div>
                   <strong>${escapeHtml(chat.seller)}</strong>
                   <div class="muted">${escapeHtml(chat.productTitle)}</div>
@@ -1768,14 +1788,15 @@ const messagesView = () => {
         active
           ? `<section class="chat-main">
               <div class="chat-header">
-                <img src="${active.avatar}" alt="${escapeHtml(active.seller)}" />
+                <img src="${active.avatar || `/api/avatar/${encodeURIComponent(active.seller || "Usuario")}.svg`}" alt="${escapeHtml(active.seller)}" />
                 <div>
                   <strong>${escapeHtml(active.seller)}</strong>
                   <div class="muted">${escapeHtml(active.productTitle)}</div>
+                  <small class="chat-presence"><i></i> Conversacion sincronizada</small>
                 </div>
               </div>
               <div class="chat-warning">
-                No compartas codigos, claves ni datos bancarios. Coordina entrega en un punto publico.
+                MarketPro protege el historial. No compartas claves, codigos ni pagos externos.
               </div>
               <div class="messages">
                 ${active.messages
@@ -1783,8 +1804,10 @@ const messagesView = () => {
                     (msg) => `
                     <div class="bubble ${isMyMessage(msg) ? "me" : ""} ${msg.from === "system" ? "system" : ""}">
                       ${msg.senderName && msg.from !== "system" ? `<span>${escapeHtml(msg.senderName)}</span>` : ""}
-                      ${escapeHtml(msg.text)}
+                      ${msg.attachment ? `<button type="button" class="chat-photo" data-chat-photo><img src="${escapeHtml(msg.attachment)}" alt="Foto compartida en el chat" /></button>` : ""}
+                      ${msg.text ? `<p>${escapeHtml(msg.text)}</p>` : ""}
                       ${msg.risk?.level && msg.risk.level !== "Bajo" ? `<small class="risk-note">Alerta ${escapeHtml(msg.risk.level)}: ${escapeHtml(msg.risk.flags.join(", "))}</small>` : ""}
+                      ${msg.time ? `<time>${escapeHtml(msg.time)}</time>` : ""}
                     </div>`
                   )
             .join("")}
@@ -1793,7 +1816,12 @@ const messagesView = () => {
                 <button class="secondary-btn" id="reportChat">Reportar chat</button>
                 <button class="danger-btn" id="blockChat">${active.blocked ? "Chat bloqueado" : "Bloquear chat"}</button>
               </div>
+              ${pendingChatAttachment ? `<div class="chat-attachment-preview"><img src="${pendingChatAttachment}" alt="Foto lista para enviar" /><span>Foto lista</span><button type="button" id="removeChatPhoto" aria-label="Quitar foto">×</button></div>` : ""}
               <form class="message-form" id="messageForm">
+                <label class="attach-btn ${pendingChatAttachment ? "ready" : ""}" title="Añadir foto">
+                  <input id="chatPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" ${active.blocked ? "disabled" : ""} />
+                  <span>+</span>
+                </label>
                 <input name="message" autocomplete="off" placeholder="${active.blocked ? "Chat bloqueado por seguridad" : "Escribe dentro del chat seguro"}" ${active.blocked ? "disabled" : ""} />
                 <button class="send-btn" title="Enviar" ${active.blocked ? "disabled" : ""}>Enviar</button>
               </form>
@@ -2089,10 +2117,10 @@ const render = () => {
     return;
   }
   app.innerHTML = `
-    <div class="app-shell">
+    <div class="app-shell view-${state.view}">
       ${topbar()}
-      ${pwaInstallCard()}
-      <div class="main-layout view-surface ${state.filtersOpen ? "" : "filters-collapsed"}" data-view-key="${state.viewKey}">${view()}</div>
+      ${state.view === "messages" ? "" : pwaInstallCard()}
+      <div class="main-layout view-surface ${state.filtersOpen ? "" : "filters-collapsed"} ${state.view === "messages" ? "focus-layout" : ""}" data-view-key="${state.viewKey}">${view()}</div>
       ${appFooter()}
       ${assistantWidget()}
     </div>
@@ -2203,6 +2231,17 @@ const bindEvents = () => {
   });
 
   document.querySelector("#messageForm")?.addEventListener("submit", sendMessage);
+  document.querySelector("#chatPhotoInput")?.addEventListener("change", prepareChatPhoto);
+  document.querySelector("#removeChatPhoto")?.addEventListener("click", () => {
+    pendingChatAttachment = "";
+    render();
+  });
+  document.querySelectorAll("[data-chat-photo]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const source = button.querySelector("img")?.src;
+      if (source) window.open(source, "_blank", "noopener,noreferrer");
+    });
+  });
   document.querySelector("#reportChat")?.addEventListener("click", reportActiveChat);
   document.querySelector("#blockChat")?.addEventListener("click", blockActiveChat);
   document.querySelector("#supportForm")?.addEventListener("submit", submitSupport);
@@ -2411,7 +2450,12 @@ const publishListing = async (event) => {
     return;
   }
   const product = normalizeProduct(created);
-  state.products = [product, ...state.products];
+  state.products = state.products.some((item) => item.id === product.id)
+    ? state.products.map((item) => item.id === product.id ? product : item)
+    : [product, ...state.products];
+  if (created.duplicatePrevented) {
+    alert("La publicación ya existía. Evitamos crear una copia duplicada.");
+  }
   await refreshSellerDashboard();
   navigate("detail", { selectedProductId: product.id, galleryIndex: 0 });
 };
@@ -2734,7 +2778,32 @@ const openDispute = async (event) => {
   render();
 };
 
-const sendMessage = (event) => {
+const prepareChatPhoto = async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    recordAssistantIssue("Selecciona una imagen JPG, PNG o WebP.", { path: "messages", status: 400 });
+    return;
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    recordAssistantIssue("La foto supera 12 MB. Elige una imagen más liviana.", { path: "messages", status: 413 });
+    return;
+  }
+  let compressed = await compressImage(file, 960, 0.68);
+  if (compressed.length > 1350000) compressed = await compressImage(file, 720, 0.58);
+  if (!compressed || compressed.length > 1400000) {
+    recordAssistantIssue("No pudimos preparar esa foto. Prueba con otra imagen.", { path: "messages", status: 413 });
+    return;
+  }
+  pendingChatAttachment = compressed;
+  render();
+  requestAnimationFrame(() => {
+    const messages = document.querySelector(".messages");
+    if (messages) messages.scrollTop = messages.scrollHeight;
+  });
+};
+
+const sendMessage = async (event) => {
   event.preventDefault();
   const chat = activeChat();
   if (chat?.blocked) {
@@ -2743,30 +2812,36 @@ const sendMessage = (event) => {
   }
   const input = event.currentTarget.message;
   const text = input.value.trim();
-  if (!text) return;
+  if (!text && !pendingChatAttachment) return;
   const risk = analyzeMessageRisk(text);
   if (risk.level === "Alto") {
     const proceed = confirm(`MP Shield detecto posible ${risk.flags.join(", ")}. No compartas codigos, pagos externos ni datos bancarios. ¿Enviar igualmente como evidencia auditada?`);
     if (!proceed) return;
   }
-  const identity = currentIdentity();
-  const message = {
-    id: `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    from: "user",
-    senderId: identity.id,
-    senderName: identity.name,
-    senderAvatar: identity.avatar,
-    text,
-    risk,
-    time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
-    createdAt: new Date().toISOString()
-  };
-  state.socket?.send(JSON.stringify({ type: "message", chatId: state.selectedChatId, message }));
+  const result = await api(`/api/conversations/${state.selectedChatId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ text, attachment: pendingChatAttachment })
+  });
+  if (result.error) return;
+  const additions = [result.message, result.systemMessage].filter(Boolean);
   state.conversations = state.conversations.map((chat) =>
-    chat.id === state.selectedChatId ? { ...chat, messages: [...chat.messages, message] } : chat
+    chat.id === state.selectedChatId
+      ? {
+          ...chat,
+          messages: [
+            ...chat.messages,
+            ...additions.filter((message) => !chat.messages.some((saved) => saved.id === message.id))
+          ]
+        }
+      : chat
   );
   input.value = "";
+  pendingChatAttachment = "";
   render();
+  requestAnimationFrame(() => {
+    const messages = document.querySelector(".messages");
+    if (messages) messages.scrollTop = messages.scrollHeight;
+  });
 };
 
 const authenticate = async (event) => {
