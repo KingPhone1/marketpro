@@ -12449,3 +12449,23 @@ input:focus, select:focus, textarea:focus { border-color: var(--border-gold) !im
     border-right: 0;
   }
 }
+
+@media (max-width: 1360px) and (min-width: 981px) {
+  .topbar {
+    grid-template-columns: 220px minmax(390px, 470px) minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+  .topbar .brand {
+    min-width: 220px;
+  }
+  .topbar .searchbox {
+    width: 100% !important;
+  }
+  .top-actions {
+    justify-content: flex-end;
+    gap: 6px !important;
+  }
+  .top-actions .nav-btn {
+    padding-inline: 8px !important;
+  }
+}
