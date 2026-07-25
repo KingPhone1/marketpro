@@ -356,6 +356,7 @@ const state = {
   selectedProductId: null,
   selectedOrderId: null,
   selectedChatId: null,
+  mobileChatList: true,
   checkoutOrder: null,
   orders: [],
   notifications: [],
@@ -1066,7 +1067,8 @@ const categoryShowcase = () => `
   <section class="category-showcase" aria-label="Categorías principales">
     ${categories.filter((category) => category !== "Todo").slice(0, 5).map((category) => {
       const count = state.products.filter((item) => item.category === category).length;
-      return `<button data-category="${escapeHtml(category)}"><span>${escapeHtml(category.slice(0, 2).toUpperCase())}</span><strong>${escapeHtml(category)}</strong><small>${count} ${count === 1 ? "publicación" : "publicaciones"}</small></button>`;
+      const icon = ({ Vehiculos: "car-front", Inmuebles: "building-2", Electronica: "smartphone", Ropa: "shopping-bag", Hogar: "armchair", Deportes: "dumbbell", Juguetes: "gamepad-2", Entretenimiento: "clapperboard" })[category] || "tag";
+      return `<button data-category="${escapeHtml(category)}"><span><i data-lucide="${icon}"></i></span><strong>${escapeHtml(category)}</strong><small>${count} ${count === 1 ? "publicación" : "publicaciones"}</small></button>`;
     }).join("")}
   </section>
 `;
@@ -1735,6 +1737,68 @@ const detailView = () => {
   `;
 };
 
+const detailStudioView = () => {
+  const item = selectedProduct();
+  if (!item) return feedView();
+  const currentImage = item.images[state.galleryIndex] || item.images[0];
+  const similar = state.products.filter((product) => product.id !== item.id && product.category === item.category).slice(0, 4);
+  const canBuy = Boolean(item.seller?.mercadoPagoConnected);
+  return `
+    <main class="product-studio-page">
+      <nav class="product-breadcrumbs"><button type="button" data-view="feed">Inicio</button><i data-lucide="chevron-right"></i><span>${escapeHtml(item.category)}</span><i data-lucide="chevron-right"></i><strong>${escapeHtml(item.title)}</strong></nav>
+      <section class="product-studio-shell">
+        <section class="product-gallery-v2">
+          <div class="product-thumbs">${item.images.map((src, index) => `<button class="${index === state.galleryIndex ? "active" : ""}" data-thumb="${index}"><img src="${src}" alt="Vista ${index + 1}" /></button>`).join("")}</div>
+          <div class="product-main-image"><img src="${currentImage}" alt="${escapeHtml(item.title)}" /><button type="button" aria-label="Agregar a favoritos"><i data-lucide="heart"></i></button></div>
+          <div class="product-trust-strip">
+            <span><i data-lucide="shield-check"></i><b>Compra protegida</b><small>Operación registrada</small></span>
+            <span><i data-lucide="lock-keyhole"></i><b>Pago seguro</b><small>Por Mercado Pago</small></span>
+            <span><i data-lucide="headphones"></i><b>Soporte</b><small>Ayuda disponible</small></span>
+          </div>
+        </section>
+        <aside class="product-commerce-card">
+          <header class="commerce-seller">
+            <img src="${item.seller.avatar}" alt="${escapeHtml(item.seller.name)}" />
+            <div><strong>${escapeHtml(item.seller.name)}</strong><span>Vendedor verificado · ${sellerHasRating(item.seller) ? `${item.seller.ratingCount} ventas` : "perfil nuevo"}</span></div>
+            <small><i></i>En línea</small>
+          </header>
+          <h1>${escapeHtml(item.title)}</h1>
+          <p class="commerce-brand">${escapeHtml(item.category)}</p>
+          <div class="commerce-price">${money(item.price)}</div>
+          <div class="commerce-meta"><span>Estado: <b>${escapeHtml(item.condition)}</b></span><span>Categoría: <b>${escapeHtml(item.category)}</b></span></div>
+          <p class="commerce-description">${escapeHtml(item.description)}</p>
+          <section class="commerce-benefits">
+            <span><i data-lucide="badge-check"></i><b>Vendedor verificado</b><small>Identidad validada</small></span>
+            <span><i data-lucide="lock"></i><b>Compra registrada</b><small>Seguimiento en MarketPro</small></span>
+            <span><i data-lucide="star"></i><b>${sellerHasRating(item.seller) ? `${item.seller.rating.toFixed(1)} de reputación` : "Sin calificaciones"}</b><small>Historial transparente</small></span>
+            <span><i data-lucide="truck"></i><b>Entrega coordinada</b><small>Rastreo en la orden</small></span>
+          </section>
+          <section class="buyer-protection"><i data-lucide="shield-check"></i><div><strong>Protección al comprador</strong><span>Revisa el artículo y conserva chat, comprobante y seguimiento dentro de MarketPro.</span></div></section>
+          <div class="payment-brands"><span>Paga de forma segura con</span><strong>VISA</strong><strong>Mastercard</strong><strong>Mercado Pago</strong></div>
+          ${state.checkoutOrder?.productId === item.id ? `<button class="buy-action" type="button" data-open-order="${escapeHtml(state.checkoutOrder.id)}">Ver mi compra</button>` : `
+            <button class="buy-action commerce-buy" type="button" data-open-checkout ${canBuy ? "" : "disabled"}>${canBuy ? "Comprar ahora" : "Compra no disponible"}</button>
+            <form class="commerce-checkout" id="checkoutForm" hidden>
+              <input type="hidden" name="paymentMethod" value="mercadopago" />
+              <header><strong>Datos de entrega</strong><button type="button" data-close-checkout aria-label="Cerrar"><i data-lucide="x"></i></button></header>
+              <div class="field"><label>Dirección</label><input name="address" required autocomplete="street-address" value="${escapeHtml(state.user?.exactLocation || "")}" placeholder="Calle, número y apartamento" /></div>
+              <div class="two-col"><div class="field"><label>Ciudad</label><input name="city" required autocomplete="address-level2" placeholder="Ciudad o barrio" /></div><div class="field"><label>Teléfono</label><input name="phone" required type="tel" value="${escapeHtml(state.user?.phone || "")}" placeholder="Teléfono" /></div></div>
+              <div class="field"><label>Entrega</label><select name="method"><option>Envío coordinado</option><option>Retiro en punto seguro</option><option>Entrega personal verificada</option></select></div>
+              <input type="hidden" name="note" value="" />
+              <label class="check-row"><input type="checkbox" name="purchaseConsent" required /><span>Revisaré el artículo antes de compartir el código de recepción.</span></label>
+              <button class="buy-action" type="submit">Continuar en Mercado Pago</button>
+            </form>
+          `}
+          ${!canBuy ? `<small class="commerce-disabled-note">El vendedor debe conectar Mercado Pago para recibir compras.</small>` : ""}
+          <button class="secondary-btn" id="messageSeller">Contactar al vendedor</button>
+          <button class="commerce-report" id="reportListing"><i data-lucide="message-square-warning"></i>Reportar publicación</button>
+        </aside>
+      </section>
+      <section class="seller-summary-v2"><span><b>${sellerHasRating(item.seller) ? `${Math.round(item.seller.rating * 20)}%` : "Nuevo"}</b><small>Reputación</small></span><span><b>${escapeHtml(item.postedAt)}</b><small>Publicación</small></span><span><b>${escapeHtml(item.location)}</b><small>Ubicación</small></span></section>
+      <section class="similar-section product-similar"><header><h2>Publicaciones similares</h2><button data-view="feed">Ver todas<i data-lucide="arrow-right"></i></button></header><div class="grid">${similar.map(productCard).join("") || '<div class="empty">Sin publicaciones similares.</div>'}</div></section>
+    </main>
+  `;
+};
+
 const composeView = () => {
   if (isRejectedUser()) {
     return `
@@ -1942,7 +2006,7 @@ const messagesView = () => {
   const active = state.conversations.find((chat) => chat.id === state.selectedChatId) || state.conversations[0];
   if (active && state.selectedChatId !== active.id) state.selectedChatId = active.id;
   return `
-    <main class="messages-page">
+    <main class="messages-page ${state.mobileChatList ? "show-chat-list" : "show-active-chat"}">
       <section class="panel chat-shell">
       <aside class="chat-sidebar">
         <div class="chat-sidebar-head">
@@ -1955,10 +2019,12 @@ const messagesView = () => {
               (chat) => `
               <button class="chat-row ${chat.id === state.selectedChatId ? "active" : ""}" data-chat="${chat.id}">
                 <img src="${chat.avatar || `/api/avatar/${encodeURIComponent(chat.seller || "Usuario")}.svg`}" alt="${escapeHtml(chat.seller)}" />
-                <div>
+                <div class="chat-row-copy">
                   <strong>${escapeHtml(chat.seller)}</strong>
                   <div class="muted">${escapeHtml(chat.productTitle)}</div>
+                  <small>${escapeHtml(chat.messages?.at(-1)?.text || "Conversación protegida")}</small>
                 </div>
+                <time>${escapeHtml(chat.messages?.at(-1)?.time || "")}</time>
               </button>`
             )
             .join("")}
@@ -1968,7 +2034,7 @@ const messagesView = () => {
         active
           ? `<section class="chat-main">
               <div class="chat-header">
-                <button class="chat-back" type="button" data-view="feed" aria-label="Volver al inicio"><i data-lucide="chevron-left"></i></button>
+                <button class="chat-back" type="button" data-chat-list aria-label="Volver a conversaciones"><i data-lucide="arrow-left"></i></button>
                 <img src="${active.avatar || `/api/avatar/${encodeURIComponent(active.seller || "Usuario")}.svg`}" alt="${escapeHtml(active.seller)}" />
                 <div>
                   <strong>${escapeHtml(active.seller)}</strong>
@@ -2267,7 +2333,7 @@ const notificationsView = () => `
 const view = () =>
   ({
     feed: feedView,
-    detail: detailView,
+    detail: detailStudioView,
     compose: composeStudioView,
     messages: messagesView,
     profile: profileView,
@@ -2308,7 +2374,10 @@ const render = () => {
 const bindEvents = () => {
   bindAssistantEvents();
   document.querySelectorAll("[data-view]").forEach((button) => {
-    button.addEventListener("click", () => navigate(button.dataset.view));
+    button.addEventListener("click", () => {
+      if (button.dataset.view === "messages") state.mobileChatList = true;
+      navigate(button.dataset.view);
+    });
   });
 
   document.querySelectorAll("[data-notification]").forEach((button) => {
@@ -2377,6 +2446,16 @@ const bindEvents = () => {
   });
 
   document.querySelector("#messageSeller")?.addEventListener("click", startConversation);
+  document.querySelector("[data-open-checkout]")?.addEventListener("click", () => {
+    const checkout = document.querySelector(".commerce-checkout");
+    if (!checkout) return;
+    checkout.hidden = false;
+    checkout.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  document.querySelector("[data-close-checkout]")?.addEventListener("click", () => {
+    const checkout = document.querySelector(".commerce-checkout");
+    if (checkout) checkout.hidden = true;
+  });
   document.querySelector("#checkoutForm")?.addEventListener("submit", secureCheckout);
   document.querySelector("#deliveryConfirmForm")?.addEventListener("submit", confirmDelivery);
   document.querySelector("#sellerRatingForm")?.addEventListener("submit", rateSeller);
@@ -2451,7 +2530,14 @@ const bindEvents = () => {
   document.querySelector("#authForm")?.addEventListener("submit", authenticate);
 
   document.querySelectorAll("[data-chat]").forEach((button) => {
-    button.addEventListener("click", () => navigate("messages", { selectedChatId: button.dataset.chat }));
+    button.addEventListener("click", () => {
+      state.mobileChatList = false;
+      navigate("messages", { selectedChatId: button.dataset.chat });
+    });
+  });
+  document.querySelector("[data-chat-list]")?.addEventListener("click", () => {
+    state.mobileChatList = true;
+    render();
   });
 
   document.querySelector("#messageForm")?.addEventListener("submit", sendMessage);
@@ -2723,6 +2809,7 @@ const startConversation = async () => {
   });
   const exists = state.conversations.some((conversation) => conversation.id === chat.id);
   state.conversations = exists ? state.conversations : [chat, ...state.conversations];
+  state.mobileChatList = false;
   navigate("messages", { selectedChatId: chat.id });
 };
 
@@ -2748,6 +2835,7 @@ const startOrderConversation = async (orderId) => {
   const exists = state.conversations.some((conversation) => conversation.id === chat.id);
   state.conversations = exists ? state.conversations.map((item) => (item.id === chat.id ? chat : item)) : [chat, ...state.conversations];
   state.orders = state.orders.map((item) => (item.id === order.id ? { ...item, chatId: chat.id } : item));
+  state.mobileChatList = false;
   navigate("messages", { selectedChatId: chat.id });
 };
 
