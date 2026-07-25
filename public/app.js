@@ -6,6 +6,7 @@ let motionMatchMedia = null;
 let motionRefreshFrame = null;
 let lastAnimatedViewKey = -1;
 let splashDismissed = false;
+let searchRenderTimer = null;
 
 const dismissSplash = () => {
   if (splashDismissed) return;
@@ -2408,10 +2409,33 @@ const bindEvents = () => {
     render();
   });
 
-  document.querySelector("#globalSearch")?.addEventListener("input", (event) => {
-    state.query = event.target.value;
-    if (state.view !== "feed") state.view = "feed";
+  const globalSearch = document.querySelector("#globalSearch");
+  const applySearch = () => {
+    if (!globalSearch) return;
+    state.query = globalSearch.value;
+    if (state.query.trim()) state.filters.category = "Todo";
+    if (state.view !== "feed") {
+      state.view = "feed";
+      state.viewKey += 1;
+    }
     render();
+    requestAnimationFrame(() => {
+      const nextSearch = document.querySelector("#globalSearch");
+      if (!nextSearch) return;
+      nextSearch.focus({ preventScroll: true });
+      nextSearch.setSelectionRange(nextSearch.value.length, nextSearch.value.length);
+    });
+  };
+  globalSearch?.addEventListener("input", () => {
+    state.query = globalSearch.value;
+    window.clearTimeout(searchRenderTimer);
+    searchRenderTimer = window.setTimeout(applySearch, 220);
+  });
+  globalSearch?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    window.clearTimeout(searchRenderTimer);
+    applySearch();
   });
 
   document.querySelectorAll("[data-category]").forEach((button) => {
