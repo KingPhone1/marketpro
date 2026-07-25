@@ -803,6 +803,28 @@ const sidebar = () => `
   </aside>
 `;
 
+const sellerSidebar = (active = "summary") => `
+  <aside class="seller-sidebar" aria-label="Panel del vendedor">
+    <nav class="seller-nav">
+      <button class="${active === "summary" ? "active" : ""}" data-view="profile"><span>▦</span>Resumen</button>
+      <button class="${active === "orders" ? "active" : ""}" data-view="orders"><span>□</span>Órdenes</button>
+      <button class="${active === "listings" ? "active" : ""}" data-view="compose"><span>▢</span>Publicaciones</button>
+      <button class="${active === "sales" ? "active" : ""}" data-view="orders"><span>▣</span>Ventas</button>
+      <button data-view="orders"><span>⊗</span>Disputas</button>
+      <button data-view="messages"><span>···</span>Mensajes</button>
+      <button data-view="profile"><span>⌁</span>Estadísticas</button>
+      <button data-view="profile"><span>⚙</span>Configuración</button>
+      <button data-view="support"><span>?</span>Centro de ayuda</button>
+    </nav>
+    <section class="seller-pro-card">
+      <span>♕</span>
+      <strong>Potencia tu negocio</strong>
+      <small>Accedé a herramientas avanzadas para crecer tus ventas.</small>
+      <button data-view="profile">Conocer MarketPro Pro →</button>
+    </section>
+  </aside>
+`;
+
 const trustBadge = (item) => `
   <span class="trust-badge">Verificado ${trustScore(item)}%</span>
 `;
@@ -1203,13 +1225,36 @@ const ordersPanel = () => {
   `;
 };
 
+const sellerPromotionPanel = () => {
+  const mine = state.products.filter((item) =>
+    (item.seller?.email === state.user?.email || item.seller?.name === state.user?.name) && item.status !== "sold"
+  );
+  return `
+    <section class="panel promotion-panel orders-promotion-panel">
+      <div>
+        <p class="eyebrow">Anuncio principal</p>
+        <h2>Destaca un producto por US$ 1</h2>
+        <p class="muted">Tu publicación aparece primero en la página principal como anuncio destacado. El pago se realiza por Mercado Pago vinculado a MarketPro.</p>
+      </div>
+      ${mine.length ? `<form id="promotionForm" class="promotion-form">
+        <select name="productId" required>
+          <option value="">Elige una publicación</option>
+          ${mine.map((item) => `<option value="${item.id}">${item.promoted ? "Destacado - " : ""}${escapeHtml(item.title)}</option>`).join("")}
+        </select>
+        <button class="sell-action" type="submit">Pagar US$ 1 y destacar</button>
+      </form>` : `<div class="empty">Publica un producto activo para poder destacarlo.</div>`}
+    </section>
+  `;
+};
+
 const ordersView = () => `
-  ${sidebar()}
+  ${sellerSidebar("orders")}
   <main>
     <div class="toolbar-row">
       <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
     </div>
     ${ordersPanel()}
+    ${sellerPromotionPanel()}
   </main>
 `;
 
@@ -1274,7 +1319,7 @@ const orderDetailView = () => {
   const image = order.snapshot?.images?.[0] || product?.images?.[0] || "/mp-logo.svg";
   state.checkoutOrder = order;
   return `
-    ${sidebar()}
+    ${sellerSidebar("orders")}
     <main>
       <div class="toolbar-row">
         <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}</button>
@@ -1716,7 +1761,7 @@ const detailView = () => {
 const composeView = () => {
   if (isRejectedUser()) {
     return `
-      ${sidebar()}
+      ${sellerSidebar("listings")}
       <main>
         <div class="toolbar-row">
           <button type="button" class="filter-toggle" data-filter-toggle>
@@ -1735,7 +1780,7 @@ const composeView = () => {
 
   if (!isVerifiedSeller()) {
     return `
-      ${sidebar()}
+      ${sellerSidebar("listings")}
       <main>
         <div class="toolbar-row">
           <button type="button" class="filter-toggle" data-filter-toggle>
@@ -1753,7 +1798,7 @@ const composeView = () => {
   }
 
   return `
-  ${sidebar()}
+  ${sellerSidebar("listings")}
   <main>
     <div class="toolbar-row">
       <button type="button" class="filter-toggle" data-filter-toggle>
@@ -1764,6 +1809,7 @@ const composeView = () => {
       <form class="panel form-panel" id="listingForm" novalidate>
         <p class="eyebrow">Seller Center</p>
         <h1>Publica como vendedor profesional.</h1>
+        <p class="muted form-intro">Completá la información de tu publicación paso a paso para llegar a más compradores.</p>
         <div class="form-section">
           <h2>Fotos</h2>
           <div class="field">
@@ -1923,7 +1969,7 @@ const messagesView = () => {
 const profileView = () => {
   if (!state.user) {
     return `
-      ${sidebar()}
+      ${sellerSidebar("summary")}
       <main>
         <div class="toolbar-row">
           <button type="button" class="filter-toggle" data-filter-toggle>
@@ -1982,7 +2028,7 @@ const profileView = () => {
 
   if (isRejectedUser()) {
     return `
-      ${sidebar()}
+      ${sellerSidebar("summary")}
       <main>
         <div class="toolbar-row">
           <button type="button" class="filter-toggle" data-filter-toggle>
@@ -2012,7 +2058,7 @@ const profileView = () => {
 
   if (!isVerifiedSeller()) {
     return `
-      ${sidebar()}
+      ${sellerSidebar("summary")}
       <main>
         <div class="toolbar-row">
           <button type="button" class="filter-toggle" data-filter-toggle>
@@ -2045,7 +2091,7 @@ const profileView = () => {
   const mine = state.products.filter((item) => item.seller?.email === state.user.email || item.seller?.name === state.user.name);
   const visible = mine.filter((item) => (state.profileTab === "sold" ? item.status === "sold" : item.status !== "sold"));
   return `
-    ${sidebar()}
+    ${sellerSidebar("summary")}
     <main>
       <div class="toolbar-row">
         <button type="button" class="filter-toggle" data-filter-toggle>
@@ -2206,7 +2252,7 @@ const render = () => {
   app.innerHTML = `
     <div class="app-shell view-${state.view}">
       ${topbar()}
-      ${state.view === "messages" ? "" : pwaInstallCard()}
+      ${["feed", "detail"].includes(state.view) ? pwaInstallCard() : ""}
       <div class="main-layout view-surface ${state.filtersOpen ? "" : "filters-collapsed"} ${state.view === "messages" ? "focus-layout" : ""}" data-view-key="${state.viewKey}">${view()}</div>
       ${appFooter()}
       ${assistantWidget()}
