@@ -987,6 +987,7 @@ app.use((req, res, next) => {
   next();
 });
 app.use("/vendor/gsap", express.static(path.join(__dirname, "node_modules", "gsap", "dist"), { maxAge: IS_PRODUCTION ? "30d" : 0 }));
+app.use("/vendor/lucide", express.static(path.join(__dirname, "node_modules", "lucide", "dist", "umd"), { maxAge: IS_PRODUCTION ? "30d" : 0 }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/admin", (_req, res) => {

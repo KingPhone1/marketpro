@@ -715,16 +715,17 @@ const topbar = () => `
       <span>MarketPro</span>
     </button>
     <div class="searchbox" role="search">
+      <button class="search-scope" type="button">Todo <i data-lucide="chevron-down"></i></button>
       <span class="search-icon" aria-hidden="true"></span>
       <input id="globalSearch" value="${escapeHtml(state.query)}" aria-label="Buscar artículos, usuarios o marcas" placeholder="Buscar artículos, usuarios o marcas" />
-      <button class="search-filter" type="button" data-filter-toggle aria-label="Mostrar u ocultar filtros">≡</button>
+      <button class="search-filter" type="button" data-filter-toggle aria-label="Mostrar u ocultar filtros"><i data-lucide="search"></i></button>
     </div>
     <div class="top-actions">
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
       <button class="nav-btn ${state.view === "orders" ? "active" : ""}" data-view="orders">Órdenes</button>
       <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
       <button class="nav-btn compact-alert ${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas">Alertas${state.notifications.filter((item) => !item.read).length ? ` <b>${state.notifications.filter((item) => !item.read).length}</b>` : ""}</button>
-      <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
+      <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose"><i data-lucide="circle-plus"></i>Vender</button>
       <button class="avatar-btn ${state.view === "profile" ? "active" : ""}" data-view="profile" title="Perfil">${state.user ? state.user.name[0] : "E"}</button>
     </div>
   </header>
@@ -732,11 +733,11 @@ const topbar = () => `
     ${categories.map((category) => `<button data-category="${category}">${escapeHtml(category)}</button>`).join("")}
   </div>
   <nav class="mobile-tabs">
-    <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed" aria-label="Inicio"><span>⌂</span><small>Inicio</small></button>
-    <button class="${state.view === "compose" ? "active" : ""}" data-view="compose" aria-label="Vender"><span>＋</span><small>Vender</small></button>
-    <button class="${state.view === "orders" ? "active" : ""}" data-view="orders" aria-label="Órdenes"><span>□</span><small>Órdenes</small></button>
-    <button class="${state.view === "messages" ? "active" : ""}" data-view="messages" aria-label="Chats"><span>✉</span><small>Chats</small></button>
-    <button class="${state.view === "profile" ? "active" : ""}" data-view="profile" aria-label="Perfil"><span>◉</span><small>Perfil</small></button>
+    <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed" aria-label="Inicio"><i data-lucide="house"></i><small>Inicio</small></button>
+    <button class="${state.view === "compose" ? "active" : ""}" data-view="compose" aria-label="Vender"><i data-lucide="tag"></i><small>Vender</small></button>
+    <button class="${state.view === "orders" ? "active" : ""}" data-view="orders" aria-label="Órdenes"><i data-lucide="wallet-cards"></i><small>Órdenes</small></button>
+    <button class="${state.view === "messages" ? "active" : ""}" data-view="messages" aria-label="Chats"><i data-lucide="messages-square"></i><small>Chats</small></button>
+    <button class="${state.view === "profile" ? "active" : ""}" data-view="profile" aria-label="Perfil"><i data-lucide="user-round"></i><small>Perfil</small></button>
   </nav>
 `;
 
@@ -806,21 +807,21 @@ const sidebar = () => `
 const sellerSidebar = (active = "summary") => `
   <aside class="seller-sidebar" aria-label="Panel del vendedor">
     <nav class="seller-nav">
-      <button class="${active === "summary" ? "active" : ""}" data-view="profile"><span>▦</span>Resumen</button>
-      <button class="${active === "orders" ? "active" : ""}" data-view="orders"><span>□</span>Órdenes</button>
-      <button class="${active === "listings" ? "active" : ""}" data-view="compose"><span>▢</span>Publicaciones</button>
-      <button class="${active === "sales" ? "active" : ""}" data-view="orders"><span>▣</span>Ventas</button>
-      <button data-view="orders"><span>⊗</span>Disputas</button>
-      <button data-view="messages"><span>···</span>Mensajes</button>
-      <button data-view="profile"><span>⌁</span>Estadísticas</button>
-      <button data-view="profile"><span>⚙</span>Configuración</button>
-      <button data-view="support"><span>?</span>Centro de ayuda</button>
+      <button class="${active === "summary" ? "active" : ""}" data-view="profile"><i data-lucide="layout-dashboard"></i>Resumen</button>
+      <button class="${active === "orders" ? "active" : ""}" data-view="orders"><i data-lucide="shopping-cart"></i>Órdenes</button>
+      <button class="${active === "listings" ? "active" : ""}" data-view="compose"><i data-lucide="briefcase-business"></i>Publicaciones</button>
+      <button class="${active === "sales" ? "active" : ""}" data-view="orders"><i data-lucide="receipt-text"></i>Ventas</button>
+      <button data-view="orders"><i data-lucide="circle-x"></i>Disputas</button>
+      <button data-view="messages"><i data-lucide="messages-square"></i>Mensajes</button>
+      <button data-view="profile"><i data-lucide="chart-no-axes-column-increasing"></i>Estadísticas</button>
+      <button data-view="profile"><i data-lucide="settings"></i>Configuración</button>
+      <button data-view="support"><i data-lucide="circle-help"></i>Centro de ayuda</button>
     </nav>
     <section class="seller-pro-card">
-      <span>♕</span>
+      <i data-lucide="crown"></i>
       <strong>Potencia tu negocio</strong>
       <small>Accedé a herramientas avanzadas para crecer tus ventas.</small>
-      <button data-view="profile">Conocer MarketPro Pro →</button>
+      <button data-view="profile">Conocer MarketPro Pro <i data-lucide="arrow-right"></i></button>
     </section>
   </aside>
 `;
@@ -1190,10 +1191,10 @@ const ordersSummary = () => {
   const completed = orders.filter(orderCompleted).length;
   return `
     <section class="seller-metrics order-metrics">
-      <div class="metric-card"><span>Operaciones</span><strong>${orders.length}</strong></div>
-      <div class="metric-card"><span>Completadas</span><strong>${completed}</strong></div>
-      <div class="metric-card"><span>Disputas</span><strong>${openDisputes}</strong></div>
-      <div class="metric-card"><span>Proteccion</span><strong>Activa</strong></div>
+      <div class="metric-card"><i data-lucide="shopping-cart"></i><span>Operaciones</span><strong>${orders.length}</strong><small>En progreso actualmente</small></div>
+      <div class="metric-card"><i data-lucide="circle-check"></i><span>Completadas</span><strong>${completed}</strong><small>Órdenes finalizadas</small></div>
+      <div class="metric-card"><i data-lucide="shield-alert"></i><span>Disputas</span><strong>${openDisputes}</strong><small>En revisión actualmente</small></div>
+      <div class="metric-card"><i data-lucide="shield-check"></i><span>Protección</span><strong>Activa</strong><small>Tu cuenta está protegida</small></div>
     </section>
   `;
 };
@@ -1219,7 +1220,7 @@ const ordersPanel = () => {
         ].map(([id, label]) => `<button class="${state.orderTab === id ? "active" : ""}" data-order-tab="${id}">${label}</button>`).join("")}
       </div>
       <div class="orders-list">
-        ${orders.length ? orders.map(orderCard).join("") : `<div class="empty">Todavia no hay ordenes para esta vista.</div>`}
+        ${orders.length ? orders.map(orderCard).join("") : `<div class="empty premium-empty"><span><i data-lucide="package-open"></i></span><strong>Todavía no hay órdenes para esta vista.</strong><small>Cuando recibas órdenes, aparecerán aquí.</small></div>`}
       </div>
     </section>
   `;
@@ -1231,17 +1232,27 @@ const sellerPromotionPanel = () => {
   );
   return `
     <section class="panel promotion-panel orders-promotion-panel">
-      <div>
-        <p class="eyebrow">Anuncio principal</p>
-        <h2>Destaca un producto por US$ 1</h2>
-        <p class="muted">Tu publicación aparece primero en la página principal como anuncio destacado. El pago se realiza por Mercado Pago vinculado a MarketPro.</p>
+      <div class="promotion-visual-copy">
+        <div class="promotion-art" aria-hidden="true"><i data-lucide="crown"></i><span><i data-lucide="image"></i><b>DESTACADO</b></span></div>
+        <div>
+          <p class="eyebrow">Anuncio principal</p>
+          <h2>Destaca un producto por <em>US$ 1</em></h2>
+          <p class="muted">Tu publicación aparece primero en la página principal como anuncio destacado.</p>
+          <div class="promotion-benefits">
+            <span><i data-lucide="star"></i><b>Más visibilidad</b><small>Aumentá las visitas.</small></span>
+            <span><i data-lucide="trending-up"></i><b>Más oportunidades</b><small>Llegá a más compradores.</small></span>
+            <span><i data-lucide="shield-check"></i><b>Pago seguro</b><small>Procesado por Mercado Pago.</small></span>
+          </div>
+        </div>
       </div>
       ${mine.length ? `<form id="promotionForm" class="promotion-form">
+        <label>Elegí una publicación</label>
         <select name="productId" required>
           <option value="">Elige una publicación</option>
           ${mine.map((item) => `<option value="${item.id}">${item.promoted ? "Destacado - " : ""}${escapeHtml(item.title)}</option>`).join("")}
         </select>
-        <button class="sell-action" type="submit">Pagar US$ 1 y destacar</button>
+        <button class="sell-action" type="submit"><i data-lucide="shield-check"></i>Pagar US$ 1 y destacar</button>
+        <small>El pago se realiza por Mercado Pago vinculado a MarketPro.</small>
       </form>` : `<div class="empty">Publica un producto activo para poder destacarlo.</div>`}
     </section>
   `;
@@ -1817,9 +1828,9 @@ const composeView = () => {
             <input id="photoInput" name="photos" type="file" accept="image/*" multiple />
           </div>
           <div class="photo-grid" id="photoGrid">
-            <div class="photo-slot">Agregar fotos</div>
-            <div class="photo-slot">Detalle</div>
-            <div class="photo-slot">Estado</div>
+            <div class="photo-slot"><b>1</b><i data-lucide="image-plus"></i><strong>Agregar fotos</strong><small>Sube hasta 6 imágenes de tu producto</small></div>
+            <div class="photo-slot"><b>2</b><i data-lucide="list-checks"></i><strong>Detalle</strong><small>Completá la información de tu publicación</small></div>
+            <div class="photo-slot"><b>3</b><i data-lucide="shield-check"></i><strong>Estado</strong><small>Revisá y publicá tu anuncio</small></div>
           </div>
         </div>
         <div class="form-section">
@@ -1865,7 +1876,7 @@ const composeView = () => {
         <button class="sell-action" type="submit">Publicar producto</button>
       </form>
       <aside class="panel preview-panel">
-        <h2 class="panel-title">Vista previa</h2>
+        <h2 class="panel-title">Vista previa <i data-lucide="eye"></i></h2>
         <div class="preview-card">
           <div class="preview-image-wrap" id="previewImage"></div>
           <div class="card-body">
@@ -2101,28 +2112,37 @@ const profileView = () => {
       <section class="panel profile-panel">
         <div class="profile-head">
           <div class="avatar-btn large">${state.user.name[0]}</div>
-          <div>
+          <div class="profile-identity">
             <h1>${escapeHtml(state.user.name)}</h1>
-            <div class="muted">${escapeHtml(state.user.email)} - ${escapeHtml(state.user.verificationStatus)} - Protocolo activo</div>
+            <div class="profile-email">${escapeHtml(state.user.email)} <i data-lucide="badge-check"></i></div>
+            <div class="muted">${escapeHtml(state.user.verificationStatus)} <b>•</b> <span>Protocolo activo</span></div>
           </div>
-          <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesion</button>
+          <button class="secondary-btn profile-link" data-view="profile"><i data-lucide="user-round"></i>Ver mi perfil</button>
         </div>
         <section class="seller-metrics">
           <div class="metric-card">
+            <i data-lucide="shopping-cart"></i>
             <span>Mercado Pago</span>
             <strong>${state.user.mercadoPago?.connected ? "Conectado" : "Pendiente"}</strong>
+            <small>Conectá tu cuenta para recibir tus pagos.</small>
           </div>
           <div class="metric-card">
+            <i data-lucide="dollar-sign"></i>
             <span>Ventas registradas</span>
             <strong>${money(stats.grossSales || 0)}</strong>
+            <small>Total acumulado</small>
           </div>
           <div class="metric-card">
+            <i data-lucide="notebook-tabs"></i>
             <span>Publicaciones activas</span>
             <strong>${stats.active}</strong>
+            <small>Tus publicaciones visibles</small>
           </div>
           <div class="metric-card">
+            <i data-lucide="package"></i>
             <span>Vendidos</span>
             <strong>${stats.sold}</strong>
+            <small>Artículos vendidos</small>
           </div>
         </section>
         <section class="mp-connect-panel ${state.user.mercadoPago?.connected ? "connected" : ""}">
@@ -2245,6 +2265,7 @@ const render = () => {
   const publicView = ["security", "support", "legal"].includes(state.view);
   if (!hasCompleteAccess() && !publicView) {
     app.innerHTML = `<div class="app-shell">${entryGate()}${assistantWidget()}</div>`;
+    window.lucide?.createIcons({ attrs: { "stroke-width": 1.7 } });
     bindEvents();
     initMotion(animateRoute);
     return;
@@ -2258,6 +2279,7 @@ const render = () => {
       ${assistantWidget()}
     </div>
   `;
+  window.lucide?.createIcons({ attrs: { "stroke-width": 1.7 } });
   bindEvents();
   initMotion(animateRoute);
 };
