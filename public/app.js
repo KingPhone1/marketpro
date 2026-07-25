@@ -17,7 +17,7 @@ const dismissSplash = () => {
 };
 
 // Never let a slow API response keep the opening screen over the app.
-window.setTimeout(dismissSplash, 1150);
+window.setTimeout(dismissSplash, 900);
 
 const showToast = (message) => {
   const text = String(message || "Acción completada.").trim();
@@ -375,6 +375,7 @@ const state = {
       ? false
       : JSON.parse(localStorage.getItem("marketFiltersOpen") ?? "true"),
   profileTab: "active",
+  composeStep: 1,
   user: JSON.parse(localStorage.getItem("marketUser")) || null,
   authToken: localStorage.getItem("marketAuthToken") || "",
   authMode: "login",
@@ -666,7 +667,7 @@ const loadData = async () => {
   state.selectedChatId = conversations[0]?.id || null;
   connectSocket();
   render();
-  window.setTimeout(dismissSplash, 820);
+  window.setTimeout(dismissSplash, 680);
 };
 
 const normalizeProduct = (item) => ({
@@ -812,22 +813,14 @@ const sidebar = () => `
 const sellerSidebar = (active = "summary") => `
   <aside class="seller-sidebar" aria-label="Panel del vendedor">
     <nav class="seller-nav">
-      <button class="${active === "summary" ? "active" : ""}" data-view="profile"><i data-lucide="layout-dashboard"></i>Resumen</button>
-      <button class="${active === "orders" ? "active" : ""}" data-view="orders"><i data-lucide="shopping-cart"></i>Órdenes</button>
-      <button class="${active === "listings" ? "active" : ""}" data-view="compose"><i data-lucide="briefcase-business"></i>Publicaciones</button>
-      <button class="${active === "sales" ? "active" : ""}" data-view="orders"><i data-lucide="receipt-text"></i>Ventas</button>
-      <button data-view="orders"><i data-lucide="circle-x"></i>Disputas</button>
+      <button class="${active === "summary" ? "active" : ""}" data-view="profile"><i data-lucide="house"></i>Inicio</button>
+      <button class="${active === "listings" ? "active" : ""}" data-view="compose"><i data-lucide="notebook-tabs"></i>Publicaciones</button>
+      <button class="${active === "orders" ? "active" : ""}" data-view="orders"><i data-lucide="package-check"></i>Órdenes</button>
       <button data-view="messages"><i data-lucide="messages-square"></i>Mensajes</button>
-      <button data-view="profile"><i data-lucide="chart-no-axes-column-increasing"></i>Estadísticas</button>
+      <button data-view="feed"><i data-lucide="heart"></i>Favoritos</button>
       <button data-view="profile"><i data-lucide="settings"></i>Configuración</button>
-      <button data-view="support"><i data-lucide="circle-help"></i>Centro de ayuda</button>
+      <button class="seller-help-link" data-view="support"><i data-lucide="circle-help"></i>Ayuda</button>
     </nav>
-    <section class="seller-pro-card">
-      <i data-lucide="crown"></i>
-      <strong>Potencia tu negocio</strong>
-      <small>Accedé a herramientas avanzadas para crecer tus ventas.</small>
-      <button data-view="profile">Conocer MarketPro Pro <i data-lucide="arrow-right"></i></button>
-    </section>
   </aside>
 `;
 
@@ -1471,134 +1464,102 @@ const featuredRail = () => `
 `;
 
 const entryGate = () => `
-  <main class="entry-shell">
-    <div class="entry-brand-top">
-      <img class="brand-logo" src="/mp-logo.svg" alt="MP" />
-      <span>MarketPro</span>
-    </div>
-    <section class="entry-copy">
-      <p class="eyebrow">Acceso seguro</p>
-      <h1>Cuenta segura.<br />Verificacion real.</h1>
-      <p>Identidad revisada, pagos vinculados y entrega protegida.</p>
-      <div class="entry-trust">
-        <span>Gmail + contrasena</span>
-        <span>Cedula revisable</span>
-        <span>Rostro visible</span>
-        <span>GPS o direccion</span>
-      </div>
-      <div class="entry-ops">
-        <article><strong>Cuenta</strong><span>Acceso privado</span></article>
-        <article><strong>ID</strong><span>Revision manual</span></article>
-        <article><strong>Pago</strong><span>Mercado Pago</span></article>
-      </div>
-    </section>
-    <section class="panel auth-card entry-card secure-entry-card">
-      <div class="entry-card-head">
-        <div>
-          <p class="eyebrow">Cuenta privada</p>
-          <h2>Completa tu acceso</h2>
-        </div>
-        <div class="verification-seal">
-          <span>MP</span>
-          <small>ID</small>
-        </div>
-      </div>
-      <div class="auth-switch">
-        <button class="${state.authMode === "login" ? "active" : ""}" type="button" data-auth-mode="login">Entrar</button>
-        <button class="${state.authMode === "register" ? "active" : ""}" type="button" data-auth-mode="register">Crear</button>
-      </div>
-      ${state.authMode === "login" ? `<section class="login-panel">
-        <div class="block-title"><span>Entrar</span><small>Si ya tienes cuenta, usa tu Gmail y contrasena</small></div>
-        <form id="loginForm" novalidate>
-          <div class="field"><label>Gmail</label><input name="email" required type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="tu@gmail.com" /></div>
-          <div class="field"><label>Contrasena</label><input name="password" required type="password" autocomplete="current-password" placeholder="Tu contrasena" /></div>
-          <button class="buy-action" type="submit">Entrar a MarketPro</button>
-        </form>
-        <button class="register-link-btn" type="button" data-auth-mode="register">No tengo cuenta, quiero registrarme</button>
-        <form id="resetRequestForm" class="mini-auth-form" novalidate>
-          <input name="email" required type="email" placeholder="Gmail para recuperar" />
-          <button class="secondary-btn" type="submit">Recuperar</button>
-        </form>
-        <form id="resetConfirmForm" class="mini-auth-form" novalidate>
-          <input name="email" required type="email" placeholder="Gmail" />
-          <input name="code" required placeholder="Codigo" />
-          <input name="password" required type="password" minlength="8" placeholder="Nueva contrasena" />
-          <button class="secondary-btn" type="submit">Cambiar</button>
-        </form>
-      </section>` : `
+  <main class="entry-shell entry-v2">
+    <section class="entry-v2-inner">
+      <header class="entry-v2-brand">
+        <img src="/mp-logo.svg" alt="MP" />
+        <strong>MARKETPRO</strong>
+        <small>CUENTA PRIVADA</small>
+      </header>
 
-      <form id="entryForm" novalidate>
-        <div class="register-intro">
-          <strong>Crear cuenta nueva</strong>
-          <span>Completa los datos una sola vez. El admin revisa tu identidad antes de permitirte vender.</span>
-        </div>
-        <div class="auth-steps">
-          <div><span>1</span><strong>Cuenta</strong><small>Gmail y contrasena</small></div>
-          <div><span>2</span><strong>Revision</strong><small>Datos para aprobar</small></div>
+      <section class="entry-v2-welcome">
+        <h1>${state.authMode === "login" ? "Bienvenido de nuevo" : "Crea tu cuenta segura"}</h1>
+        <p>${state.authMode === "login" ? "Inicia sesión para acceder a tu cuenta" : "Completa tu identidad para solicitar la verificación"}</p>
+      </section>
+
+      <section class="entry-v2-card">
+        <div class="auth-switch">
+          <button class="${state.authMode === "login" ? "active" : ""}" type="button" data-auth-mode="login">Ingresar</button>
+          <button class="${state.authMode === "register" ? "active" : ""}" type="button" data-auth-mode="register">Crear cuenta</button>
         </div>
 
-        <div class="onboarding-block">
-          <div class="block-title"><span>Cuenta</span><small>Tu acceso principal</small></div>
-          <div class="field"><label>Gmail</label><input name="email" required type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="tu@gmail.com" /></div>
-          <div class="field"><label>Contrasena</label><input name="password" required type="password" minlength="8" autocomplete="current-password" placeholder="Minimo 8 caracteres" /></div>
-        </div>
-
-        <div class="onboarding-block">
-          <div class="block-title"><span>Identidad</span><small>Debe coincidir con la cedula</small></div>
-          <div class="field"><label>Nombre completo</label><input name="name" required autocomplete="name" placeholder="Tu nombre real" /></div>
-          <div class="two-col">
-            <div class="field"><label>Cedula / documento</label><input name="cedula" required placeholder="Documento de identidad" /></div>
-            <div class="field"><label>Telefono</label><input name="phone" required type="tel" autocomplete="tel" placeholder="Telefono verificable" /></div>
-          </div>
-        </div>
-
-        <div class="onboarding-block">
-          <div class="block-title"><span>Ubicacion</span><small>Obligatoria para seguridad</small></div>
-          <div class="field">
-            <label>Ubicacion exacta</label>
-            <div class="location-field">
-              <input id="exactLocationInput" name="exactLocation" required autocomplete="street-address" placeholder="Calle, numero, ciudad o coordenadas" />
-              <button class="secondary-btn" type="button" id="useDeviceLocation">Usar GPS</button>
+        ${state.authMode === "login" ? `
+          <form id="loginForm" class="entry-v2-form" novalidate>
+            <div class="field">
+              <label>Gmail</label>
+              <input name="email" required type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="tu@email.com" />
             </div>
-          </div>
-        </div>
+            <div class="field">
+              <label>Contraseña</label>
+              <input name="password" required type="password" autocomplete="current-password" placeholder="Tu contraseña" />
+            </div>
+            <div class="entry-v2-options">
+              <label><input type="checkbox" name="remember" /> Recordarme</label>
+              <button type="button" data-recovery-toggle>¿Olvidaste tu contraseña?</button>
+            </div>
+            <button class="buy-action" type="submit">Ingresar a MarketPro</button>
+          </form>
+          <section class="entry-recovery" hidden>
+            <form id="resetRequestForm" class="mini-auth-form" novalidate>
+              <input name="email" required type="email" placeholder="Gmail para recuperar" />
+              <button class="secondary-btn" type="submit">Enviar código</button>
+            </form>
+            <form id="resetConfirmForm" class="mini-auth-form" novalidate>
+              <input name="email" required type="email" placeholder="Gmail" />
+              <input name="code" required placeholder="Código recibido" />
+              <input name="password" required type="password" minlength="8" placeholder="Nueva contraseña" />
+              <button class="secondary-btn" type="submit">Cambiar contraseña</button>
+            </form>
+          </section>
+          <div class="entry-v2-divider"><span>o</span></div>
+          <button class="entry-create-account" type="button" data-auth-mode="register">Crear una cuenta verificada</button>
+        ` : `
+          <form id="entryForm" class="entry-v2-form entry-register-form" novalidate>
+            <div class="field"><label>Nombre completo</label><input name="name" required autocomplete="name" placeholder="Debe coincidir con tu documento" /></div>
+            <div class="two-col">
+              <div class="field"><label>Gmail</label><input name="email" required type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="tu@gmail.com" /></div>
+              <div class="field"><label>Contraseña</label><input name="password" required type="password" minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres" /></div>
+            </div>
+            <div class="two-col">
+              <div class="field"><label>Cédula / documento</label><input name="cedula" required placeholder="Documento de identidad" /></div>
+              <div class="field"><label>Teléfono</label><input name="phone" required type="tel" autocomplete="tel" placeholder="Teléfono verificable" /></div>
+            </div>
+            <div class="field">
+              <label>Ubicación exacta</label>
+              <div class="location-field">
+                <input id="exactLocationInput" name="exactLocation" required autocomplete="street-address" placeholder="Calle, número y ciudad" />
+                <button class="secondary-btn" type="button" id="useDeviceLocation"><i data-lucide="map-pin"></i>GPS</button>
+              </div>
+            </div>
+            <div class="identity-upload-grid">
+              <label class="upload-card"><i data-lucide="scan-face"></i><span>Foto de rostro</span><small>Selfie clara y de frente</small><input name="profilePhoto" required type="file" accept="image/*" capture="user" /></label>
+              <label class="upload-card"><i data-lucide="id-card"></i><span>Frente de la cédula</span><small>Documento completo y legible</small><input name="documentPhoto" required type="file" accept="image/*" /></label>
+            </div>
+            <button class="buy-action" type="submit">Crear cuenta y enviar verificación</button>
+            <small class="private-note">Los documentos solo son visibles para el administrador.</small>
+          </form>
+        `}
+      </section>
 
-        <div class="onboarding-block">
-          <div class="block-title"><span>Fotos</span><small>Solo para revision privada</small></div>
-          <div class="identity-upload-grid">
-            <label class="upload-card">
-              <span>Foto de rostro</span>
-              <small>Selfie clara, de frente y sin lentes oscuros.</small>
-              <input name="profilePhoto" required type="file" accept="image/*" capture="user" />
-            </label>
-            <label class="upload-card">
-              <span>Foto frontal de cedula</span>
-              <small>Parte frontal completa, enfocada y legible.</small>
-              <input name="documentPhoto" required type="file" accept="image/*" />
-            </label>
-          </div>
-        </div>
-        <button class="sell-action" type="submit">Entrar y enviar verificacion</button>
-        <small class="private-note">Estos datos solo aparecen en el panel privado del creador/admin.</small>
-      </form>`}
+      <section class="entry-v2-trust">
+        <article><i data-lucide="house-lock"></i><strong>Cuenta segura</strong><span>Verificación de identidad</span></article>
+        <article><i data-lucide="badge-dollar-sign"></i><strong>Pagos protegidos</strong><span>Con Mercado Pago</span></article>
+        <article><i data-lucide="truck"></i><strong>Entrega segura</strong><span>Con seguimiento</span></article>
+        <article><i data-lucide="messages-square"></i><strong>Soporte 24/7</strong><span>Siempre disponible</span></article>
+      </section>
+
       ${canShowAdminEntry() ? `<section class="admin-entry">
-        <div>
-          <span>Acceso del creador</span>
-          <small>No requiere verificacion de comprador/vendedor.</small>
-        </div>
-        <form id="adminEntryForm">
-          <input name="password" required type="password" placeholder="Contrasena admin" />
-          <button type="submit">Entrar como admin</button>
-        </form>
+        <div><span>Acceso privado del creador</span><small>Panel administrativo protegido.</small></div>
+        <form id="adminEntryForm"><input name="password" required type="password" placeholder="Contraseña admin" /><button type="submit">Entrar</button></form>
         <a href="/admin.html">Abrir panel privado</a>
       </section>` : ""}
+
       <nav class="entry-legal-links">
-        <button type="button" data-view="security">Seguridad</button>
+        <button type="button" data-view="security">Términos y condiciones</button>
+        <button type="button" data-view="legal">Política de privacidad</button>
         <button type="button" data-view="support">Soporte</button>
-        <button type="button" data-view="legal">Privacidad</button>
       </nav>
     </section>
-    ${pwaInstallCard()}
   </main>
 `;
 
@@ -1904,6 +1865,79 @@ const composeView = () => {
 `;
 };
 
+const composeStudioView = () => {
+  if (!isVerifiedSeller()) return composeView();
+  const steps = [
+    ["Información", "Detalles principales", "file-text"],
+    ["Fotos", "Hasta 6 imágenes", "images"],
+    ["Detalles", "Descripción y estado", "list-checks"],
+    ["Ubicación y envío", "Dónde y cómo entregas", "map-pin"],
+    ["Precio y seguridad", "Revisión final", "shield-check"]
+  ];
+  return `
+    ${sellerSidebar("listings")}
+    <main class="listing-studio-page">
+      <form id="listingForm" novalidate>
+        <header class="listing-studio-header">
+          <div><p class="eyebrow">Seller Center</p><h1>Nueva publicación</h1><span>Completá los datos para publicar tu artículo.</span></div>
+          <div><button class="secondary-btn" type="button" data-save-draft>Guardar borrador</button><button class="sell-action" type="submit"><i data-lucide="rocket"></i>Publicar</button></div>
+        </header>
+        <section class="listing-studio-shell">
+          <aside class="listing-stepper">
+            ${steps.map((step, index) => `
+              <button type="button" data-compose-step="${index + 1}" class="${state.composeStep === index + 1 ? "active" : ""}">
+                <span>${index + 1}</span><i data-lucide="${step[2]}"></i><div><strong>${step[0]}</strong><small>${step[1]}</small></div>
+              </button>
+            `).join("")}
+          </aside>
+          <section class="listing-stage">
+            <div class="listing-step-panel" data-step-panel="1" ${state.composeStep === 1 ? "" : "hidden"}>
+              <header><span>01</span><div><h2>Información principal</h2><p>Identificá el artículo de forma clara.</p></div></header>
+              <div class="field"><label for="listingTitle">Título del artículo</label><input id="listingTitle" name="title" required maxlength="72" autocomplete="off" placeholder="Ej: Mesa de comedor moderna" /></div>
+              <div class="two-col">
+                <div class="field"><label for="listingCategory">Categoría</label><select id="listingCategory" name="category">${categories.filter((c) => c !== "Todo").map((c) => `<option>${c}</option>`).join("")}</select></div>
+                <div class="field"><label for="listingCondition">Condición</label><select id="listingCondition" name="condition"><option>Usado</option><option>Nuevo</option></select></div>
+              </div>
+            </div>
+            <div class="listing-step-panel" data-step-panel="2" ${state.composeStep === 2 ? "" : "hidden"}>
+              <header><span>02</span><div><h2>Fotografías reales</h2><p>Subí entre 2 y 6 fotos nítidas.</p></div></header>
+              <label class="listing-upload" for="photoInput"><i data-lucide="cloud-upload"></i><strong>Elegir fotografías</strong><span>JPG o PNG · máximo 10 MB por imagen</span></label>
+              <input id="photoInput" name="photos" type="file" accept="image/*" multiple />
+              <div class="photo-grid" id="photoGrid">${[1,2,3,4,5,6].map((number) => `<div class="photo-slot"><b>${number}</b><i data-lucide="image"></i><small>${number === 1 ? "Foto principal" : "Otra vista"}</small></div>`).join("")}</div>
+            </div>
+            <div class="listing-step-panel" data-step-panel="3" ${state.composeStep === 3 ? "" : "hidden"}>
+              <header><span>03</span><div><h2>Descripción y estado</h2><p>Contá exactamente qué recibe el comprador.</p></div></header>
+              <div class="field"><label for="listingDescription">Descripción</label><textarea id="listingDescription" name="description" required minlength="80" maxlength="1000" placeholder="Describe el estado real, uso, medidas, fallas, accesorios y todo lo que incluye."></textarea><small>Una descripción precisa reduce preguntas y disputas.</small></div>
+            </div>
+            <div class="listing-step-panel" data-step-panel="4" ${state.composeStep === 4 ? "" : "hidden"}>
+              <header><span>04</span><div><h2>Ubicación y entrega</h2><p>Indicá dónde está el producto.</p></div></header>
+              <div class="field"><label for="listingLocation">Barrio o ciudad</label><input id="listingLocation" name="location" required autocomplete="address-level2" placeholder="Ej: Pocitos, Montevideo" /></div>
+              <div class="delivery-options"><span><i data-lucide="map-pin-check"></i><strong>Punto seguro</strong><small>Para entregas personales.</small></span><span><i data-lucide="truck"></i><strong>Envío con rastreo</strong><small>Vinculado a la orden.</small></span></div>
+            </div>
+            <div class="listing-step-panel" data-step-panel="5" ${state.composeStep === 5 ? "" : "hidden"}>
+              <header><span>05</span><div><h2>Precio y protocolo</h2><p>Revisá el valor y la seguridad.</p></div></header>
+              <div class="field price-field"><label for="listingPrice">Precio en USD</label><div><span>US$</span><input id="listingPrice" name="price" required type="number" inputmode="decimal" min="1" placeholder="0" /></div></div>
+              <section class="protocol-box"><h3><i data-lucide="shield-check"></i>Protocolo de seguridad</h3>${safetyRules.map((rule, index) => `<label class="check-row"><input type="checkbox" name="safety-${index}" required /><span>${rule}</span></label>`).join("")}</section>
+            </div>
+            <footer class="listing-step-actions">
+              <button class="secondary-btn" type="button" data-compose-prev ${state.composeStep === 1 ? "disabled" : ""}><i data-lucide="arrow-left"></i>Anterior</button>
+              <span>Paso ${state.composeStep} de 5</span>
+              <button class="sell-action" type="button" data-compose-next ${state.composeStep === 5 ? "hidden" : ""}>Continuar<i data-lucide="arrow-right"></i></button>
+              <button class="sell-action" type="submit" data-compose-submit ${state.composeStep === 5 ? "" : "hidden"}><i data-lucide="rocket"></i>Publicar</button>
+            </footer>
+          </section>
+          <aside class="listing-live-preview">
+            <header><i data-lucide="eye"></i><strong>Vista previa</strong></header>
+            <div class="preview-image-wrap" id="previewImage"><i data-lucide="image"></i><span>Tu foto principal</span></div>
+            <div class="preview-copy"><strong id="previewPrice">US$ 0</strong><h3 id="previewTitle">Título del artículo</h3><span id="previewLocation">Ubicación</span><div><span class="pill" id="previewCategory">Categoría</span><span class="pill" id="previewCondition">Condición</span></div></div>
+            <div class="preview-note"><i data-lucide="info"></i>La vista previa se actualiza mientras completás los datos.</div>
+          </aside>
+        </section>
+      </form>
+    </main>
+  `;
+};
+
 const messagesView = () => {
   const active = state.conversations.find((chat) => chat.id === state.selectedChatId) || state.conversations[0];
   if (active && state.selectedChatId !== active.id) state.selectedChatId = active.id;
@@ -2110,98 +2144,73 @@ const profileView = () => {
   const visible = mine.filter((item) => (state.profileTab === "sold" ? item.status === "sold" : item.status !== "sold"));
   return `
     ${sellerSidebar("summary")}
-    <main>
-      <div class="toolbar-row">
-        <button type="button" class="filter-toggle" data-filter-toggle>
-          ${state.filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
-        </button>
-      </div>
-      <section class="panel profile-panel">
-        <div class="profile-head">
-          <div class="avatar-btn large">${state.user.name[0]}</div>
-          <div class="profile-identity">
-            <h1>${escapeHtml(state.user.name)}</h1>
-            <div class="profile-email">${escapeHtml(state.user.email)} <i data-lucide="badge-check"></i></div>
-            <div class="muted">${escapeHtml(state.user.verificationStatus)} <b>•</b> <span>Protocolo activo</span></div>
-          </div>
-          <button class="secondary-btn profile-link" data-view="profile"><i data-lucide="user-round"></i>Ver mi perfil</button>
+    <main class="seller-dashboard-v2">
+      <header class="dashboard-welcome">
+        <div>
+          <h1>Hola, ${escapeHtml(state.user.name.split(" ")[0])} <i data-lucide="sparkles"></i></h1>
+          <p>Bienvenido a tu panel de control</p>
         </div>
-        <section class="seller-metrics">
-          <div class="metric-card">
-            <i data-lucide="shopping-cart"></i>
-            <span>Mercado Pago</span>
-            <strong>${state.user.mercadoPago?.connected ? "Conectado" : "Pendiente"}</strong>
-            <small>Conectá tu cuenta para recibir tus pagos.</small>
+        <button class="dashboard-account" type="button" data-account-menu><span>${escapeHtml(state.user.name[0])}</span><i data-lucide="chevron-down"></i></button>
+      </header>
+
+      <section class="dashboard-metrics">
+        <article class="dashboard-metric mp-status">
+          <span>Mercado Pago</span>
+          <strong>${state.user.mercadoPago?.connected ? "Conectado" : "Pendiente de conectar"}</strong>
+          <small>Conecta tu cuenta para recibir pagos.</small>
+          <button type="button" id="connectMercadoPago">${state.user.mercadoPago?.connected ? "Ver cuenta" : "Conectar"}</button>
+        </article>
+        <article class="dashboard-metric">
+          <span>Ventas registradas</span>
+          <strong>${money(stats.grossSales || 0)}</strong>
+          <small>Total acumulado</small>
+          <button type="button" data-view="orders">Ver ventas <i data-lucide="arrow-right"></i></button>
+        </article>
+        <article class="dashboard-metric">
+          <span>Publicaciones activas</span>
+          <strong>${stats.active}</strong>
+          <small>Publicaciones visibles</small>
+          <button type="button" data-dashboard-listings>Ver publicaciones <i data-lucide="arrow-right"></i></button>
+        </article>
+        <article class="dashboard-metric">
+          <span>Vendidos</span>
+          <strong>${stats.sold}</strong>
+          <small>Total de artículos</small>
+          <button type="button" data-view="orders">Ver órdenes <i data-lucide="arrow-right"></i></button>
+        </article>
+      </section>
+
+      <section class="dashboard-mp-connect ${state.user.mercadoPago?.connected ? "connected" : ""}">
+        <i data-lucide="badge-check"></i>
+        <div>
+          <strong>${state.user.mercadoPago?.connected ? "Mercado Pago conectado" : "Conecta tu cuenta de Mercado Pago"}</strong>
+          <span>Los compradores pagan directamente en tu cuenta. MarketPro no retiene ni devuelve el dinero.</span>
+        </div>
+        ${state.user.mercadoPago?.connected
+          ? `<button class="secondary-btn" type="button" id="disconnectMercadoPago">Desconectar</button>`
+          : `<button class="buy-action" type="button" id="connectMercadoPago">Conectar Mercado Pago</button>`}
+      </section>
+
+      <section class="dashboard-activity">
+        <header><h2>Actividad reciente</h2><button type="button" data-view="orders">Ver todo</button></header>
+        ${state.orders.length || mine.length ? `
+          <div class="activity-list">
+            ${state.orders.slice(0, 2).map((order) => `<button data-open-order="${escapeHtml(order.id)}"><i data-lucide="package-check"></i><span><strong>${escapeHtml(order.productTitle)}</strong><small>${escapeHtml(order.status)}</small></span><time>${money(order.amount)}</time></button>`).join("")}
+            ${mine.slice(0, 2).map((item) => `<button data-product="${item.id}"><i data-lucide="notebook-tabs"></i><span><strong>${escapeHtml(item.title)}</strong><small>${item.status === "sold" ? "Vendido" : "Publicación activa"}</small></span><time>${money(item.price)}</time></button>`).join("")}
           </div>
-          <div class="metric-card">
-            <i data-lucide="dollar-sign"></i>
-            <span>Ventas registradas</span>
-            <strong>${money(stats.grossSales || 0)}</strong>
-            <small>Total acumulado</small>
-          </div>
-          <div class="metric-card">
-            <i data-lucide="notebook-tabs"></i>
-            <span>Publicaciones activas</span>
-            <strong>${stats.active}</strong>
-            <small>Tus publicaciones visibles</small>
-          </div>
-          <div class="metric-card">
-            <i data-lucide="package"></i>
-            <span>Vendidos</span>
-            <strong>${stats.sold}</strong>
-            <small>Artículos vendidos</small>
-          </div>
-        </section>
-        <section class="mp-connect-panel ${state.user.mercadoPago?.connected ? "connected" : ""}">
+        ` : `<div class="dashboard-empty"><i data-lucide="inbox"></i><strong>Aún no tienes actividad reciente</strong><span>Tus ventas, mensajes y órdenes aparecerán aquí.</span></div>`}
+      </section>
+
+      <section class="dashboard-listings" data-dashboard-listings-section>
+        <header>
+          <div><h2>Tus publicaciones</h2><span>${mine.length} artículos</span></div>
           <div>
-            <p class="eyebrow">Cobros directos</p>
-            <h2>${state.user.mercadoPago?.connected ? "Tu Mercado Pago esta conectado" : "Conecta tu cuenta de Mercado Pago"}</h2>
-            <p class="muted">Los compradores pagan directamente en tu cuenta. MarketPro no recibe, retiene ni devuelve el dinero de tus ventas.</p>
-            ${state.user.mercadoPago?.connected ? `<small>Cuenta autorizada ${escapeHtml(state.user.mercadoPago.accountId || "")}</small>` : ""}
+            <button class="profile-tab ${state.profileTab === "active" ? "active" : ""}" data-profile-tab="active">Activos</button>
+            <button class="profile-tab ${state.profileTab === "sold" ? "active" : ""}" data-profile-tab="sold">Vendidos</button>
+            <button class="sell-action" data-view="compose"><i data-lucide="plus"></i>Nueva publicación</button>
           </div>
-          ${state.user.mercadoPago?.connected
-            ? `<button class="secondary-btn" type="button" id="disconnectMercadoPago">Desconectar</button>`
-            : `<button class="buy-action" type="button" id="connectMercadoPago">Conectar Mercado Pago</button>`}
-        </section>
-        <div class="profile-list">
-          <button class="profile-tab ${state.profileTab === "active" ? "active" : ""}" data-profile-tab="active">Activos</button>
-          <button class="profile-tab ${state.profileTab === "sold" ? "active" : ""}" data-profile-tab="sold">Vendidos</button>
-        </div>
-      </section>
-      ${ordersPanel()}
-      <section class="panel promotion-panel">
-        <div>
-          <p class="eyebrow">Anuncio principal</p>
-          <h2>Destaca un producto por US$ 1</h2>
-          <p class="muted">Tu publicacion aparece primero en la pagina principal como anuncio destacado. El pago se realiza por Mercado Pago vinculado a MarketPro.</p>
-        </div>
-        ${
-          mine.filter((item) => item.status !== "sold").length
-            ? `<form id="promotionForm" class="promotion-form">
-                <select name="productId" required>
-                  <option value="">Elige una publicacion</option>
-                  ${mine
-                    .filter((item) => item.status !== "sold")
-                    .map((item) => `<option value="${item.id}">${item.promoted ? "Destacado - " : ""}${escapeHtml(item.title)}</option>`)
-                    .join("")}
-                </select>
-                <button class="sell-action" type="submit">Pagar US$ 1 y destacar</button>
-              </form>`
-            : `<div class="empty">Publica un producto activo para poder destacarlo.</div>`
-        }
-      </section>
-      <section class="panel account-control-panel">
-        <div>
-          <p class="eyebrow">Cuenta</p>
-          <h2>Control de privacidad</h2>
-          <p class="muted">Puedes cerrar sesion o eliminar la cuenta. Si eliminas la cuenta, tus publicaciones quedan pausadas para evitar ventas incompletas.</p>
-        </div>
-        <div class="account-actions">
-          <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesion</button>
-          <button class="danger-btn" id="deleteAccount">Eliminar cuenta</button>
-        </div>
-      </section>
-      <section class="grid profile-grid">
+        </header>
+        <section class="grid profile-grid">
         ${
           visible.length
             ? visible
@@ -2224,9 +2233,14 @@ const profileView = () => {
                   </article>`
                 )
                 .join("")
-            : `<div class="empty">No hay publicaciones en esta seccion.</div>`
+            : `<div class="empty">No hay publicaciones en esta sección.</div>`
         }
+        </section>
       </section>
+      <footer class="dashboard-account-actions">
+        <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesión</button>
+        <button class="danger-btn" id="deleteAccount">Eliminar cuenta</button>
+      </footer>
     </main>
   `;
 };
@@ -2254,7 +2268,7 @@ const view = () =>
   ({
     feed: feedView,
     detail: detailView,
-    compose: composeView,
+    compose: composeStudioView,
     messages: messagesView,
     profile: profileView,
     orders: ordersView,
@@ -2380,6 +2394,16 @@ const bindEvents = () => {
       render();
     });
   });
+  document.querySelector("[data-recovery-toggle]")?.addEventListener("click", () => {
+    const recovery = document.querySelector(".entry-recovery");
+    if (recovery) recovery.hidden = !recovery.hidden;
+  });
+  document.querySelector("[data-dashboard-listings]")?.addEventListener("click", () => {
+    document.querySelector("[data-dashboard-listings-section]")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  document.querySelector("[data-account-menu]")?.addEventListener("click", () => {
+    document.querySelector(".dashboard-account-actions")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
   document.querySelector("#adminEntryForm")?.addEventListener("submit", authenticateAdminEntry);
   document.querySelector("#logoutUser")?.addEventListener("click", logoutUser);
   document.querySelector("#useDeviceLocation")?.addEventListener("click", useDeviceLocation);
@@ -2392,6 +2416,34 @@ const bindEvents = () => {
   });
   document.querySelector("#listingForm")?.addEventListener("input", updatePreview);
   document.querySelector("#listingForm")?.addEventListener("submit", publishListing);
+  const showComposeStep = (nextStep) => {
+    state.composeStep = Math.max(1, Math.min(5, Number(nextStep) || 1));
+    document.querySelectorAll("[data-step-panel]").forEach((panel) => {
+      panel.hidden = Number(panel.dataset.stepPanel) !== state.composeStep;
+    });
+    document.querySelectorAll("[data-compose-step]").forEach((button) => {
+      button.classList.toggle("active", Number(button.dataset.composeStep) === state.composeStep);
+    });
+    const previous = document.querySelector("[data-compose-prev]");
+    const next = document.querySelector("[data-compose-next]");
+    const submit = document.querySelector("[data-compose-submit]");
+    if (previous) previous.disabled = state.composeStep === 1;
+    if (next) next.hidden = state.composeStep === 5;
+    if (submit) submit.hidden = state.composeStep !== 5;
+    const counter = document.querySelector(".listing-step-actions > span");
+    if (counter) counter.textContent = `Paso ${state.composeStep} de 5`;
+    document.querySelector(".listing-stage")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  document.querySelectorAll("[data-compose-step]").forEach((button) => button.addEventListener("click", () => showComposeStep(button.dataset.composeStep)));
+  document.querySelector("[data-compose-prev]")?.addEventListener("click", () => showComposeStep(state.composeStep - 1));
+  document.querySelector("[data-compose-next]")?.addEventListener("click", () => showComposeStep(state.composeStep + 1));
+  document.querySelector("[data-save-draft]")?.addEventListener("click", () => {
+    const form = document.querySelector("#listingForm");
+    if (!form) return;
+    const draft = Object.fromEntries([...new FormData(form)].filter(([, value]) => typeof value === "string"));
+    localStorage.setItem("marketListingDraft", JSON.stringify(draft));
+    showToast("Borrador guardado en este dispositivo.");
+  });
   document.querySelector("#promotionForm")?.addEventListener("submit", promoteFromForm);
   document.querySelector("#connectMercadoPago")?.addEventListener("click", connectMercadoPago);
   document.querySelector("#disconnectMercadoPago")?.addEventListener("click", disconnectMercadoPago);

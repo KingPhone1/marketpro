@@ -988,7 +988,14 @@ app.use((req, res, next) => {
 });
 app.use("/vendor/gsap", express.static(path.join(__dirname, "node_modules", "gsap", "dist"), { maxAge: IS_PRODUCTION ? "30d" : 0 }));
 app.use("/vendor/lucide", express.static(path.join(__dirname, "node_modules", "lucide", "dist", "umd"), { maxAge: IS_PRODUCTION ? "30d" : 0 }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), {
+  etag: true,
+  setHeaders: (res, filePath) => {
+    if (/\.(?:html|css|js)$/i.test(filePath) || filePath.endsWith("service-worker.js")) {
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+    }
+  }
+}));
 
 app.get("/admin", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "admin.html"));
