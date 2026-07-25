@@ -13,8 +13,11 @@ const dismissSplash = () => {
   const splash = document.querySelector("#marketSplash");
   if (!splash) return;
   requestAnimationFrame(() => splash.classList.add("is-leaving"));
-  window.setTimeout(() => splash.remove(), 720);
+  window.setTimeout(() => splash.remove(), 380);
 };
+
+// Never let a slow API response keep the opening screen over the app.
+window.setTimeout(dismissSplash, 1150);
 
 const showToast = (message) => {
   const text = String(message || "Acción completada.").trim();
@@ -68,9 +71,9 @@ const initMotion = (animateRoute = true) => {
         );
         gsap.from(routeSections, {
           autoAlpha: 0,
-          y: desktop ? 30 : 16,
-          duration: 0.72,
-          stagger: 0.07,
+          y: desktop ? 28 : 12,
+          duration: desktop ? 0.62 : 0.38,
+          stagger: desktop ? 0.065 : 0.035,
           ease: "power3.out",
           clearProps: "opacity,visibility,transform"
         });
@@ -120,7 +123,7 @@ const initMotion = (animateRoute = true) => {
             autoAlpha: 0,
             y: desktop ? 34 : 18,
             scale: 0.985,
-            duration: 0.65,
+            duration: desktop ? 0.62 : 0.4,
             delay: Math.min(index % 4, 3) * 0.045,
             ease: "power3.out",
             clearProps: "opacity,visibility,transform",
@@ -656,14 +659,14 @@ const loadData = async () => {
     state.user = savedUser;
     localStorage.setItem("marketUser", JSON.stringify(savedUser));
   }
-  if (state.user) {
+  if (state.user && !state.user.admin) {
     const dashboard = await api("/api/seller-dashboard");
     state.sellerDashboard = dashboard.error ? null : dashboard;
   }
   state.selectedChatId = conversations[0]?.id || null;
   connectSocket();
   render();
-  window.setTimeout(dismissSplash, 700);
+  window.setTimeout(dismissSplash, 820);
 };
 
 const normalizeProduct = (item) => ({
@@ -680,7 +683,9 @@ const isRejectedUser = (user = state.user) => Boolean(user?.verificationStatus?.
 const isVerifiedSeller = () => Boolean(state.user?.verified && !isRejectedUser());
 
 const refreshSellerDashboard = async () => {
+  if (state.user?.admin) return state.sellerDashboard;
   state.sellerDashboard = await api("/api/seller-dashboard");
+  return state.sellerDashboard;
 };
 
 const connectSocket = () => {
@@ -718,13 +723,13 @@ const topbar = () => `
       <button class="search-scope" type="button">Todo <i data-lucide="chevron-down"></i></button>
       <span class="search-icon" aria-hidden="true"></span>
       <input id="globalSearch" value="${escapeHtml(state.query)}" aria-label="Buscar artículos, usuarios o marcas" placeholder="Buscar artículos, usuarios o marcas" />
-      <button class="search-filter" type="button" data-filter-toggle aria-label="Mostrar u ocultar filtros"><i data-lucide="search"></i></button>
+      <button class="search-filter" type="button" data-filter-toggle aria-label="Mostrar u ocultar filtros"><i data-lucide="sliders-horizontal"></i></button>
     </div>
     <div class="top-actions">
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
       <button class="nav-btn ${state.view === "orders" ? "active" : ""}" data-view="orders">Órdenes</button>
       <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
-      <button class="nav-btn compact-alert ${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas">Alertas${state.notifications.filter((item) => !item.read).length ? ` <b>${state.notifications.filter((item) => !item.read).length}</b>` : ""}</button>
+      <button class="nav-btn compact-alert ${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas"><i data-lucide="bell"></i><span>Alertas</span>${state.notifications.filter((item) => !item.read).length ? ` <b>${state.notifications.filter((item) => !item.read).length}</b>` : ""}</button>
       <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose"><i data-lucide="circle-plus"></i>Vender</button>
       <button class="avatar-btn ${state.view === "profile" ? "active" : ""}" data-view="profile" title="Perfil">${state.user ? state.user.name[0] : "E"}</button>
     </div>
@@ -1865,7 +1870,7 @@ const composeView = () => {
           </div>
         </div>
         <div class="form-section protocol-box">
-          <h2>Protocolo de seguridad</h2>
+          <h2><i data-lucide="shield-check"></i><span>Protocolo de seguridad</span></h2>
           ${safetyRules.map((rule, index) => `
             <label class="check-row">
               <input type="checkbox" name="safety-${index}" required />
@@ -1929,6 +1934,7 @@ const messagesView = () => {
         active
           ? `<section class="chat-main">
               <div class="chat-header">
+                <button class="chat-back" type="button" data-view="feed" aria-label="Volver al inicio"><i data-lucide="chevron-left"></i></button>
                 <img src="${active.avatar || `/api/avatar/${encodeURIComponent(active.seller || "Usuario")}.svg`}" alt="${escapeHtml(active.seller)}" />
                 <div>
                   <strong>${escapeHtml(active.seller)}</strong>
@@ -1937,7 +1943,8 @@ const messagesView = () => {
                 </div>
               </div>
               <div class="chat-warning">
-                MarketPro protege el historial. No compartas claves, codigos ni pagos externos.
+                <i data-lucide="shield-check"></i>
+                <span><strong>Conversación protegida</strong>No compartas claves, códigos ni coordines pagos externos.</span>
               </div>
               <div class="messages">
                 ${active.messages
@@ -1954,7 +1961,7 @@ const messagesView = () => {
             .join("")}
               </div>
               <details class="chat-tools">
-                <summary aria-label="Más opciones de conversación">•••</summary>
+                <summary aria-label="Más opciones de conversación"><i data-lucide="ellipsis-vertical"></i></summary>
                 <div>
                   <button class="secondary-btn" id="reportChat">Reportar conversación</button>
                   <button class="danger-btn" id="blockChat">${active.blocked ? "Chat bloqueado" : "Bloquear chat"}</button>
@@ -1964,10 +1971,10 @@ const messagesView = () => {
               <form class="message-form" id="messageForm">
                 <label class="attach-btn ${pendingChatAttachment ? "ready" : ""}" title="Añadir foto">
                   <input id="chatPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" ${active.blocked ? "disabled" : ""} />
-                  <span>+</span>
+                  <i data-lucide="paperclip"></i>
                 </label>
-                <input name="message" autocomplete="off" placeholder="${active.blocked ? "Chat bloqueado por seguridad" : "Escribe dentro del chat seguro"}" ${active.blocked ? "disabled" : ""} />
-                <button class="send-btn" title="Enviar" aria-label="Enviar mensaje" ${active.blocked ? "disabled" : ""}>↑</button>
+                <input name="message" autocomplete="off" enterkeyhint="send" placeholder="${active.blocked ? "Chat bloqueado por seguridad" : "Escribe un mensaje"}" ${active.blocked ? "disabled" : ""} />
+                <button class="send-btn" title="Enviar" aria-label="Enviar mensaje" ${active.blocked ? "disabled" : ""}><i data-lucide="send"></i></button>
               </form>
             </section>`
           : `<div class="empty">Todavia no tienes chats reales. Abre una publicacion y contacta al vendedor para iniciar una conversacion conectada.</div>`
@@ -2462,22 +2469,36 @@ const updatePreview = (event) => {
   document.querySelector("#previewCondition").textContent = data.get("condition") || "Condicion";
 };
 
-const previewPhotos = (event) => {
-  const files = [...event.target.files].slice(0, 6);
+const previewPhotos = async (event) => {
+  const files = [...event.target.files]
+    .filter((file) => file.type?.startsWith("image/"))
+    .slice(0, 6);
   const grid = document.querySelector("#photoGrid");
   const preview = document.querySelector("#previewImage");
+  if (!grid || !preview) return;
+
+  if (!files.length) {
+    grid.innerHTML = `
+      <div class="photo-slot"><b>1</b><i data-lucide="image-plus"></i><strong>Agregar fotos</strong><small>Sube hasta 6 imágenes de tu producto</small></div>
+      <div class="photo-slot"><b>2</b><i data-lucide="list-checks"></i><strong>Detalle</strong><small>Completá la información de tu publicación</small></div>
+      <div class="photo-slot"><b>3</b><i data-lucide="shield-check"></i><strong>Estado</strong><small>Revisá y publicá tu anuncio</small></div>
+    `;
+    preview.innerHTML = "";
+    window.lucide?.createIcons({ attrs: { "stroke-width": 1.7 } });
+    return;
+  }
+
+  grid.innerHTML = `<div class="photo-loading"><i data-lucide="loader-circle"></i><span>Preparando imágenes…</span></div>`;
+  window.lucide?.createIcons({ attrs: { "stroke-width": 1.7 } });
+  const images = (await Promise.all(files.map((file) => compressImage(file, 1100, 0.72)))).filter(Boolean);
   grid.innerHTML = "";
-  files.forEach((file, index) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      grid.insertAdjacentHTML(
-        "beforeend",
-        `<div class="photo-slot image-slot"><img class="preview-image" src="${reader.result}" alt="Foto ${index + 1}" /></div>`
-      );
-      if (index === 0) preview.innerHTML = `<img class="preview-image" src="${reader.result}" alt="Vista previa" />`;
-    };
-    reader.readAsDataURL(file);
+  images.forEach((source, index) => {
+    grid.insertAdjacentHTML(
+      "beforeend",
+      `<div class="photo-slot image-slot"><b>${index + 1}</b><img class="preview-image" src="${source}" alt="Foto ${index + 1}" /></div>`
+    );
   });
+  if (images[0]) preview.innerHTML = `<img class="preview-image" src="${images[0]}" alt="Vista previa del artículo" />`;
 };
 
 const compressImage = (file, maxSize = 1280, quality = 0.72) =>
