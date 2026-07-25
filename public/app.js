@@ -715,8 +715,9 @@ const topbar = () => `
       <span>MarketPro</span>
     </button>
     <div class="searchbox" role="search">
-      <span>Todo</span>
+      <span class="search-icon" aria-hidden="true"></span>
       <input id="globalSearch" value="${escapeHtml(state.query)}" aria-label="Buscar artículos, usuarios o marcas" placeholder="Buscar artículos, usuarios o marcas" />
+      <button class="search-filter" type="button" data-filter-toggle aria-label="Mostrar u ocultar filtros">≡</button>
     </div>
     <div class="top-actions">
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
@@ -1029,7 +1030,7 @@ const heroVisual = () => {
   return `
     <aside class="hero-visual hero-security-visual" aria-hidden="true">
       <div class="security-orbit">
-        <div class="security-shield"><span>✓</span></div>
+        <img class="security-shield-image" src="/assets/marketpro-shield.png" alt="" />
       </div>
       <div class="hero-visual-card">
         <span>MarketPro Shield</span>
@@ -1548,7 +1549,7 @@ const feedView = () => {
       <section class="hero-panel ${products.length ? "" : "hero-empty"}">
         <div>
           <p class="eyebrow">Compra y venta verificada</p>
-          <h1>Articulos reales.<br />Personas verificadas.</h1>
+          <h1>Artículos reales.<br />Personas verificadas.</h1>
           <p>Publicaciones creadas por usuarios aprobados. Compra y vende con seguimiento dentro de MarketPro.</p>
           <div class="hero-cta-stack">
             <button class="sell-action hero-action" data-view="compose">Vender ahora</button>

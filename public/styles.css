@@ -11639,3 +11639,21 @@ input:focus, select:focus, textarea:focus { border-color: var(--border-gold) !im
   .top-actions .avatar-btn { display: none !important; }
   .product-card { grid-template-columns: minmax(112px, 40%) minmax(0, 1fr); }
 }
+
+.searchbox { grid-template-columns: 48px minmax(0, 1fr) 52px !important; overflow: hidden; }
+.searchbox > .search-icon { position: relative; display: block !important; width: 48px; height: 100%; border: 0 !important; }
+.search-icon::before { position: absolute; top: 15px; left: 15px; width: 15px; height: 15px; border: 2px solid var(--color-text-secondary); border-radius: 50%; content: ""; }
+.search-icon::after { position: absolute; top: 30px; left: 29px; width: 8px; height: 2px; border-radius: 2px; background: var(--color-text-secondary); content: ""; transform: rotate(45deg); transform-origin: left center; }
+.search-filter { display: grid; width: 52px; height: 100%; place-items: center; border: 0; border-left: 1px solid var(--border-subtle); color: var(--color-gold-light); background: transparent; font-size: 0; line-height: 1; transform: none !important; }
+.search-filter::before { width: 23px; height: 17px; background: radial-gradient(circle at 7px 2px, currentColor 0 2px, transparent 2.5px), linear-gradient(currentColor,currentColor) 0 2px / 100% 1px no-repeat, radial-gradient(circle at 16px 8px, currentColor 0 2px, transparent 2.5px), linear-gradient(currentColor,currentColor) 0 8px / 100% 1px no-repeat, radial-gradient(circle at 10px 15px, currentColor 0 2px, transparent 2.5px), linear-gradient(currentColor,currentColor) 0 15px / 100% 1px no-repeat; content: ""; }
+.search-filter:hover { background: rgba(215,174,85,.07); }
+.security-shield-image { position: relative; z-index: 1; width: 88%; height: 104%; object-fit: contain; filter: drop-shadow(0 22px 28px rgba(0,0,0,.45)) drop-shadow(0 0 22px rgba(215,174,85,.10)); }
+.top-actions .nav-btn.sell-btn { border: 0 !important; color: #11110f !important; background: linear-gradient(135deg, var(--color-gold-light), #c99a3e) !important; box-shadow: var(--shadow-gold) !important; }
+
+@media (max-width: 760px) {
+  .searchbox { grid-template-columns: 44px minmax(0, 1fr) 48px !important; }
+  .searchbox > .search-icon { display: block !important; width: 44px; }
+  .search-filter { width: 48px; }
+  .top-actions .nav-btn.compact-alert, .top-actions .avatar-btn { border: 1px solid var(--border-subtle) !important; border-radius: 50% !important; background: rgba(21,22,18,.78) !important; }
+  .security-shield-image { width: 108%; height: 112%; }
+}
