@@ -2542,3 +2542,169 @@ textarea:focus-visible {
     transition-duration: .01ms !important;
   }
 }
+
+/* Final alignment guards for desktop and laptop headers. */
+@media (min-width: 761px) {
+  .app-shell .topbar {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(180px, 250px) minmax(280px, 620px) minmax(250px, auto) !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 20px !important;
+    padding: 14px 24px !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+  }
+
+  .app-shell .topbar .brand {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-self: start !important;
+    grid-column: 1 !important;
+    position: static !important;
+  }
+
+  .app-shell .topbar .searchbox {
+    width: 100% !important;
+    max-width: 620px !important;
+    min-width: 0 !important;
+    justify-self: center !important;
+    margin: 0 !important;
+    grid-column: 2 !important;
+    position: static !important;
+  }
+
+  .app-shell .topbar .top-actions {
+    width: auto !important;
+    min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    margin: 0 !important;
+    grid-column: 3 !important;
+    position: static !important;
+  }
+
+  .app-shell .top-actions .nav-btn,
+  .app-shell .top-actions .sell-btn,
+  .app-shell .top-actions .compact-alert,
+  .app-shell .top-actions .avatar-btn {
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+  }
+
+  .app-shell .top-actions .sell-btn {
+    display: inline-flex !important;
+    min-width: 116px !important;
+    min-height: 50px !important;
+    padding: 0 18px !important;
+  }
+
+  .hero-panel {
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .hero-panel > div:first-child {
+    padding-bottom: 4px;
+  }
+
+  .hero-cta-stack {
+    position: static !important;
+    margin-bottom: 10px !important;
+    transform: none !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  .app-shell .topbar {
+    grid-template-columns: minmax(150px, 190px) minmax(260px, 1fr) minmax(170px, auto) !important;
+    gap: 14px !important;
+    padding-inline: 18px !important;
+  }
+
+  .app-shell .topbar .brand > span {
+    font-size: 20px !important;
+  }
+
+  .app-shell .topbar .top-actions .nav-btn:not(.compact-alert):not(.sell-btn),
+  .app-shell .topbar .top-actions .install-btn {
+    display: none !important;
+  }
+
+  .app-shell .topbar .searchbox {
+    grid-template-columns: 72px minmax(0, 1fr) 48px !important;
+  }
+
+  .app-shell .topbar .searchbox .search-scope {
+    grid-column: 1 !important;
+    font-size: 13px !important;
+  }
+
+  .app-shell .topbar .searchbox input {
+    grid-column: 2 !important;
+    padding-inline: 14px !important;
+  }
+
+  .app-shell .topbar .search-filter {
+    grid-column: 3 !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 980px) {
+  .app-shell .topbar .brand > span {
+    display: block !important;
+  }
+
+  .app-shell .mobile-tabs,
+  .app-shell .sidebar {
+    display: none !important;
+  }
+
+  .app-shell .main-layout,
+  .app-shell .main-layout.filters-collapsed {
+    width: 100% !important;
+    display: block !important;
+    grid-template-columns: none !important;
+    padding: 0 !important;
+  }
+
+  .app-shell .main-layout > main {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .app-shell .hero-panel {
+    width: auto !important;
+    margin: 22px !important;
+    padding: 42px !important;
+  }
+
+  .app-shell .hero-panel > div:first-child {
+    max-width: 590px !important;
+  }
+
+  .app-shell .hero-panel h1 {
+    max-width: 590px !important;
+    font-size: 46px !important;
+  }
+
+  .app-shell .hero-panel p:not(.eyebrow) {
+    max-width: 560px !important;
+  }
+
+  .app-shell .content-head {
+    margin-inline: 22px !important;
+  }
+
+  .app-shell .view-feed .grid,
+  .app-shell.view-feed .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    padding-inline: 22px !important;
+  }
+}
