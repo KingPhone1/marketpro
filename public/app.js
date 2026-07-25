@@ -16,6 +16,27 @@ const dismissSplash = () => {
   window.setTimeout(() => splash.remove(), 720);
 };
 
+const showToast = (message) => {
+  const text = String(message || "Acción completada.").trim();
+  let region = document.querySelector("#marketToastRegion");
+  if (!region) {
+    region = document.createElement("div");
+    region.id = "marketToastRegion";
+    region.className = "market-toast-region";
+    region.setAttribute("aria-live", "polite");
+    document.body.append(region);
+  }
+  const toast = document.createElement("div");
+  toast.className = "market-toast";
+  toast.setAttribute("role", "status");
+  toast.textContent = text;
+  region.append(toast);
+  window.setTimeout(() => toast.classList.add("is-leaving"), 3600);
+  window.setTimeout(() => toast.remove(), 3950);
+};
+
+window.alert = showToast;
+
 const destroyMotion = () => {
   if (motionRefreshFrame) cancelAnimationFrame(motionRefreshFrame);
   motionRefreshFrame = null;
@@ -641,7 +662,7 @@ const loadData = async () => {
   state.selectedChatId = conversations[0]?.id || null;
   connectSocket();
   render();
-  window.setTimeout(dismissSplash, 1250);
+  window.setTimeout(dismissSplash, 700);
 };
 
 const normalizeProduct = (item) => ({
@@ -692,13 +713,13 @@ const topbar = () => `
       <img class="brand-logo" src="/mp-logo.svg" alt="MP" />
       <span>MarketPro</span>
     </button>
-    <div class="searchbox">
+    <div class="searchbox" role="search">
       <span>Todo</span>
-      <input id="globalSearch" value="${escapeHtml(state.query)}" placeholder="Busca articulos, barrios o categorias" />
+      <input id="globalSearch" value="${escapeHtml(state.query)}" aria-label="Buscar artículos, usuarios o marcas" placeholder="Buscar artículos, usuarios o marcas" />
     </div>
     <div class="top-actions">
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
-      <button class="nav-btn ${state.view === "orders" ? "active" : ""}" data-view="orders">Ordenes</button>
+      <button class="nav-btn ${state.view === "orders" ? "active" : ""}" data-view="orders">Órdenes</button>
       <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
       <button class="nav-btn compact-alert ${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas">Alertas${state.notifications.filter((item) => !item.read).length ? ` <b>${state.notifications.filter((item) => !item.read).length}</b>` : ""}</button>
       <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
@@ -711,9 +732,8 @@ const topbar = () => `
   <nav class="mobile-tabs">
     <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed" aria-label="Inicio"><span>⌂</span><small>Inicio</small></button>
     <button class="${state.view === "compose" ? "active" : ""}" data-view="compose" aria-label="Vender"><span>＋</span><small>Vender</small></button>
-    <button class="${state.view === "orders" ? "active" : ""}" data-view="orders" aria-label="Ordenes"><span>□</span><small>Ordenes</small></button>
+    <button class="${state.view === "orders" ? "active" : ""}" data-view="orders" aria-label="Órdenes"><span>□</span><small>Órdenes</small></button>
     <button class="${state.view === "messages" ? "active" : ""}" data-view="messages" aria-label="Chats"><span>✉</span><small>Chats</small></button>
-    <button class="${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas"><span>!</span><small>Alertas${state.notifications.filter((item) => !item.read).length ? ` ${state.notifications.filter((item) => !item.read).length}` : ""}</small></button>
     <button class="${state.view === "profile" ? "active" : ""}" data-view="profile" aria-label="Perfil"><span>◉</span><small>Perfil</small></button>
   </nav>
 `;
@@ -738,7 +758,7 @@ const pwaInstallCard = () => `
       <strong>Instala MarketPro</strong>
       <span>En Android toca Instalar. En iPhone: Compartir > Agregar a pantalla de inicio.</span>
     </div>
-    <button class="install-chip" id="installPwa" type="button">${state.canInstallPwa ? "Instalar" : "Como instalar"}</button>
+    <button class="install-chip" id="installPwa" type="button">${state.canInstallPwa ? "Instalar" : "Cómo instalar"}</button>
   </section>
 `;
 
@@ -974,6 +994,7 @@ const productCard = (item) => `
     <div class="card-image">
       <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" />
       ${trustBadge(item)}
+      <span class="card-heart" aria-hidden="true">♡</span>
     </div>
     <div class="card-body">
       <div class="card-kicker">${escapeHtml(item.category)} / ${escapeHtml(item.condition)}</div>
@@ -1008,7 +1029,7 @@ const heroVisual = () => {
         <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" />
       </div>
       <div class="hero-visual-card">
-        <span>Featured asset</span>
+        <span>Artículo destacado</span>
         <strong>${escapeHtml(item.title)}</strong>
         <b>${money(item.price)}</b>
       </div>
@@ -1516,9 +1537,10 @@ const feedView = () => {
         <div>
           <p class="eyebrow">Compra y venta verificada</p>
           <h1>Articulos reales.<br />Personas verificadas.</h1>
-          <p>Publicaciones creadas por usuarios aprobados. Pago por Mercado Pago y seguimiento dentro de MarketPro.</p>
+          <p>Publicaciones creadas por usuarios aprobados. Compra y vende con seguimiento dentro de MarketPro.</p>
           <div class="hero-cta-stack">
-            <button class="sell-action hero-action" data-view="compose">Vender</button>
+            <button class="sell-action hero-action" data-view="compose">Vender ahora</button>
+            <button class="secondary-btn hero-secondary" data-filter-toggle>Explorar publicaciones</button>
           </div>
           <div class="hero-metrics">
             <span><strong>${products.length}</strong> publicaciones reales</span>
@@ -1860,10 +1882,13 @@ const messagesView = () => {
                   )
             .join("")}
               </div>
-              <div class="chat-tools">
-                <button class="secondary-btn" id="reportChat">Reportar chat</button>
-                <button class="danger-btn" id="blockChat">${active.blocked ? "Chat bloqueado" : "Bloquear chat"}</button>
-              </div>
+              <details class="chat-tools">
+                <summary aria-label="Más opciones de conversación">•••</summary>
+                <div>
+                  <button class="secondary-btn" id="reportChat">Reportar conversación</button>
+                  <button class="danger-btn" id="blockChat">${active.blocked ? "Chat bloqueado" : "Bloquear chat"}</button>
+                </div>
+              </details>
               ${pendingChatAttachment ? `<div class="chat-attachment-preview"><img src="${pendingChatAttachment}" alt="Foto lista para enviar" /><span>Foto lista</span><button type="button" id="removeChatPhoto" aria-label="Quitar foto">×</button></div>` : ""}
               <form class="message-form" id="messageForm">
                 <label class="attach-btn ${pendingChatAttachment ? "ready" : ""}" title="Añadir foto">
@@ -1871,7 +1896,7 @@ const messagesView = () => {
                   <span>+</span>
                 </label>
                 <input name="message" autocomplete="off" placeholder="${active.blocked ? "Chat bloqueado por seguridad" : "Escribe dentro del chat seguro"}" ${active.blocked ? "disabled" : ""} />
-                <button class="send-btn" title="Enviar" ${active.blocked ? "disabled" : ""}>Enviar</button>
+                <button class="send-btn" title="Enviar" aria-label="Enviar mensaje" ${active.blocked ? "disabled" : ""}>↑</button>
               </form>
             </section>`
           : `<div class="empty">Todavia no tienes chats reales. Abre una publicacion y contacta al vendedor para iniciar una conversacion conectada.</div>`
