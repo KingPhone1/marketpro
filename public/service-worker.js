@@ -1,4 +1,4 @@
-const CACHE_NAME = "marketpro-v81";
+const CACHE_NAME = "marketpro-v82";
 const APP_SHELL = [
   "/",
   "/index.html",

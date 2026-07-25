@@ -11809,6 +11809,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--border-gold) !im
 }
 
 .search-scope {
+  grid-column: 1;
   display: flex;
   height: 100%;
   align-items: center;
@@ -11826,14 +11827,19 @@ input:focus, select:focus, textarea:focus { border-color: var(--border-gold) !im
 }
 
 .topbar .searchbox > .search-icon {
+  grid-column: 2;
   display: none !important;
 }
 
 .topbar .searchbox input {
+  grid-column: 3 !important;
+  width: 100% !important;
+  min-width: 0 !important;
   padding: 0 20px !important;
 }
 
 .topbar .search-filter {
+  grid-column: 4 !important;
   border-left: 0 !important;
   color: var(--color-text-secondary) !important;
 }
