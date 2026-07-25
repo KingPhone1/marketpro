@@ -376,6 +376,7 @@ const state = {
   authToken: localStorage.getItem("marketAuthToken") || "",
   authMode: "login",
   canInstallPwa: false,
+  installBannerDismissed: sessionStorage.getItem("marketInstallBannerDismissed") === "true",
   assistantOpen: false,
   assistantBusy: false,
   assistantLastError: null,
@@ -753,13 +754,17 @@ const appFooter = () => `
 `;
 
 const pwaInstallCard = () => `
-  <section class="pwa-install-card">
+  ${state.installBannerDismissed ? "" : `<section class="pwa-install-card">
+    <span class="install-mark" aria-hidden="true">↓</span>
     <div>
       <strong>Instala MarketPro</strong>
       <span>En Android toca Instalar. En iPhone: Compartir > Agregar a pantalla de inicio.</span>
     </div>
-    <button class="install-chip" id="installPwa" type="button">${state.canInstallPwa ? "Instalar" : "Cómo instalar"}</button>
-  </section>
+    <div class="install-actions">
+      <button class="install-chip" id="installPwa" type="button">${state.canInstallPwa ? "Instalar" : "Cómo instalar"}</button>
+      <button class="install-dismiss" type="button" data-install-dismiss aria-label="Cerrar recomendación de instalación">×</button>
+    </div>
+  </section>`}
 `;
 
 const sidebar = () => `
@@ -1021,21 +1026,28 @@ const featured = () => state.products.slice(0, 3);
 const heroFeature = () => state.products[2] || state.products[0];
 
 const heroVisual = () => {
-  const item = heroFeature();
-  if (!item) return "";
   return `
-    <aside class="hero-visual" data-product="${item.id}">
-      <div class="hero-visual-frame">
-        <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" />
+    <aside class="hero-visual hero-security-visual" aria-hidden="true">
+      <div class="security-orbit">
+        <div class="security-shield"><span>✓</span></div>
       </div>
       <div class="hero-visual-card">
-        <span>Artículo destacado</span>
-        <strong>${escapeHtml(item.title)}</strong>
-        <b>${money(item.price)}</b>
+        <span>MarketPro Shield</span>
+        <strong>Identidad verificada</strong>
+        <b>Protección activa</b>
       </div>
     </aside>
   `;
 };
+
+const categoryShowcase = () => `
+  <section class="category-showcase" aria-label="Categorías principales">
+    ${categories.filter((category) => category !== "Todo").slice(0, 5).map((category) => {
+      const count = state.products.filter((item) => item.category === category).length;
+      return `<button data-category="${escapeHtml(category)}"><span>${escapeHtml(category.slice(0, 2).toUpperCase())}</span><strong>${escapeHtml(category)}</strong><small>${count} ${count === 1 ? "publicación" : "publicaciones"}</small></button>`;
+    }).join("")}
+  </section>
+`;
 
 const commandBar = () => `
   <section class="command-bar">
@@ -1540,7 +1552,7 @@ const feedView = () => {
           <p>Publicaciones creadas por usuarios aprobados. Compra y vende con seguimiento dentro de MarketPro.</p>
           <div class="hero-cta-stack">
             <button class="sell-action hero-action" data-view="compose">Vender ahora</button>
-            <button class="secondary-btn hero-secondary" data-filter-toggle>Explorar publicaciones</button>
+            <button class="secondary-btn hero-secondary" data-scroll-products>Explorar publicaciones</button>
           </div>
           <div class="hero-metrics">
             <span><strong>${products.length}</strong> publicaciones reales</span>
@@ -1549,6 +1561,7 @@ const feedView = () => {
         </div>
         ${heroVisual()}
       </section>
+      ${categoryShowcase()}
       <div class="content-head">
         <div>
           <h2>Publicaciones</h2>
@@ -2224,6 +2237,16 @@ const bindEvents = () => {
       localStorage.setItem("marketFiltersOpen", JSON.stringify(state.filtersOpen));
       render();
     });
+  });
+
+  document.querySelector("[data-scroll-products]")?.addEventListener("click", () => {
+    document.querySelector(".content-head")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  document.querySelector("[data-install-dismiss]")?.addEventListener("click", () => {
+    state.installBannerDismissed = true;
+    sessionStorage.setItem("marketInstallBannerDismissed", "true");
+    render();
   });
 
   document.querySelector("#globalSearch")?.addEventListener("input", (event) => {
