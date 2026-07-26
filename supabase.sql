@@ -17,6 +17,27 @@ with check (false);
 create index if not exists marketpro_store_updated_at_idx
 on public.marketpro_store (updated_at desc);
 
+create table if not exists public.marketpro_store_backups (
+  id bigint generated always as identity primary key,
+  store_id text not null,
+  revision bigint not null default 0,
+  store_data jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.marketpro_store_backups enable row level security;
+
+drop policy if exists "MarketPro backup server only" on public.marketpro_store_backups;
+
+create policy "MarketPro backup server only"
+on public.marketpro_store_backups
+for all
+using (false)
+with check (false);
+
+create index if not exists marketpro_store_backups_lookup_idx
+on public.marketpro_store_backups (store_id, created_at desc);
+
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'marketpro-private',
@@ -27,5 +48,18 @@ values (
 )
 on conflict (id) do update set
   public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'marketpro-public',
+  'marketpro-public',
+  true,
+  8388608,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update set
+  public = true,
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;

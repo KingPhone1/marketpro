@@ -27,9 +27,10 @@ const escapeHtml = (value = "") =>
 
 const api = async (path, options = {}) => {
   const response = await fetch(path, {
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
-      Authorization: state.token ? `Bearer ${state.token}` : "",
+      ...(state.token && state.token !== "cookie" ? { Authorization: `Bearer ${state.token}` } : {}),
       ...(options.headers || {})
     },
     ...options
@@ -67,16 +68,16 @@ const loginView = () => `
     <img class="brand-logo admin-logo" src="/mp-logo.svg" alt="MP" />
     <p class="eyebrow">Admin privado</p>
     <h1>Corroborar identidad de vendedores</h1>
-    <p class="muted">Ingresa con tu contrasena para revisar cedula, telefono, ubicacion exacta y aprobar vendedores.</p>
+    <p class="muted">Ingresa con tu contraseña para revisar cédula, teléfono, ubicación exacta y aprobar vendedores.</p>
     ${state.error ? `<div class="admin-error">${escapeHtml(state.error)}</div>` : ""}
     <form id="adminLoginForm">
       <div class="field">
-        <label>contrasena admin</label>
-        <input name="password" type="password" required placeholder="contrasena" />
+        <label>Contraseña de administración</label>
+        <input name="password" type="password" required autocomplete="current-password" placeholder="Contraseña" />
       </div>
       <div class="field">
-        <label>codigo de seguridad</label>
-        <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Solo si esta activado" />
+        <label>Código de seguridad</label>
+        <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Solo si está activado" />
       </div>
       <button class="sell-action" type="submit">Entrar al admin</button>
     </form>
@@ -94,7 +95,7 @@ const privateRoadmapView = () => {
         <div>
           <p class="eyebrow">Solo creador</p>
           <h1>Sistema privado de funciones activas</h1>
-          <p class="muted">Estas funciones quedan activadas en la capa privada/admin. No aparecen en MarketPro publico como lista visible.</p>
+          <p class="muted">Estas funciones quedan activadas en la capa privada de administración. No aparecen en MarketPro público como lista visible.</p>
         </div>
         <strong class="vault-count">${state.innovationStatus.activeCount}/${state.innovationStatus.total} activas</strong>
       </div>
@@ -169,7 +170,8 @@ const mercadoPagoView = () => {
 const dashboardView = () => {
   const overview = state.overview || { users: [], products: [], conversations: [], memory: {} };
   const reviewableUsers = overview.users.filter((user) => !isRejected(user));
-  const pendingUsers = reviewableUsers.filter((user) => !user.verified);
+  const pendingUsers = reviewableUsers.filter((user) => !user.verified && user.emailVerified);
+  const awaitingEmailUsers = reviewableUsers.filter((user) => !user.verified && !user.emailVerified);
   const approvedUsers = reviewableUsers.filter((user) => user.verified);
   const orders = overview.orders || [];
   const reports = overview.reports || [];
@@ -177,6 +179,7 @@ const dashboardView = () => {
   const blockedPairs = overview.blockedPairs || [];
   const adminAudit = overview.adminAudit || [];
   const security = overview.security || {};
+  const launch = overview.launch || { ready: false, checks: [], blockers: [] };
   const disputes = orders.flatMap((order) => (order.disputes || []).map((dispute) => ({ ...dispute, order })));
   const pending = pendingUsers.length;
   const verified = approvedUsers.length;
@@ -195,12 +198,33 @@ const dashboardView = () => {
     <section class="seller-metrics admin-metrics">
       <div class="metric-card"><span>Vendedores</span><strong>${reviewableUsers.length}</strong></div>
       <div class="metric-card"><span>Pendientes</span><strong>${pending}</strong></div>
+      <div class="metric-card"><span>Esperando email</span><strong>${awaitingEmailUsers.length}</strong></div>
       <div class="metric-card"><span>Verificados</span><strong>${verified}</strong></div>
       <div class="metric-card"><span>Publicaciones</span><strong>${overview.products.length}</strong></div>
       <div class="metric-card"><span>Ordenes</span><strong>${orders.length}</strong></div>
       <div class="metric-card"><span>Disputas</span><strong>${disputes.filter((item) => item.status !== "Cerrada").length}</strong></div>
       <div class="metric-card"><span>Reportes</span><strong>${reports.length}</strong></div>
       <div class="metric-card"><span>Soporte</span><strong>${supportTickets.length}</strong></div>
+    </section>
+
+    <section class="panel launch-readiness ${launch.ready ? "ready" : "blocked"}">
+      <div class="admin-section-head">
+        <div>
+          <p class="eyebrow">Control de lanzamiento</p>
+          <h1>${launch.ready ? "MarketPro está listo para producción" : "Faltan configuraciones para el lanzamiento"}</h1>
+          <p class="muted">${launch.ready ? "Todos los servicios críticos respondieron correctamente." : escapeHtml(launch.blockers.join(", "))}</p>
+        </div>
+        <strong class="vault-count">${launch.checks.filter((check) => check.ready).length}/${launch.checks.length}</strong>
+      </div>
+      <div class="mp-checks">
+        ${launch.checks.map((check) => `
+          <article class="${check.ready ? "ok" : check.required ? "missing" : ""}">
+            <span>${check.ready ? "OK" : check.required ? "Bloquea" : "Opcional"}</span>
+            <strong>${escapeHtml(check.label)}</strong>
+            <small>${check.ready ? "Configuración activa." : "Completa esta variable en Render."}</small>
+          </article>
+        `).join("")}
+      </div>
     </section>
 
     ${mercadoPagoView()}
@@ -280,7 +304,7 @@ const dashboardView = () => {
             <div><small>Evidencia vendedor</small><b>${order.delivery?.sellerProof ? "Cargada" : "Pendiente"}</b></div>
             <div><small>Disputas</small><b>${order.disputes?.length || 0}</b></div>
           </article>
-        `).join("") : `<div class="empty">Todavia no hay ordenes.</div>`}
+        `).join("") : `<div class="empty">Todavía no hay órdenes.</div>`}
       </div>
     </section>
 
@@ -347,7 +371,7 @@ const dashboardView = () => {
               </div>
             </article>`
           )
-          .join("") : `<div class="empty">Todavia no hay vendedores aprobados.</div>`}
+          .join("") : `<div class="empty">Todavía no hay vendedores aprobados.</div>`}
       </div>
     </section>
   `;
@@ -368,7 +392,7 @@ const bindEvents = () => {
         method: "POST",
         body: JSON.stringify({ password, code })
       });
-      state.token = result.token;
+      state.token = "cookie";
       sessionStorage.setItem("mpAdminToken", state.token);
       await loadOverview();
     } catch (error) {
@@ -377,7 +401,10 @@ const bindEvents = () => {
     }
   });
 
-  document.querySelector("#logoutAdmin")?.addEventListener("click", () => {
+  document.querySelector("#logoutAdmin")?.addEventListener("click", async () => {
+    try {
+      await api("/api/admin/logout", { method: "POST", body: "{}" });
+    } catch {}
     state.token = "";
     state.overview = null;
     sessionStorage.removeItem("mpAdminToken");

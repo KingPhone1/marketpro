@@ -2514,6 +2514,14 @@ textarea:focus-visible {
 }
 
 @media (max-width: 370px) {
+  .topbar .brand > span {
+    display: none !important;
+  }
+
+  .topbar .brand {
+    flex: 0 0 auto !important;
+  }
+
   .grid {
     grid-template-columns: 1fr !important;
   }
@@ -2706,5 +2714,231 @@ textarea:focus-visible {
   .app-shell.view-feed .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     padding-inline: 22px !important;
+  }
+}
+/* Production feedback layer */
+.app-toast-stack {
+  position: fixed;
+  z-index: 12000;
+  top: max(18px, env(safe-area-inset-top));
+  right: 18px;
+  display: grid;
+  width: min(390px, calc(100vw - 36px));
+  gap: 10px;
+  pointer-events: none;
+}
+
+.app-toast {
+  display: grid;
+  grid-template-columns: 10px 1fr 44px;
+  align-items: center;
+  min-height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(21, 22, 18, 0.96);
+  box-shadow: var(--shadow-lg);
+  color: var(--color-text);
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+  transition: opacity var(--transition-base), transform var(--transition-base);
+  pointer-events: auto;
+  backdrop-filter: blur(18px);
+}
+
+.app-toast.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.app-toast > span {
+  align-self: stretch;
+  background: var(--color-gold);
+}
+
+.app-toast.danger > span { background: var(--color-danger); }
+.app-toast.success > span { background: var(--color-success); }
+
+.app-toast p {
+  margin: 0;
+  padding: 14px 12px 14px 16px;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.app-toast button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 22px;
+}
+
+.app-dialog-backdrop {
+  position: fixed;
+  z-index: 13000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  backdrop-filter: blur(10px);
+}
+
+.app-dialog-backdrop.visible { opacity: 1; }
+
+.app-dialog {
+  width: min(440px, 100%);
+  padding: 28px;
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg), var(--shadow-gold);
+  transform: translateY(8px) scale(0.98);
+  transition: transform 180ms ease;
+}
+
+.app-dialog-backdrop.visible .app-dialog { transform: translateY(0) scale(1); }
+
+.app-dialog-mark {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-gold);
+  border-radius: 50%;
+  color: var(--color-gold-light);
+  background: rgba(215, 174, 85, 0.08);
+}
+
+.app-dialog-mark svg { width: 22px; }
+
+.app-dialog h2 {
+  margin: 0 0 10px;
+  color: var(--color-text);
+  font-size: 22px;
+}
+
+.app-dialog p {
+  margin: 0 0 22px;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+}
+
+.app-dialog label {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 22px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.app-dialog input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+}
+
+.app-dialog input:focus {
+  border-color: var(--color-gold);
+  outline: 3px solid rgba(215, 174, 85, 0.12);
+}
+
+.app-dialog > div:last-child {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.app-dialog button {
+  min-height: 48px;
+  border-radius: var(--radius-md);
+  font-weight: 650;
+}
+
+.app-dialog .dialog-cancel {
+  border: 1px solid var(--border-subtle);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+}
+
+.app-dialog .dialog-confirm {
+  border: 0;
+  background: linear-gradient(135deg, var(--color-gold-light), #c99a3e);
+  color: #11110f;
+}
+
+.email-verification-form {
+  display: grid;
+  gap: 12px;
+  width: min(520px, 100%);
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-lg);
+  background: rgba(215, 174, 85, 0.04);
+}
+
+.email-verification-form > label {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.email-verification-form > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.email-verification-form input {
+  min-width: 0;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font-size: 18px;
+  letter-spacing: 0.18em;
+}
+
+.email-verification-form .tertiary-btn {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-gold-light);
+}
+
+@media (max-width: 560px) {
+  .app-toast-stack {
+    top: max(12px, env(safe-area-inset-top));
+    right: 12px;
+    width: calc(100vw - 24px);
+  }
+
+  .app-dialog { padding: 22px; }
+
+  .email-verification-form > div {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toast,
+  .app-dialog-backdrop,
+  .app-dialog {
+    transition: none !important;
   }
 }

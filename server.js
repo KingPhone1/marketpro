@@ -46,20 +46,33 @@ const STORE_FILE = path.join(DATA_DIR, "store.json");
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_STORE_TABLE = process.env.SUPABASE_STORE_TABLE || "marketpro_store";
+const SUPABASE_BACKUP_TABLE = process.env.SUPABASE_BACKUP_TABLE || "marketpro_store_backups";
 const SUPABASE_STORE_ID = process.env.SUPABASE_STORE_ID || "production";
 const SUPABASE_PRIVATE_BUCKET = process.env.SUPABASE_PRIVATE_BUCKET || "marketpro-private";
+const SUPABASE_PUBLIC_BUCKET = process.env.SUPABASE_PUBLIC_BUCKET || "marketpro-public";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM = process.env.EMAIL_FROM || "MarketPro <no-reply@marketpro.uy>";
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const USER_SESSION_COOKIE = "mp_session";
+const ADMIN_SESSION_COOKIE = "mp_admin";
+const USER_SESSION_MAX_AGE = 60 * 60 * 24 * 30;
+const ADMIN_SESSION_MAX_AGE = 60 * 60 * 8;
+const REQUIRE_PRODUCTION_CONFIG = process.env.REQUIRE_PRODUCTION_CONFIG === "true";
 const hasSupabaseStore = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 let cloudStoreReady = false;
 let privateBucketReady = false;
+let publicBucketReady = false;
+let persistentStoreError = "";
 let cloudWriteQueue = Promise.resolve();
-const adminTokens = new Set();
+let lastCloudBackupAt = 0;
+const adminTokens = new Map();
 const requestBuckets = new Map();
+let lastRequestBucketSweepAt = 0;
 const demoListingIds = new Set(products.map((product) => product.id));
+
+app.set("trust proxy", IS_PRODUCTION ? 1 : false);
 
 const isRealListing = (product = {}) => {
   const sellerEmail = String(product.seller?.email || "").toLowerCase();
@@ -183,15 +196,20 @@ const notifyUser = (email, title, message, type = "info", link = "") => {
 
 const adminAudit = (req, action, details = {}) => {
   store.adminAudit = [
-    { id: `audit-${Date.now()}`, action, details, ip: String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim(), createdAt: new Date().toISOString() },
+    { id: `audit-${Date.now()}`, action, details, ip: String(req.ip || req.socket.remoteAddress || ""), createdAt: new Date().toISOString() },
     ...(store.adminAudit || [])
   ].slice(0, 500);
 };
 
 const rateLimit = ({ windowMs = 60000, max = 20, key = "general" } = {}) => (req, res, next) => {
-  const identity = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "local").split(",")[0].trim();
-  const bucketKey = `${key}:${identity}`;
   const now = Date.now();
+  if (now - lastRequestBucketSweepAt > 15 * 60 * 1000) {
+    for (const [storedKey, storedEntries] of requestBuckets) {
+      if (!storedEntries.some((time) => now - time < 60 * 60 * 1000)) requestBuckets.delete(storedKey);
+    }
+    lastRequestBucketSweepAt = now;
+  }
+  const bucketKey = `${key}:${String(req.ip || req.socket.remoteAddress || "local")}`;
   const entries = (requestBuckets.get(bucketKey) || []).filter((time) => now - time < windowMs);
   if (entries.length >= max) return res.status(429).json({ error: "Demasiados intentos. Espera unos minutos y vuelve a probar." });
   entries.push(now);
@@ -378,6 +396,41 @@ const hashPassword = (password = "", salt = crypto.randomBytes(16).toString("hex
   passwordAlgorithm: "scrypt"
 });
 
+const parseCookies = (header = "") =>
+  Object.fromEntries(
+    String(header)
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const separator = part.indexOf("=");
+        if (separator === -1) return [part, ""];
+        const key = part.slice(0, separator);
+        const value = part.slice(separator + 1);
+        try {
+          return [key, decodeURIComponent(value)];
+        } catch {
+          return [key, value];
+        }
+      })
+  );
+
+const cookieOptions = ({ maxAge = USER_SESSION_MAX_AGE } = {}) => [
+  "Path=/",
+  "HttpOnly",
+  "SameSite=Strict",
+  `Max-Age=${maxAge}`,
+  ...(IS_PRODUCTION ? ["Secure"] : [])
+].join("; ");
+
+const setPrivateCookie = (res, name, value, options = {}) => {
+  res.append("Set-Cookie", `${name}=${encodeURIComponent(value)}; ${cookieOptions(options)}`);
+};
+
+const clearPrivateCookie = (res, name) => {
+  res.append("Set-Cookie", `${name}=; ${cookieOptions({ maxAge: 0 })}`);
+};
+
 const verifyPassword = (password = "", user = {}) => {
   if (!user.passwordHash || !user.passwordSalt) return true;
   if (user.passwordAlgorithm === "scrypt") {
@@ -386,6 +439,58 @@ const verifyPassword = (password = "", user = {}) => {
     return expected.length === received.length && crypto.timingSafeEqual(expected, received);
   }
   return crypto.createHash("sha256").update(`${user.passwordSalt}:${password}`).digest("hex") === user.passwordHash;
+};
+
+const passwordStrengthError = (password = "") => {
+  const value = String(password);
+  if (value.length < 10) return "La contrasena debe tener al menos 10 caracteres.";
+  if (!/[a-z]/.test(value) || !/[A-Z]/.test(value) || !/\d/.test(value)) {
+    return "La contrasena debe incluir mayuscula, minuscula y numero.";
+  }
+  if (/^(?:password|contrasena|marketpro|123456|qwerty)/i.test(value)) {
+    return "Elige una contrasena menos predecible.";
+  }
+  return "";
+};
+
+const boundedText = (value, limit, { multiline = false } = {}) => {
+  const normalized = String(value || "").normalize("NFKC");
+  const withoutControls = normalized.replace(multiline ? /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g : /[\u0000-\u001F\u007F]/g, " ");
+  return withoutControls.replace(multiline ? /\r\n?/g : /\s+/g, multiline ? "\n" : " ").trim().slice(0, limit);
+};
+
+const secretEquals = (left = "", right = "") => {
+  const leftDigest = crypto.createHash("sha256").update(String(left)).digest();
+  const rightDigest = crypto.createHash("sha256").update(String(right)).digest();
+  return crypto.timingSafeEqual(leftDigest, rightDigest);
+};
+
+const validDataImage = (value, maxBytes = 8 * 1024 * 1024) => {
+  const parsed = parseDataUrl(value);
+  return Boolean(
+    parsed &&
+    ["image/jpeg", "image/png", "image/webp"].includes(parsed.contentType) &&
+    parsed.bytes.length > 1024 &&
+    parsed.bytes.length <= maxBytes
+  );
+};
+
+const oneTimeCodeHash = (email, code) =>
+  crypto.createHash("sha256").update(`${String(email).toLowerCase()}:${String(code).toUpperCase()}`).digest("hex");
+
+const createEmailVerification = (email) => {
+  const code = String(crypto.randomInt(100000, 1000000));
+  store.emailVerifications = [
+    {
+      email: String(email).toLowerCase(),
+      codeHash: oneTimeCodeHash(email, code),
+      attempts: 0,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString()
+    },
+    ...(store.emailVerifications || []).filter((item) => item.email !== String(email).toLowerCase()).slice(0, 1000)
+  ];
+  return code;
 };
 
 const publicUser = (user) => {
@@ -422,11 +527,17 @@ const createUserSession = (user, req) => {
     expiresAt: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 30).toISOString(),
     userAgent: String(req.headers["user-agent"] || "").slice(0, 160)
   };
-  store.sessions = [session, ...(store.sessions || []).filter((item) => item.userId !== user.id).slice(0, 8)];
+  const activeSessions = (store.sessions || []).filter((item) => new Date(item.expiresAt).getTime() > Date.now());
+  const sameUserSessions = activeSessions.filter((item) => item.userId === user.id).slice(0, 4);
+  const otherUserSessions = activeSessions.filter((item) => item.userId !== user.id);
+  store.sessions = [session, ...sameUserSessions, ...otherUserSessions].slice(0, 5000);
   return { ...session, token };
 };
 
-const authTokenFrom = (req) => String(req.headers.authorization || "").replace("Bearer ", "").trim();
+const bearerTokenFrom = (req) => String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+
+const authTokenFrom = (req) =>
+  bearerTokenFrom(req) || String(parseCookies(req.headers.cookie)[USER_SESSION_COOKIE] || "").trim();
 
 const userFromSessionToken = (token = "") => {
   const tokenHash = crypto.createHash("sha256").update(String(token)).digest("hex");
@@ -470,9 +581,15 @@ const generateUniqueDeliveryCode = () => {
   let code = "";
   do {
     code = crypto.randomBytes(4).toString("hex").toUpperCase();
-  } while ((store.orders || []).some((order) => order.delivery?.code === code || order.deliveryConfirmation?.code === code));
+  } while ((store.orders || []).some((order) => {
+    const savedCode = order.delivery?.code || decryptSecret(order.delivery?.codeEncrypted || "");
+    return savedCode === code;
+  }));
   return code;
 };
+
+const deliveryCodeHash = (code = "") =>
+  crypto.createHash("sha256").update(String(code).trim().toUpperCase()).digest("hex");
 
 const buildSecurityStamp = (product, req) => {
   const price = Number(product.price || 0);
@@ -768,6 +885,29 @@ const ensurePrivateBucket = async () => {
   }
 };
 
+const ensurePublicBucket = async () => {
+  if (!hasSupabaseStore) return false;
+  try {
+    const bucketUrl = `${SUPABASE_URL}/storage/v1/bucket/${SUPABASE_PUBLIC_BUCKET}`;
+    const existing = await fetch(bucketUrl, { headers: supabaseHeaders() });
+    if (existing.ok) return true;
+    const created = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+      method: "POST",
+      headers: supabaseHeaders(),
+      body: JSON.stringify({
+        id: SUPABASE_PUBLIC_BUCKET,
+        name: SUPABASE_PUBLIC_BUCKET,
+        public: true,
+        file_size_limit: 8388608,
+        allowed_mime_types: ["image/jpeg", "image/png", "image/webp"]
+      })
+    });
+    return created.ok || created.status === 409;
+  } catch {
+    return false;
+  }
+};
+
 const parseDataUrl = (value = "") => {
   const match = String(value).match(/^data:([^;]+);base64,(.+)$/);
   if (!match) return null;
@@ -778,7 +918,7 @@ const uploadPrivateMedia = async (userId, kind, value) => {
   const parsed = parseDataUrl(value);
   if (!parsed) return null;
   const extension = parsed.contentType.includes("png") ? "png" : parsed.contentType.includes("webp") ? "webp" : "jpg";
-  const objectPath = `${userId}/${kind}-${Date.now()}.${extension}`;
+  const objectPath = `${safeObjectSegment(userId)}/${safeObjectSegment(kind)}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${extension}`;
   if (hasSupabaseStore) {
     try {
       const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_PRIVATE_BUCKET}/${objectPath}`, {
@@ -789,8 +929,77 @@ const uploadPrivateMedia = async (userId, kind, value) => {
       if (response.ok) return { provider: "supabase", path: objectPath, contentType: parsed.contentType };
     } catch {}
   }
+  if (IS_PRODUCTION) return null;
   const encrypted = encryptSecret(value);
   return encrypted ? { provider: "encrypted", encrypted, contentType: parsed.contentType } : { provider: "legacy", value, contentType: parsed.contentType };
+};
+
+const safeObjectSegment = (value = "") =>
+  String(value).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "media";
+
+const uploadPublicMedia = async (ownerId, kind, value) => {
+  if (!String(value || "").startsWith("data:")) return String(value || "");
+  const parsed = parseDataUrl(value);
+  if (!parsed || !["image/jpeg", "image/png", "image/webp"].includes(parsed.contentType) || parsed.bytes.length > 8 * 1024 * 1024) {
+    return "";
+  }
+  if (!hasSupabaseStore || !publicBucketReady) return IS_PRODUCTION ? "" : value;
+  const extension = parsed.contentType.includes("png") ? "png" : parsed.contentType.includes("webp") ? "webp" : "jpg";
+  const objectPath = `${safeObjectSegment(ownerId)}/${safeObjectSegment(kind)}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${extension}`;
+  try {
+    const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_PUBLIC_BUCKET}/${objectPath}`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": parsed.contentType,
+        "x-upsert": "false"
+      },
+      body: parsed.bytes
+    });
+    if (!response.ok) return "";
+    return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_PUBLIC_BUCKET}/${objectPath}`;
+  } catch {
+    return "";
+  }
+};
+
+const migrateListingImagesToObjectStorage = async () => {
+  if (!publicBucketReady) return 0;
+  let migrated = 0;
+  for (const product of listings) {
+    if (!isRealListing(product) || !Array.isArray(product.images)) continue;
+    const nextImages = [];
+    for (let index = 0; index < product.images.length; index += 1) {
+      const image = product.images[index];
+      if (!String(image || "").startsWith("data:")) {
+        nextImages.push(image);
+        continue;
+      }
+      const uploaded = await uploadPublicMedia(
+        product.seller?.email || product.seller?.name || product.id,
+        `migration-${product.id}-${index + 1}`,
+        image
+      );
+      nextImages.push(uploaded || image);
+      if (uploaded) migrated += 1;
+    }
+    product.images = nextImages;
+  }
+  if (migrated) store.products = listings;
+  return migrated;
+};
+
+const privateMediaReference = (media) => {
+  if (!media) return "";
+  if (media.provider === "encrypted") return decryptSecret(media.encrypted);
+  if (media.provider === "legacy") return media.value || "";
+  if (media.provider !== "supabase") return "";
+  const payload = Buffer.from(media.path).toString("base64url");
+  const key = encryptionKey();
+  if (!key) return "";
+  const signature = crypto.createHmac("sha256", key).update(payload).digest("base64url").slice(0, 32);
+  return `/api/private-media/${payload}.${signature}`;
 };
 
 const privateMediaDataUrl = async (media) => {
@@ -808,6 +1017,21 @@ const privateMediaDataUrl = async (media) => {
   return "";
 };
 
+const deletePrivateObjects = async (paths = []) => {
+  const prefixes = paths.filter(Boolean);
+  if (!prefixes.length || !hasSupabaseStore) return true;
+  try {
+    const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_PRIVATE_BUCKET}`, {
+      method: "DELETE",
+      headers: supabaseHeaders(),
+      body: JSON.stringify({ prefixes })
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
 const adminUser = async (user) => ({
   ...publicUser(user),
   profilePhoto: await privateMediaDataUrl(user.privateMedia?.profile) || (String(user.profilePhoto || "").startsWith("data:") ? user.profilePhoto : ""),
@@ -822,7 +1046,12 @@ const loadStoreFromSupabase = async () => {
     throw new Error(`Supabase no pudo leer la memoria (${response.status})`);
   }
   const rows = await response.json();
-  return rows?.[0]?.store_data || null;
+  if (rows?.[0]?.store_data) return rows[0].store_data;
+  const backupUrl = `${SUPABASE_URL}/rest/v1/${SUPABASE_BACKUP_TABLE}?store_id=eq.${encodeURIComponent(SUPABASE_STORE_ID)}&select=store_data&order=created_at.desc&limit=1`;
+  const backupResponse = await fetch(backupUrl, { headers: supabaseHeaders() });
+  if (!backupResponse.ok) return null;
+  const backups = await backupResponse.json();
+  return backups?.[0]?.store_data || null;
 };
 
 const saveStoreToSupabase = async (nextStore) => {
@@ -840,6 +1069,18 @@ const saveStoreToSupabase = async (nextStore) => {
     const details = await response.text();
     throw new Error(`Supabase no pudo guardar la memoria (${response.status}): ${details}`);
   }
+  if (Date.now() - lastCloudBackupAt >= 60 * 60 * 1000) {
+    const backupResponse = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_BACKUP_TABLE}`, {
+      method: "POST",
+      headers: supabaseHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        store_id: SUPABASE_STORE_ID,
+        revision: Number(nextStore.memory?.revision || 0),
+        store_data: nextStore
+      })
+    });
+    if (backupResponse.ok) lastCloudBackupAt = Date.now();
+  }
 };
 
 const persistStoreToCloud = () => {
@@ -855,6 +1096,7 @@ const writeStore = () => {
   store.memory = store.memory || {};
   store.memory.updatedAt = new Date().toISOString();
   store.memory.driver = hasSupabaseStore ? "supabase" : "local-json";
+  store.memory.revision = Number(store.memory.revision || 0) + 1;
   fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2));
   persistStoreToCloud();
 };
@@ -904,6 +1146,30 @@ const normalizeChats = (items) =>
     };
   });
 
+const normalizeHistoricalOrder = (order = {}) => {
+  let status = String(order.status || "");
+  if (/fondos retenidos/i.test(status)) {
+    status = "Registro histórico - pago no custodiado por MarketPro";
+  } else if (/pago liberable|pago liberado/i.test(status)) {
+    status = order.simulation
+      ? "Simulación completada - entrega confirmada"
+      : "Entrega confirmada - pago gestionado por Mercado Pago";
+  }
+  const security = {
+    ...(order.security || {}),
+    paymentRule: "El pago se procesa directamente en Mercado Pago. MarketPro no recibe, retiene ni libera dinero."
+  };
+  const deliveryConfirmation = order.deliveryConfirmation
+    ? {
+        ...order.deliveryConfirmation,
+        note: /retien|liber/i.test(String(order.deliveryConfirmation.note || ""))
+          ? "La confirmación registra la entrega dentro de MarketPro y no controla el dinero de Mercado Pago."
+          : order.deliveryConfirmation.note
+      }
+    : order.deliveryConfirmation;
+  return { ...order, status, security, deliveryConfirmation };
+};
+
 const hydrateRuntimeStore = (nextStore = {}) => {
   store = {
     ...defaultStore,
@@ -928,17 +1194,21 @@ const hydrateRuntimeStore = (nextStore = {}) => {
   chats = normalizeChats(chats).filter((chat) => !["chat-1", "chat-2"].includes(chat.id) && chat.buyerId !== "buyer-demo");
   store.products = listings;
   store.conversations = chats;
-  store.orders = store.orders || [];
+  store.orders = (store.orders || []).map(normalizeHistoricalOrder);
   store.reports = store.reports || [];
   store.supportTickets = store.supportTickets || [];
   store.blockedPairs = store.blockedPairs || [];
   store.promotions = store.promotions || [];
-  store.users = store.users?.length ? store.users : [demoUser];
+  store.users = (store.users?.length ? store.users : [demoUser]).map((user) => ({
+    ...user,
+    emailVerified: typeof user.emailVerified === "boolean" ? user.emailVerified : Boolean(user.verified)
+  }));
   store.currentUser = store.currentUser || null;
   store.verificationRequests = store.verificationRequests || [];
   store.sessions = store.sessions || [];
   store.authAttempts = store.authAttempts || {};
   store.passwordResets = store.passwordResets || [];
+  store.emailVerifications = store.emailVerifications || [];
   store.oauthStates = store.oauthStates || [];
   store.notifications = store.notifications || [];
   store.adminAudit = store.adminAudit || [];
@@ -947,13 +1217,17 @@ const hydrateRuntimeStore = (nextStore = {}) => {
 const initializePersistentStore = async () => {
   hydrateRuntimeStore(store);
   if (!hasSupabaseStore) {
+    persistentStoreError = "Supabase no esta configurado.";
     writeStore();
     console.log("[MarketPro] Memoria local activa. Configura Supabase para produccion.");
     return;
   }
 
   try {
-    privateBucketReady = await ensurePrivateBucket();
+    [privateBucketReady, publicBucketReady] = await Promise.all([
+      ensurePrivateBucket(),
+      ensurePublicBucket()
+    ]);
     const cloudStore = await loadStoreFromSupabase();
     if (cloudStore) {
       hydrateRuntimeStore(cloudStore);
@@ -963,8 +1237,12 @@ const initializePersistentStore = async () => {
       await saveStoreToSupabase(store);
     }
     cloudStoreReady = true;
+    const migratedImages = await migrateListingImagesToObjectStorage();
+    if (migratedImages) console.log(`[MarketPro] ${migratedImages} imagenes migradas a almacenamiento publico.`);
+    persistentStoreError = "";
     writeStore();
   } catch (error) {
+    persistentStoreError = error.message;
     console.error("[MarketPro] No se pudo iniciar Supabase:", error.message);
     console.error("[MarketPro] La app seguira con memoria local hasta corregir credenciales/tabla.");
     writeStore();
@@ -983,8 +1261,38 @@ app.use((req, res, next) => {
   res.set("X-Frame-Options", "DENY");
   res.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.set("Permissions-Policy", "camera=(self), geolocation=(self), microphone=()");
+  res.set(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self' https://www.mercadopago.com.uy https://www.mercadopago.com",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://images.unsplash.com",
+      "connect-src 'self' https://api.mercadopago.com https://api.openai.com wss:",
+      "font-src 'self' data:",
+      "media-src 'self' data: blob:",
+      "worker-src 'self'"
+    ].join("; ")
+  );
   if (IS_PRODUCTION) res.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
+});
+app.use((req, res, next) => {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+  const origin = String(req.headers.origin || "");
+  if (!origin) return next();
+  let allowedOrigin = "";
+  try {
+    allowedOrigin = new URL(APP_BASE_URL).origin;
+  } catch {}
+  if (origin === allowedOrigin || (!IS_PRODUCTION && /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(origin))) {
+    return next();
+  }
+  return res.status(403).json({ error: "Solicitud bloqueada por proteccion de origen." });
 });
 app.use("/vendor/gsap", express.static(path.join(__dirname, "node_modules", "gsap", "dist"), { maxAge: IS_PRODUCTION ? "30d" : 0 }));
 app.use("/vendor/lucide", express.static(path.join(__dirname, "node_modules", "lucide", "dist", "umd"), { maxAge: IS_PRODUCTION ? "30d" : 0 }));
@@ -1007,12 +1315,73 @@ app.get("/admin", (_req, res) => {
   });
 });
 
+const launchReadiness = () => {
+  const checks = [
+    { key: "https", label: "Dominio HTTPS", ready: /^https:\/\//i.test(APP_BASE_URL), required: true },
+    { key: "adminPassword", label: "Contrasena administrativa", ready: ADMIN_PASSWORD.length >= 14, required: true },
+    { key: "admin2fa", label: "Segundo factor administrativo", ready: Boolean(ADMIN_TOTP_SECRET), required: true },
+    { key: "database", label: "Memoria Supabase", ready: hasSupabaseStore && cloudStoreReady, required: true },
+    { key: "privateStorage", label: "Archivos privados", ready: privateBucketReady, required: true },
+    { key: "publicStorage", label: "Imagenes de publicaciones", ready: publicBucketReady, required: true },
+    { key: "email", label: "Correo transaccional", ready: Boolean(RESEND_API_KEY && EMAIL_FROM), required: true },
+    { key: "tokenEncryption", label: "Cifrado de credenciales", ready: TOKEN_ENCRYPTION_KEY.length >= 32, required: true },
+    { key: "mercadoPagoOAuth", label: "Mercado Pago para vendedores", ready: mercadoPagoOAuthReady(), required: true },
+    { key: "mercadoPagoWebhook", label: "Webhook de Mercado Pago", ready: Boolean(MERCADO_PAGO_WEBHOOK_SECRET), required: true },
+    { key: "mercadoPagoAds", label: "Cobro de anuncios", ready: Boolean(MERCADO_PAGO_ACCESS_TOKEN), required: true },
+    { key: "assistant", label: "Asistente inteligente", ready: Boolean(OPENAI_API_KEY), required: false }
+  ];
+  const blockers = checks.filter((check) => check.required && !check.ready);
+  return {
+    ready: blockers.length === 0,
+    mode: IS_PRODUCTION ? "production" : "development",
+    checks,
+    blockers: blockers.map((check) => check.label),
+    persistenceError: persistentStoreError || null
+  };
+};
+
 app.get("/healthz", (_req, res) => {
   res.json({
     ok: true,
     name: "MarketPro",
+    storage: cloudStoreReady ? "supabase" : "local",
     time: new Date().toISOString()
   });
+});
+
+app.get("/readyz", (_req, res) => {
+  const readiness = launchReadiness();
+  res.status(readiness.ready ? 200 : 503).json(readiness);
+});
+
+app.get("/api/private-media/:reference", async (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Sesion requerida." });
+  const [payload, receivedSignature] = String(req.params.reference || "").split(".");
+  const key = encryptionKey();
+  if (!payload || !receivedSignature || !key) return res.status(404).end();
+  const expectedSignature = crypto.createHmac("sha256", key).update(payload).digest("base64url").slice(0, 32);
+  const expected = Buffer.from(expectedSignature);
+  const received = Buffer.from(receivedSignature);
+  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) return res.status(404).end();
+  let objectPath = "";
+  try {
+    objectPath = Buffer.from(payload, "base64url").toString("utf8");
+  } catch {
+    return res.status(404).end();
+  }
+  if (!/^[a-z0-9_-]+\/[a-z0-9_.-]+$/i.test(objectPath)) return res.status(404).end();
+  try {
+    const response = await fetch(`${SUPABASE_URL}/storage/v1/object/authenticated/${SUPABASE_PRIVATE_BUCKET}/${objectPath}`, {
+      headers: supabaseHeaders()
+    });
+    if (!response.ok) return res.status(404).end();
+    res.set("Cache-Control", "private, max-age=300");
+    res.type(response.headers.get("content-type") || "application/octet-stream");
+    res.send(Buffer.from(await response.arrayBuffer()));
+  } catch {
+    res.status(502).json({ error: "No se pudo cargar el archivo privado." });
+  }
 });
 
 const clean = (value, limit = 48) => String(value || "").replace(/[^a-z0-9 -]/gi, " ").trim().slice(0, limit);
@@ -1037,6 +1406,34 @@ const sameOrderParty = (user, party = {}) => {
     (userEmail && partyEmail && userEmail === partyEmail) ||
     (user.id && party.id && String(user.id) === String(party.id))
   );
+};
+
+const publicOrderFor = (user, order) => {
+  const isBuyer = sameOrderParty(user, order.buyer);
+  const isSeller = sameOrderParty(user, order.seller);
+  const paymentApproved = order.paymentNotification?.status === "approved";
+  const delivery = { ...(order.delivery || {}) };
+  const encryptedCode = delivery.codeEncrypted;
+  delete delivery.codeEncrypted;
+  delete delivery.codeHash;
+  if (isBuyer) {
+    delivery.code = delivery.code || decryptSecret(encryptedCode || "");
+  } else {
+    delete delivery.code;
+  }
+  if (isSeller && !paymentApproved) {
+    delivery.address = "Visible después de confirmar el pago";
+    delivery.phone = "";
+    delivery.note = "";
+  }
+  const confirmation = { ...(order.deliveryConfirmation || {}) };
+  if (!isBuyer) delete confirmation.code;
+  return {
+    ...order,
+    delivery,
+    deliveryConfirmation: confirmation,
+    ...(isBuyer || isSeller ? {} : { buyer: undefined, seller: undefined })
+  };
 };
 
 const requireOrderRole = (req, res, order, role = "party") => {
@@ -1367,7 +1764,11 @@ app.get("/api/conversations", (req, res) => {
 app.get("/api/orders", (req, res) => {
   const user = authenticatedUser(req);
   if (!user) return res.json([]);
-  res.json((store.orders || []).filter((order) => sameOrderParty(user, order.buyer) || sameOrderParty(user, order.seller)));
+  res.json(
+    (store.orders || [])
+      .filter((order) => sameOrderParty(user, order.buyer) || sameOrderParty(user, order.seller))
+      .map((order) => publicOrderFor(user, order))
+  );
 });
 
 app.get("/api/notifications", (req, res) => {
@@ -1391,11 +1792,12 @@ app.get("/api/user", (req, res) => {
   res.json(publicUser(authenticatedUser(req)));
 });
 
-app.delete("/api/user", (req, res) => {
+app.delete("/api/user", async (req, res) => {
   const user = authenticatedUser(req);
   if (!user) return res.status(401).json({ error: "Sesion requerida" });
   const email = String(user.email || "").toLowerCase();
   const userId = user.id;
+  const privatePaths = [user.privateMedia?.profile?.path, user.privateMedia?.document?.path];
   store.users = (store.users || []).filter((item) => item.id !== userId && String(item.email || "").toLowerCase() !== email);
   store.sessions = (store.sessions || []).filter((session) => session.userId !== userId && String(session.email || "").toLowerCase() !== email);
   store.verificationRequests = (store.verificationRequests || []).filter((request) => request.userId !== userId);
@@ -1415,7 +1817,9 @@ app.delete("/api/user", (req, res) => {
     { userId, email, deletedAt: new Date().toISOString(), action: "Cuenta eliminada y publicaciones pausadas" },
     ...(store.accountDeletionLog || []).slice(0, 100)
   ];
+  await deletePrivateObjects(privatePaths);
   writeStore();
+  clearPrivateCookie(res, USER_SESSION_COOKIE);
   res.json({ ok: true });
 });
 
@@ -1426,66 +1830,121 @@ app.post("/api/user", rateLimit({ windowMs: 15 * 60 * 1000, max: 8, key: "regist
   if (!/@gmail\.com$/i.test(String(req.body.email || "").trim())) {
     return res.status(400).json({ error: "Usa un Gmail valido para crear la cuenta segura" });
   }
-  if (String(req.body.password || "").length < 8) {
-    return res.status(400).json({ error: "La contrasena debe tener al menos 8 caracteres" });
-  }
+  const passwordError = passwordStrengthError(req.body.password);
+  if (passwordError) return res.status(400).json({ error: passwordError });
 
   const email = String(req.body.email).trim().toLowerCase();
   const existing = userByEmail(email);
-  if (existing && !verifyPassword(req.body.password, existing)) {
-    return res.status(401).json({ error: "La contrasena no coincide con esa cuenta" });
+  if (existing) return res.status(409).json({ error: "Esta cuenta ya existe. Usa Ingresar o Recuperar contrasena." });
+  if (!validDataImage(req.body.profilePhoto) || !validDataImage(req.body.documentPhoto)) {
+    return res.status(400).json({ error: "La foto del rostro y el frente del documento deben ser imagenes JPG, PNG o WebP validas." });
   }
-  const password = existing?.passwordHash
-    ? { passwordHash: existing.passwordHash, passwordSalt: existing.passwordSalt, passwordAlgorithm: existing.passwordAlgorithm }
-    : hashPassword(req.body.password);
+  const password = hashPassword(req.body.password);
 
-  const userId = existing?.id || req.body.id || `user-${Date.now()}`;
+  const userId = `user-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
   const [profileMedia, documentMedia] = await Promise.all([
     uploadPrivateMedia(userId, "profile", req.body.profilePhoto),
     uploadPrivateMedia(userId, "document-front", req.body.documentPhoto)
   ]);
   const user = {
     id: userId,
-    name: req.body.name,
+    name: boundedText(req.body.name, 100),
     email,
-    phone: req.body.phone,
-    cedula: req.body.cedula,
-    exactLocation: req.body.exactLocation,
+    phone: boundedText(req.body.phone, 32),
+    cedula: boundedText(req.body.cedula, 40),
+    exactLocation: boundedText(req.body.exactLocation, 180),
     profilePhoto: `/api/avatar/${encodeURIComponent(req.body.name)}.svg`,
     documentPhoto: true,
     privateMedia: {
-      profile: profileMedia || existing?.privateMedia?.profile || null,
-      document: documentMedia || existing?.privateMedia?.document || null
+      profile: profileMedia,
+      document: documentMedia
     },
     authComplete: true,
-    verified: existing?.verified || false,
-    verificationStatus: String(existing?.verificationStatus || "").toLowerCase().includes("rechaz")
-      ? existing.verificationStatus
-      : existing?.verified
-        ? existing.verificationStatus
-        : "Pendiente de revision",
-    balance: Number(existing?.balance || req.body.balance || 0),
-    pendingBalance: Number(existing?.pendingBalance || req.body.pendingBalance || 0),
-    mercadoPagoOAuth: existing?.mercadoPagoOAuth || null,
-    createdAt: existing?.createdAt || new Date().toISOString(),
+    verified: false,
+    emailVerified: false,
+    verificationStatus: "Pendiente de verificacion de email",
+    balance: 0,
+    pendingBalance: 0,
+    mercadoPagoOAuth: null,
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...password
   };
+  if (!profileMedia || !documentMedia) {
+    return res.status(503).json({ error: "No pudimos guardar tus documentos de forma privada. Intenta nuevamente." });
+  }
 
   store.users = [user, ...store.users.filter((item) => String(item.email || "").toLowerCase() !== user.email)];
   store.verificationRequests = [
     {
       id: `verify-${Date.now()}`,
       userId: user.id,
-      status: "Pendiente",
+      status: "Esperando verificacion de email",
       submittedAt: new Date().toISOString()
     },
     ...store.verificationRequests.filter((item) => item.userId !== user.id)
   ];
   const session = createUserSession(user, req);
-  notifyUser(user.email, "Verificacion recibida", "Tu identidad quedo en revision. Te avisaremos cuando el administrador termine el control.", "verification", "/?page=profile");
+  const emailCode = createEmailVerification(user.email);
+  const emailResult = await sendEmail({
+    to: user.email,
+    subject: "Verifica tu correo en MarketPro",
+    html: `<p>Hola ${String(user.name).replace(/[<>]/g, "")},</p><p>Tu codigo para verificar el correo es:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${emailCode}</p><p>Vence en 20 minutos. MarketPro nunca te pedira este codigo por chat.</p>`
+  });
+  notifyUser(user.email, "Verifica tu correo", "Ingresa el codigo enviado a tu email para pasar a revision de identidad.", "verification", "/?page=profile");
   writeStore();
-  res.status(201).json({ ...publicUser(user), sessionToken: session.token });
+  setPrivateCookie(res, USER_SESSION_COOKIE, session.token);
+  res.status(201).json({
+    ...publicUser(user),
+    authenticated: true,
+    emailVerificationRequired: true,
+    emailDelivery: emailResult.sent ? "sent" : "not-configured",
+    ...(!IS_PRODUCTION ? { demoCode: emailCode } : {})
+  });
+});
+
+app.post("/api/auth/email/resend", rateLimit({ windowMs: 15 * 60 * 1000, max: 3, key: "email-resend" }), async (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Sesion requerida." });
+  if (user.emailVerified) return res.json({ ok: true, message: "Tu correo ya esta verificado." });
+  const code = createEmailVerification(user.email);
+  writeStore();
+  const result = await sendEmail({
+    to: user.email,
+    subject: "Nuevo codigo de verificacion MarketPro",
+    html: `<p>Tu nuevo codigo es:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>Vence en 20 minutos.</p>`
+  });
+  if (!result.sent && IS_PRODUCTION) return res.status(503).json({ error: "El correo no esta disponible en este momento. Intenta mas tarde." });
+  res.json({ ok: true, message: "Enviamos un nuevo codigo.", ...(!IS_PRODUCTION ? { demoCode: code } : {}) });
+});
+
+app.post("/api/auth/email/verify", rateLimit({ windowMs: 15 * 60 * 1000, max: 8, key: "email-verify" }), (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Sesion requerida." });
+  if (user.emailVerified) return res.json({ ok: true, user: publicUser(user) });
+  const record = (store.emailVerifications || []).find((item) => item.email === String(user.email).toLowerCase());
+  if (!record || new Date(record.expiresAt).getTime() < Date.now()) {
+    return res.status(400).json({ error: "El codigo vencio. Solicita uno nuevo." });
+  }
+  if (record.attempts >= 5) return res.status(429).json({ error: "Demasiados intentos. Solicita un codigo nuevo." });
+  const receivedHash = oneTimeCodeHash(user.email, String(req.body.code || "").trim());
+  const expected = Buffer.from(record.codeHash, "hex");
+  const received = Buffer.from(receivedHash, "hex");
+  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+    record.attempts += 1;
+    writeStore();
+    return res.status(400).json({ error: "Codigo incorrecto." });
+  }
+  user.emailVerified = true;
+  user.verificationStatus = "Pendiente de revision";
+  user.updatedAt = new Date().toISOString();
+  store.emailVerifications = (store.emailVerifications || []).filter((item) => item.email !== String(user.email).toLowerCase());
+  store.verificationRequests = (store.verificationRequests || []).map((request) =>
+    request.userId === user.id ? { ...request, status: "Pendiente", emailVerifiedAt: user.updatedAt } : request
+  );
+  notifyUser(user.email, "Correo verificado", "Tu identidad ya esta disponible para la revision privada del administrador.", "success", "/?page=profile");
+  writeStore();
+  res.json({ ok: true, user: publicUser(user) });
 });
 
 app.post("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 12, key: "login" }), (req, res) => {
@@ -1506,7 +1965,8 @@ app.post("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 12, key: 
   if (!user.passwordAlgorithm) Object.assign(user, hashPassword(password));
   const session = createUserSession(user, req);
   writeStore();
-  res.json({ ...publicUser(user), sessionToken: session.token });
+  setPrivateCookie(res, USER_SESSION_COOKIE, session.token);
+  res.json({ ...publicUser(user), authenticated: true });
 });
 
 app.post("/api/auth/logout", (req, res) => {
@@ -1514,7 +1974,16 @@ app.post("/api/auth/logout", (req, res) => {
   const tokenHash = crypto.createHash("sha256").update(String(token)).digest("hex");
   store.sessions = (store.sessions || []).filter((session) => session.token !== token && session.tokenHash !== tokenHash);
   writeStore();
+  clearPrivateCookie(res, USER_SESSION_COOKIE);
   res.json({ ok: true });
+});
+
+app.post("/api/auth/session/migrate", (req, res) => {
+  const token = bearerTokenFrom(req);
+  const user = token ? userFromSessionToken(token) : null;
+  if (!user) return res.status(401).json({ error: "La sesion anterior ya no es valida." });
+  setPrivateCookie(res, USER_SESSION_COOKIE, token);
+  res.json({ ok: true, user: publicUser(user) });
 });
 
 app.post("/api/payments/mercadopago/oauth/start", (req, res) => {
@@ -1611,7 +2080,8 @@ app.post("/api/auth/password-reset/confirm", (req, res) => {
   const email = String(req.body.email || "").toLowerCase().trim();
   const code = String(req.body.code || "").trim().toUpperCase();
   const password = String(req.body.password || "");
-  if (password.length < 8) return res.status(400).json({ error: "La nueva contrasena debe tener al menos 8 caracteres." });
+  const passwordError = passwordStrengthError(password);
+  if (passwordError) return res.status(400).json({ error: passwordError });
   const reset = (store.passwordResets || []).find((item) => item.email === email && item.code === code && !item.used);
   if (!reset || new Date(reset.expiresAt).getTime() < Date.now()) return res.status(400).json({ error: "Codigo invalido o vencido." });
   const user = userByEmail(email);
@@ -1621,6 +2091,7 @@ app.post("/api/auth/password-reset/confirm", (req, res) => {
   store.sessions = (store.sessions || []).filter((session) => session.email !== email);
   clearFailedLogin(email);
   writeStore();
+  clearPrivateCookie(res, USER_SESSION_COOKIE);
   res.json({ ok: true, message: "Contrasena actualizada. Ya puedes iniciar sesion." });
 });
 
@@ -1648,8 +2119,12 @@ app.get("/api/seller-dashboard", (_req, res) => {
 });
 
 const requireAdmin = (req, res, next) => {
-  const token = String(req.headers.authorization || "").replace("Bearer ", "");
-  if (!adminTokens.has(token)) return res.status(401).json({ error: "Acceso admin no autorizado" });
+  const token = bearerTokenFrom(req) || String(parseCookies(req.headers.cookie)[ADMIN_SESSION_COOKIE] || "");
+  const expiresAt = adminTokens.get(token) || 0;
+  if (!token || expiresAt < Date.now()) {
+    if (token) adminTokens.delete(token);
+    return res.status(401).json({ error: "Acceso admin no autorizado" });
+  }
   next();
 };
 
@@ -1657,15 +2132,25 @@ app.post("/api/admin/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 8, key: 
   if (!ADMIN_PASSWORD) {
     return res.status(503).json({ error: "El acceso administrativo todavía no está configurado." });
   }
-  if (req.body.password !== ADMIN_PASSWORD) {
+  if (!secretEquals(req.body.password, ADMIN_PASSWORD)) {
     return res.status(401).json({ error: "Contraseña incorrecta" });
   }
   if (!validTotp(req.body.code)) return res.status(401).json({ error: "Codigo de seguridad incorrecto" });
   const token = crypto.randomBytes(24).toString("hex");
-  adminTokens.add(token);
+  adminTokens.set(token, Date.now() + ADMIN_SESSION_MAX_AGE * 1000);
   adminAudit(req, "admin_login", { twoFactor: Boolean(ADMIN_TOTP_SECRET) });
   writeStore();
-  res.json({ token, twoFactor: Boolean(ADMIN_TOTP_SECRET) });
+  setPrivateCookie(res, ADMIN_SESSION_COOKIE, token, { maxAge: ADMIN_SESSION_MAX_AGE });
+  res.json({ ok: true, twoFactor: Boolean(ADMIN_TOTP_SECRET) });
+});
+
+app.post("/api/admin/logout", requireAdmin, (req, res) => {
+  const token = bearerTokenFrom(req) || String(parseCookies(req.headers.cookie)[ADMIN_SESSION_COOKIE] || "");
+  adminTokens.delete(token);
+  clearPrivateCookie(res, ADMIN_SESSION_COOKIE);
+  adminAudit(req, "admin_logout");
+  writeStore();
+  res.json({ ok: true });
 });
 
 app.get("/api/admin/overview", requireAdmin, async (_req, res) => {
@@ -1684,6 +2169,7 @@ app.get("/api/admin/overview", requireAdmin, async (_req, res) => {
     blockedPairs: store.blockedPairs || [],
     adminAudit: store.adminAudit || [],
     security: { twoFactorEnabled: Boolean(ADMIN_TOTP_SECRET), emailEnabled: Boolean(RESEND_API_KEY), privateStorageEnabled: privateBucketReady },
+    launch: launchReadiness(),
     memory: store.memory
   });
 });
@@ -1948,6 +2434,9 @@ app.post("/api/admin/users/:id/verify", requireAdmin, (req, res) => {
   if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
 
   const approved = req.body.status === "approved";
+  if (approved && !user.emailVerified) {
+    return res.status(409).json({ error: "El usuario debe verificar su correo antes de aprobar la identidad." });
+  }
   user.verified = approved;
   user.verificationStatus = approved
     ? "Verificado por admin"
@@ -1979,20 +2468,48 @@ app.post("/api/admin/users/:id/verify", requireAdmin, (req, res) => {
   res.json(publicUser(user));
 });
 
-app.post("/api/products", (req, res) => {
+app.post("/api/products", rateLimit({ windowMs: 60 * 60 * 1000, max: 20, key: "create-listing" }), async (req, res) => {
   const savedSeller = authenticatedUser(req);
   if (!savedSeller) return res.status(401).json({ error: "Inicia sesion para publicar." });
-  const required = ["title", "price", "category", "condition", "description", "location", "seller"];
+  const required = ["title", "price", "category", "condition", "description", "location"];
   const missing = required.filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Faltan datos obligatorios", fields: missing });
   if (!req.body.safetyAccepted) return res.status(400).json({ error: "Debes aceptar el protocolo de seguridad" });
   if (String(savedSeller?.verificationStatus || req.body.seller?.verificationStatus || "").toLowerCase().includes("rechaz")) {
     return res.status(403).json({ error: "Tu cuenta ha sido rechazada. No cumples con los requisitos para vender." });
   }
-  if (!(savedSeller?.verified || req.body.seller?.verified)) return res.status(403).json({ error: "Debes registrarte y verificarte antes de vender" });
+  if (!savedSeller.verified || !savedSeller.emailVerified) {
+    return res.status(403).json({ error: "Debes verificar tu correo e identidad antes de vender." });
+  }
+  const title = boundedText(req.body.title, 80);
+  const description = boundedText(req.body.description, 2000, { multiline: true });
+  const location = boundedText(req.body.location, 140);
+  const category = boundedText(req.body.category, 48);
+  const condition = boundedText(req.body.condition, 32);
+  const price = Number(req.body.price);
+  if (title.length < 5 || description.length < 80 || !location) {
+    return res.status(400).json({ error: "Completa un titulo, ubicacion y descripcion detallada." });
+  }
+  if (!Number.isFinite(price) || price <= 0 || price > 100000000) {
+    return res.status(400).json({ error: "El precio no es valido." });
+  }
+  const rawImages = Array.isArray(req.body.images) ? req.body.images.slice(0, 6) : [];
+  if (rawImages.length < 2) return res.status(400).json({ error: "Sube al menos dos fotos reales del articulo." });
+  const images = (await Promise.all(
+    rawImages.map((image, index) => uploadPublicMedia(savedSeller.id, `listing-${index + 1}`, image))
+  )).filter(Boolean);
+  if (images.length < 2) {
+    return res.status(503).json({ error: "No pudimos guardar las fotos de forma segura. Intenta nuevamente en unos minutos." });
+  }
 
   const draftProduct = {
-    ...req.body,
+    title,
+    price,
+    category,
+    condition,
+    description,
+    location,
+    images,
     seller: {
       name: savedSeller.name,
       email: savedSeller.email,
@@ -2085,13 +2602,33 @@ app.post("/api/promotions", async (req, res) => {
   });
 });
 
-app.put("/api/products/:id", (req, res) => {
+app.put("/api/products/:id", async (req, res) => {
   const index = listings.findIndex((item) => item.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: "Publicacion no encontrada" });
   const owner = authenticatedUser(req);
   if (!owner || !sameOrderParty(owner, listings[index].seller)) return res.status(403).json({ error: "Solo el vendedor puede modificar esta publicacion." });
   const allowedFields = ["title", "price", "category", "condition", "description", "location", "images", "status"];
   const updates = Object.fromEntries(allowedFields.filter((field) => Object.hasOwn(req.body, field)).map((field) => [field, req.body[field]]));
+  if (Object.hasOwn(updates, "title")) updates.title = boundedText(updates.title, 80);
+  if (Object.hasOwn(updates, "description")) updates.description = boundedText(updates.description, 2000, { multiline: true });
+  if (Object.hasOwn(updates, "location")) updates.location = boundedText(updates.location, 140);
+  if (Object.hasOwn(updates, "category")) updates.category = boundedText(updates.category, 48);
+  if (Object.hasOwn(updates, "condition")) updates.condition = boundedText(updates.condition, 32);
+  if (Object.hasOwn(updates, "price")) {
+    updates.price = Number(updates.price);
+    if (!Number.isFinite(updates.price) || updates.price <= 0 || updates.price > 100000000) {
+      return res.status(400).json({ error: "El precio no es valido." });
+    }
+  }
+  if (Object.hasOwn(updates, "status") && !["active", "sold", "paused"].includes(updates.status)) {
+    return res.status(400).json({ error: "Estado de publicacion no valido." });
+  }
+  if (Array.isArray(updates.images)) {
+    updates.images = (await Promise.all(
+      updates.images.slice(0, 6).map((image, imageIndex) => uploadPublicMedia(owner.id, `listing-edit-${imageIndex + 1}`, image))
+    )).filter(Boolean);
+    if (updates.images.length < 2) return res.status(400).json({ error: "La publicacion debe conservar al menos dos fotos." });
+  }
   listings[index] = { ...listings[index], ...updates, updatedAt: new Date().toISOString() };
   store.products = listings;
   writeStore();
@@ -2230,7 +2767,10 @@ app.post("/api/checkout", rateLimit({ windowMs: 10 * 60 * 1000, max: 12, key: "c
   if (!buyerUser.authComplete) {
     return res.status(403).json({ error: "Completa tu identidad antes de iniciar una compra." });
   }
-  const required = ["productId", "paymentMethod", "buyer", "delivery"];
+  if (!buyerUser.emailVerified || !buyerUser.verified) {
+    return res.status(403).json({ error: "Tu correo e identidad deben estar verificados antes de comprar." });
+  }
+  const required = ["productId", "paymentMethod", "delivery"];
   const missing = required.filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Faltan datos para iniciar la compra", fields: missing });
   if (req.body.paymentMethod !== "mercadopago") {
@@ -2241,14 +2781,26 @@ app.post("/api/checkout", rateLimit({ windowMs: 10 * 60 * 1000, max: 12, key: "c
 
   const product = listings.find((item) => item.id === req.body.productId);
   if (!product) return res.status(404).json({ error: "Producto no encontrado" });
+  if (product.status && product.status !== "active") {
+    return res.status(409).json({ error: "Esta publicacion ya no esta disponible para comprar." });
+  }
   if (sameOrderParty(buyerUser, product.seller)) {
     return res.status(400).json({ error: "No puedes comprar tu propia publicacion." });
+  }
+  const recentOrder = (store.orders || []).find((order) =>
+    order.productId === product.id &&
+    sameOrderParty(buyerUser, order.buyer) &&
+    !/completada|cancel|rechazad/i.test(String(order.status || "")) &&
+    Date.now() - new Date(order.createdAt || 0).getTime() < 30 * 60 * 1000
+  );
+  if (recentOrder?.mercadoPago?.checkoutUrl) {
+    return res.json({ ...publicOrderFor(buyerUser, recentOrder), reused: true });
   }
   if (!req.body.acceptedRules || !req.body.declaredInspection) {
     return res.status(400).json({ error: "Confirma el protocolo de compra protegida para continuar." });
   }
   const deliveryCode = generateUniqueDeliveryCode();
-  const securityStamp = buildSecurityStamp(product, req);
+  const securityStamp = buildSecurityStamp(product, { body: { buyer: { id: buyerUser.id, email: buyerUser.email } } });
   const orderId = `order-${Date.now()}`;
 
   const order = {
@@ -2278,8 +2830,14 @@ app.post("/api/checkout", rateLimit({ windowMs: 10 * 60 * 1000, max: 12, key: "c
       description: product.description
     },
     delivery: {
-      ...req.body.delivery,
-      code: deliveryCode,
+      address: boundedText(req.body.delivery.address, 180),
+      city: boundedText(req.body.delivery.city, 100),
+      phone: boundedText(req.body.delivery.phone, 32),
+      method: boundedText(req.body.delivery.method, 80),
+      note: boundedText(req.body.delivery.note, 240, { multiline: true }),
+      codeHash: deliveryCodeHash(deliveryCode),
+      codeEncrypted: encryptSecret(deliveryCode),
+      ...(!IS_PRODUCTION ? { code: deliveryCode } : {}),
       status: "Pendiente de despacho",
       sellerProofRequired: true,
       buyerConfirmationRequired: true,
@@ -2315,7 +2873,6 @@ app.post("/api/checkout", rateLimit({ windowMs: 10 * 60 * 1000, max: 12, key: "c
     },
     deliveryConfirmation: {
       status: "Pendiente de recepcion",
-      code: deliveryCode,
       confirmedAt: "",
       confirmedBy: "",
       note: "El codigo confirma la entrega dentro de MarketPro. No controla el dinero de Mercado Pago."
@@ -2352,7 +2909,7 @@ app.post("/api/checkout", rateLimit({ windowMs: 10 * 60 * 1000, max: 12, key: "c
   notifyUser(buyerUser.email, "Compra iniciada", `La orden ${order.id} fue creada. Completa el pago directamente en Mercado Pago.`, "order", `/?page=orders`);
   notifyUser(product.seller?.email, "Nueva compra", `${buyerUser.name} inicio una compra de ${product.title}.`, "order", `/?page=orders`);
   writeStore();
-  res.status(201).json(order);
+  res.status(201).json(publicOrderFor(buyerUser, order));
 });
 
 app.post("/api/orders/:id/confirm-delivery", (req, res) => {
@@ -2369,7 +2926,11 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   if (order.paymentNotification?.status !== "approved") {
     return res.status(409).json({ error: "Mercado Pago todavia no confirmo el pago directo al vendedor." });
   }
-  if (String(req.body.code || "").toUpperCase() !== order.delivery.code) {
+  const expectedCodeHash = order.delivery.codeHash || deliveryCodeHash(order.delivery.code || "");
+  const receivedCodeHash = deliveryCodeHash(req.body.code || "");
+  const expectedCode = Buffer.from(expectedCodeHash, "hex");
+  const receivedCode = Buffer.from(receivedCodeHash, "hex");
+  if (expectedCode.length !== receivedCode.length || !crypto.timingSafeEqual(expectedCode, receivedCode)) {
     return res.status(400).json({ error: "Codigo de entrega incorrecto" });
   }
   const checklist = req.body.checklist || {};
@@ -2399,7 +2960,6 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   order.deliveryConfirmation = {
     ...(order.deliveryConfirmation || {}),
     status: "Confirmada",
-    code: order.delivery.code,
     confirmedAt: order.delivery.confirmedAt,
     confirmedBy: buyerActor.user.email || buyerActor.user.name || "Comprador",
     note: "Recepcion confirmada en MarketPro. El pago fue procesado directamente por Mercado Pago."
@@ -2408,20 +2968,22 @@ app.post("/api/orders/:id/confirm-delivery", (req, res) => {
   store.products = listings;
   notifyUser(order.seller?.email, "Entrega confirmada", `El comprador confirmo la recepcion de ${order.productTitle}.`, "success", "/?page=orders");
   writeStore();
-  res.json(order);
+  res.json(publicOrderFor(buyerActor.user, order));
 });
 
 app.post("/api/orders/:id/release-payment", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
-  if (!requireOrderRole(req, res, order, "buyer")) return;
-  res.json(order);
+  const actor = requireOrderRole(req, res, order, "buyer");
+  if (!actor) return;
+  res.json(publicOrderFor(actor.user, order));
 });
 
 app.post("/api/orders/:id/rate-seller", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
-  if (!requireOrderRole(req, res, order, "buyer")) return;
+  const actor = requireOrderRole(req, res, order, "buyer");
+  if (!actor) return;
   if (!order.delivery?.buyerInspection) {
     return res.status(400).json({ error: "Primero confirma la entrega para poder calificar." });
   }
@@ -2445,21 +3007,32 @@ app.post("/api/orders/:id/rate-seller", (req, res) => {
     { event: `Comprador califico vendedor con ${rating}/5`, at: order.sellerRating.ratedAt }
   ];
   writeStore();
-  res.json(order);
+  res.json(publicOrderFor(actor.user, order));
 });
 
-app.post("/api/orders/:id/seller-proof", (req, res) => {
+app.post("/api/orders/:id/seller-proof", async (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
-  if (!requireOrderRole(req, res, order, "seller")) return;
+  const actor = requireOrderRole(req, res, order, "seller");
+  if (!actor) return;
   const missing = ["packageNotes", "serialOrMark", "accessories"].filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Falta evidencia del vendedor", fields: missing });
 
+  const rawPhotos = Array.isArray(req.body.photos) ? req.body.photos.slice(0, 6) : [];
+  const photos = (await Promise.all(
+    rawPhotos.map(async (photo, index) => {
+      const media = await uploadPrivateMedia(order.seller?.id || order.seller?.email || "seller", `order-${order.id}-proof-${index + 1}`, photo);
+      return privateMediaReference(media);
+    })
+  )).filter(Boolean);
+  if (rawPhotos.length && photos.length !== rawPhotos.length) {
+    return res.status(503).json({ error: "No pudimos guardar toda la evidencia de forma privada. Intenta nuevamente." });
+  }
   order.delivery.sellerProof = {
-    packageNotes: req.body.packageNotes,
-    serialOrMark: req.body.serialOrMark,
-    accessories: req.body.accessories,
-    photos: Array.isArray(req.body.photos) ? req.body.photos.slice(0, 6) : [],
+    packageNotes: boundedText(req.body.packageNotes, 600, { multiline: true }),
+    serialOrMark: boundedText(req.body.serialOrMark, 160),
+    accessories: boundedText(req.body.accessories, 600, { multiline: true }),
+    photos,
     declaredAt: new Date().toISOString()
   };
   order.delivery.status = "Evidencia del vendedor cargada";
@@ -2473,18 +3046,19 @@ app.post("/api/orders/:id/seller-proof", (req, res) => {
   ];
   notifyUser(order.buyer?.email, "Producto preparado", `El vendedor cargo la evidencia de empaque de ${order.productTitle}.`, "order", "/?page=orders");
   writeStore();
-  res.json(order);
+  res.json(publicOrderFor(actor.user, order));
 });
 
 app.post("/api/orders/:id/mark-in-transit", (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
-  if (!requireOrderRole(req, res, order, "seller")) return;
+  const actor = requireOrderRole(req, res, order, "seller");
+  if (!actor) return;
   if (order.delivery.sellerProofRequired && !order.delivery.sellerProof) {
     return res.status(409).json({ error: "Antes de despachar se debe cargar evidencia del vendedor" });
   }
-  const carrier = String(req.body.carrier || "").trim();
-  const trackingCode = String(req.body.trackingCode || "").trim();
+  const carrier = boundedText(req.body.carrier, 80);
+  const trackingCode = boundedText(req.body.trackingCode, 100);
   if (!carrier) return res.status(400).json({ error: "Indica empresa, agencia o entrega personal." });
   if (trackingRequiredFor(carrier) && !trackingCode) {
     return res.status(400).json({ error: "Para envios por agencia como DAC, UES, Correo o similares, el codigo de rastreo es obligatorio." });
@@ -2494,7 +3068,7 @@ app.post("/api/orders/:id/mark-in-transit", (req, res) => {
     method: req.body.method || order.delivery.method,
     trackingCode,
     carrier,
-    note: req.body.note || "",
+    note: boundedText(req.body.note, 300, { multiline: true }),
     trackingRequired: trackingRequiredFor(carrier),
     markedAt: new Date().toISOString()
   };
@@ -2508,22 +3082,37 @@ app.post("/api/orders/:id/mark-in-transit", (req, res) => {
   ];
   notifyUser(order.buyer?.email, "Envio en camino", `${order.productTitle} fue despachado por ${carrier}${trackingCode ? ` con rastreo ${trackingCode}` : ""}.`, "order", "/?page=orders");
   writeStore();
-  res.json(order);
+  res.json(publicOrderFor(actor.user, order));
 });
 
-app.post("/api/orders/:id/dispute", (req, res) => {
+app.post("/api/orders/:id/dispute", async (req, res) => {
   const order = (store.orders || []).find((item) => item.id === req.params.id);
   if (!order) return res.status(404).json({ error: "Orden no encontrada" });
-  if (!requireOrderRole(req, res, order, "party")) return;
+  const actor = requireOrderRole(req, res, order, "party");
+  if (!actor) return;
   const missing = ["reason", "description"].filter((field) => !req.body[field]);
   if (missing.length) return res.status(400).json({ error: "Faltan datos para abrir disputa", fields: missing });
+  const rawEvidence = Array.isArray(req.body.evidence) ? req.body.evidence.slice(0, 6) : [];
+  const evidence = (await Promise.all(
+    rawEvidence.map(async (photo, index) => {
+      const media = await uploadPrivateMedia(
+        authenticatedUser(req)?.id || "user",
+        `order-${order.id}-dispute-${index + 1}`,
+        photo
+      );
+      return privateMediaReference(media);
+    })
+  )).filter(Boolean);
+  if (rawEvidence.length && evidence.length !== rawEvidence.length) {
+    return res.status(503).json({ error: "No pudimos guardar toda la evidencia de forma privada. Intenta nuevamente." });
+  }
   const dispute = {
     id: `dispute-${Date.now()}`,
     status: "Abierta",
-    reason: req.body.reason,
-    description: req.body.description,
-    evidence: Array.isArray(req.body.evidence) ? req.body.evidence.slice(0, 6) : [],
-    createdBy: req.body.createdBy || requestIdentity(req),
+    reason: boundedText(req.body.reason, 120),
+    description: boundedText(req.body.description, 1600, { multiline: true }),
+    evidence,
+    createdBy: requestIdentity(req),
     createdAt: new Date().toISOString()
   };
   order.disputes = [dispute, ...(order.disputes || [])];
@@ -2540,7 +3129,7 @@ app.post("/api/orders/:id/dispute", (req, res) => {
   notifyUser(order.buyer?.email, "Disputa abierta", `Se abrio una revision para la orden ${order.id}.`, "danger", "/?page=orders");
   notifyUser(order.seller?.email, "Disputa abierta", `Se abrio una revision para la orden ${order.id}.`, "danger", "/?page=orders");
   writeStore();
-  res.status(201).json(order);
+  res.status(201).json(publicOrderFor(actor.user, order));
 });
 
 const validMercadoPagoWebhook = (req) => {
@@ -2620,6 +3209,21 @@ app.post("/api/payments/mercadopago/webhook", async (req, res) => {
       : paymentVerified
         ? `Mercado Pago: ${payment.status}`
         : "Pago en revision: los datos no coinciden";
+    if (paymentVerified && payment.status === "approved") {
+      listings = listings.map((product) =>
+        product.id === order.productId && (!product.status || product.status === "active")
+          ? { ...product, status: "reserved", reservedOrderId: order.id, reservedAt: new Date().toISOString() }
+          : product
+      );
+      store.products = listings;
+    } else if (paymentVerified && ["rejected", "cancelled", "refunded", "charged_back"].includes(payment.status)) {
+      listings = listings.map((product) =>
+        product.id === order.productId && product.reservedOrderId === order.id
+          ? { ...product, status: "active", reservedOrderId: "", reservedAt: "" }
+          : product
+      );
+      store.products = listings;
+    }
     order.security.auditTrail = [
       ...(order.security.auditTrail || []),
       { event: `Webhook firmado de Mercado Pago: ${order.paymentNotification.status}`, at: order.paymentNotification.receivedAt }
@@ -2654,7 +3258,7 @@ app.post("/api/payments/mercadopago/webhook", async (req, res) => {
   res.json({ received: true });
 });
 
-app.post("/api/conversations", (req, res) => {
+app.post("/api/conversations", rateLimit({ windowMs: 10 * 60 * 1000, max: 30, key: "create-chat" }), (req, res) => {
   const buyer = requestIdentity(req);
   if (buyer.id === "guest") return res.status(401).json({ error: "Inicia sesion para abrir un chat." });
   if (req.body.orderId) {
@@ -2665,6 +3269,10 @@ app.post("/api/conversations", (req, res) => {
     store.orders = (store.orders || []).map((item) => item.id === order.id ? order : item);
     writeStore();
     return res.status(201).json(chat);
+  }
+  const buyerUser = authenticatedUser(req);
+  if (!buyerUser?.emailVerified || !buyerUser?.verified) {
+    return res.status(403).json({ error: "Verifica tu correo e identidad antes de contactar vendedores." });
   }
   const product = listings.find((item) => item.id === req.body.productId);
   if (!product) return res.status(404).json({ error: "Publicacion no encontrada para crear chat." });
@@ -2714,7 +3322,7 @@ app.post("/api/conversations", (req, res) => {
   res.status(201).json(chat);
 });
 
-app.post("/api/conversations/:id/messages", (req, res) => {
+app.post("/api/conversations/:id/messages", rateLimit({ windowMs: 10 * 60 * 1000, max: 100, key: "chat-message" }), async (req, res) => {
   const sender = requestIdentity(req);
   const chat = chats.find((item) => item.id === req.params.id);
   if (!chat) return res.status(404).json({ error: "Chat no encontrado." });
@@ -2726,9 +3334,13 @@ app.post("/api/conversations/:id/messages", (req, res) => {
 
   const text = String(req.body.text || "").trim().slice(0, 2000);
   const rawAttachment = String(req.body.attachment || "");
-  const attachment = /^data:image\/(?:jpeg|png|webp);base64,/i.test(rawAttachment) && rawAttachment.length <= 1400000
-    ? rawAttachment
-    : "";
+  const validAttachment = /^data:image\/(?:jpeg|png|webp);base64,/i.test(rawAttachment) && rawAttachment.length <= 1400000;
+  let attachment = "";
+  if (validAttachment) {
+    const media = await uploadPrivateMedia(sender.id, `chat-${chat.id}`, rawAttachment);
+    attachment = privateMediaReference(media);
+    if (!attachment) return res.status(503).json({ error: "No pudimos guardar la foto de forma privada. Intenta nuevamente." });
+  }
   if (!text && !attachment) return res.status(400).json({ error: "Escribe un mensaje o añade una foto válida." });
   if (rawAttachment && !attachment) return res.status(413).json({ error: "La foto es demasiado grande o tiene un formato no permitido." });
 
@@ -2770,6 +3382,20 @@ app.post("/api/conversations/:id/messages", (req, res) => {
     : item
   );
   store.conversations = chats;
+  (chat.participants || [])
+    .filter((participant) =>
+      participant.email &&
+      String(participant.email).toLowerCase() !== String(sender.email || "").toLowerCase()
+    )
+    .forEach((participant) => {
+      notifyUser(
+        participant.email,
+        `Nuevo mensaje de ${sender.name}`,
+        text ? boundedText(text, 120) : "Te enviaron una foto.",
+        risk.level === "Alto" ? "warning" : "message",
+        "/?page=messages"
+      );
+    });
   writeStore();
 
   const allowedIds = participantIds(chat);
@@ -2834,84 +3460,34 @@ app.post("/api/conversations/:id/block", (req, res) => {
   res.status(201).json({ ok: true, block });
 });
 
-wss.on("connection", (socket) => {
-  socket.identity = null;
+wss.on("connection", (socket, request) => {
+  const cookieToken = String(parseCookies(request.headers.cookie)[USER_SESSION_COOKIE] || "");
+  const cookieUser = cookieToken ? userFromSessionToken(cookieToken) : null;
+  socket.identity = cookieUser ? { id: cookieUser.id, name: cookieUser.name, email: cookieUser.email } : null;
   socket.on("message", (raw) => {
     let payload;
     try { payload = JSON.parse(raw.toString()); } catch { return; }
     if (payload.type === "hello") {
-      const user = userFromSessionToken(String(payload.token || ""));
-      socket.identity = user ? { id: user.id, name: user.name, email: user.email } : null;
-      return;
-    }
-    if (payload.type !== "message") return;
-    if (!socket.identity) return;
-    const chat = chats.find((item) => item.id === payload.chatId);
-    if (!chat || !isParticipant(chat, socket.identity)) return;
-    const blocked = (store.blockedPairs || []).some((item) => item.chatId === chat.id);
-    if (blocked || chat.blocked) return;
-    const text = String(payload.message?.text || "").trim().slice(0, 2000);
-    const rawAttachment = String(payload.message?.attachment || "");
-    const attachment = /^data:image\/(?:jpeg|png|webp);base64,/i.test(rawAttachment) && rawAttachment.length <= 1400000
-      ? rawAttachment
-      : "";
-    if (!text && !attachment) return;
-    const message = {
-      id: /^msg-[a-z0-9-]+$/i.test(String(payload.message?.id || "")) ? payload.message.id : `msg-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-      from: "user",
-      senderId: socket.identity.id,
-      senderName: socket.identity.name,
-      senderAvatar: `/api/avatar/${encodeURIComponent(socket.identity.name || "Usuario")}.svg`,
-      text,
-      attachment,
-      time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
-      createdAt: new Date().toISOString()
-    };
-    const risk = analyzeTextRisk(message.text);
-    message.risk = risk;
-    const systemRiskMessage = risk.level === "Alto"
-      ? {
-          id: `msg-${Date.now()}-risk`,
-          from: "system",
-          senderId: "system",
-          senderName: "MarketPro Shield",
-          text: `Alerta antifraude: detectamos ${risk.flags.join(", ")}. No compartas codigos, claves ni pagos por fuera de MarketPro.`,
-          risk,
-          time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
-          createdAt: new Date().toISOString()
-        }
-      : null;
-
-    chats = chats.map((chat) => {
-      if (chat.id !== payload.chatId) return chat;
-      const exists = chat.messages.some((savedMessage) => savedMessage.id && savedMessage.id === message.id);
-      if (exists) return chat;
-      const riskEvents = risk.level !== "Bajo"
-        ? [...(chat.riskEvents || []), { level: risk.level, flags: risk.flags, at: new Date().toISOString() }]
-        : chat.riskEvents || [];
-      return {
-        ...chat,
-        riskEvents,
-        lastMessageAt: message.createdAt,
-        messages: systemRiskMessage ? [...chat.messages, message, systemRiskMessage] : [...chat.messages, message]
-      };
-    });
-    store.conversations = chats;
-    writeStore();
-
-    const allowedIds = participantIds(chat);
-    wss.clients.forEach((client) => {
-      const clientId = String(client.identity?.id || "");
-      const clientEmail = String(client.identity?.email || "");
-      if (client.readyState === 1 && (allowedIds.has(clientId) || allowedIds.has(clientEmail))) {
-        client.send(JSON.stringify({ type: "message", chatId: chat.id, message }));
-        if (systemRiskMessage) client.send(JSON.stringify({ type: "message", chatId: payload.chatId, message: systemRiskMessage }));
+      if (!socket.identity && payload.token) {
+        const user = userFromSessionToken(String(payload.token));
+        socket.identity = user ? { id: user.id, name: user.name, email: user.email } : null;
       }
-    });
+    }
+    // WebSocket is a delivery channel only. New messages must pass through the
+    // authenticated, rate-limited HTTP route so moderation and private uploads run.
   });
 });
 
 initializePersistentStore().finally(() => {
+  const readiness = launchReadiness();
+  if (!readiness.ready) {
+    console.warn(`[MarketPro] Lanzamiento bloqueado por: ${readiness.blockers.join(", ")}`);
+  }
+  if (IS_PRODUCTION && REQUIRE_PRODUCTION_CONFIG && !readiness.ready) {
+    console.error("[MarketPro] REQUIRE_PRODUCTION_CONFIG esta activo. El servidor no iniciara hasta completar la configuracion.");
+    process.exitCode = 1;
+    return;
+  }
   server.listen(PORT, HOST, () => {
     console.log(`MarketPro listo en http://${HOST}:${PORT}`);
   });

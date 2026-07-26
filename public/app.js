@@ -14,32 +14,11 @@ const dismissSplash = () => {
   const splash = document.querySelector("#marketSplash");
   if (!splash) return;
   requestAnimationFrame(() => splash.classList.add("is-leaving"));
-  window.setTimeout(() => splash.remove(), 380);
+  window.setTimeout(() => splash.remove(), 260);
 };
 
 // Never let a slow API response keep the opening screen over the app.
-window.setTimeout(dismissSplash, 900);
-
-const showToast = (message) => {
-  const text = String(message || "Acción completada.").trim();
-  let region = document.querySelector("#marketToastRegion");
-  if (!region) {
-    region = document.createElement("div");
-    region.id = "marketToastRegion";
-    region.className = "market-toast-region";
-    region.setAttribute("aria-live", "polite");
-    document.body.append(region);
-  }
-  const toast = document.createElement("div");
-  toast.className = "market-toast";
-  toast.setAttribute("role", "status");
-  toast.textContent = text;
-  region.append(toast);
-  window.setTimeout(() => toast.classList.add("is-leaving"), 3600);
-  window.setTimeout(() => toast.remove(), 3950);
-};
-
-window.alert = showToast;
+window.setTimeout(dismissSplash, 780);
 
 const destroyMotion = () => {
   if (motionRefreshFrame) cancelAnimationFrame(motionRefreshFrame);
@@ -70,14 +49,16 @@ const initMotion = (animateRoute = true) => {
         const routeSections = surface.querySelectorAll(
           "main > .hero-panel, main > .command-bar, main > .featured-rail, main > .content-head, main > .panel, main > .detail-grid, main > .compose-grid"
         );
-        gsap.from(routeSections, {
-          autoAlpha: 0,
-          y: desktop ? 28 : 12,
-          duration: desktop ? 0.62 : 0.38,
-          stagger: desktop ? 0.065 : 0.035,
-          ease: "power3.out",
-          clearProps: "opacity,visibility,transform"
-        });
+        if (routeSections.length) {
+          gsap.from(routeSections, {
+            autoAlpha: 0,
+            y: desktop ? 28 : 12,
+            duration: desktop ? 0.62 : 0.38,
+            stagger: desktop ? 0.065 : 0.035,
+            ease: "power3.out",
+            clearProps: "opacity,visibility,transform"
+          });
+        }
       }
 
       const hero = surface.querySelector(".hero-panel");
@@ -196,23 +177,29 @@ const initMotion = (animateRoute = true) => {
       }
 
       if (animateRoute && surface.querySelector(".chat-shell")) {
-        gsap.from(".chat-row", {
-          autoAlpha: 0,
-          x: desktop ? -18 : 0,
-          y: desktop ? 0 : 10,
-          duration: 0.45,
-          stagger: 0.055,
-          ease: "power2.out",
-          clearProps: "opacity,visibility,transform"
-        });
-        gsap.from(".bubble", {
-          autoAlpha: 0,
-          x: (index, element) => element.classList.contains("me") ? 18 : -18,
-          duration: 0.42,
-          stagger: 0.035,
-          ease: "power2.out",
-          clearProps: "opacity,visibility,transform"
-        });
+        const chatRows = surface.querySelectorAll(".chat-row");
+        const bubbles = surface.querySelectorAll(".bubble");
+        if (chatRows.length) {
+          gsap.from(chatRows, {
+            autoAlpha: 0,
+            x: desktop ? -18 : 0,
+            y: desktop ? 0 : 10,
+            duration: 0.45,
+            stagger: 0.055,
+            ease: "power2.out",
+            clearProps: "opacity,visibility,transform"
+          });
+        }
+        if (bubbles.length) {
+          gsap.from(bubbles, {
+            autoAlpha: 0,
+            x: (index, element) => element.classList.contains("me") ? 18 : -18,
+            duration: 0.42,
+            stagger: 0.035,
+            ease: "power2.out",
+            clearProps: "opacity,visibility,transform"
+          });
+        }
       }
 
       if (desktop) {
@@ -347,7 +334,7 @@ const initialView = () => {
   if (location.pathname === "/support") return "support";
   if (location.pathname === "/security") return "security";
   const page = new URLSearchParams(location.search).get("page");
-  return ["legal", "support", "security", "orders", "profile"].includes(page) ? page : "feed";
+  return ["legal", "support", "security", "orders", "profile", "compose", "messages", "notifications"].includes(page) ? page : "feed";
 };
 
 const state = {
@@ -378,8 +365,9 @@ const state = {
       : JSON.parse(localStorage.getItem("marketFiltersOpen") ?? "true"),
   profileTab: "active",
   composeStep: 1,
-  user: JSON.parse(localStorage.getItem("marketUser")) || null,
+  user: null,
   authToken: localStorage.getItem("marketAuthToken") || "",
+  authenticated: false,
   authMode: "login",
   canInstallPwa: false,
   installBannerDismissed: sessionStorage.getItem("marketInstallBannerDismissed") === "true",
@@ -409,6 +397,74 @@ const escapeHtml = (value = "") =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+
+const showToast = (message, tone = "info") => {
+  let stack = document.querySelector("#marketproToasts");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.id = "marketproToasts";
+    stack.className = "app-toast-stack";
+    stack.setAttribute("aria-live", "polite");
+    document.body.append(stack);
+  }
+  const toast = document.createElement("div");
+  toast.className = `app-toast ${tone}`;
+  toast.innerHTML = `<span aria-hidden="true"></span><p>${escapeHtml(String(message || "").trim())}</p><button type="button" aria-label="Cerrar">×</button>`;
+  stack.append(toast);
+  requestAnimationFrame(() => toast.classList.add("visible"));
+  const dismiss = () => {
+    toast.classList.remove("visible");
+    window.setTimeout(() => toast.remove(), 220);
+  };
+  toast.querySelector("button")?.addEventListener("click", dismiss);
+  window.setTimeout(dismiss, 4800);
+};
+
+window.alert = (message) => showToast(message, /error|no pudimos|incorrect|bloquead|rechaz/i.test(String(message)) ? "danger" : "info");
+
+const dialogAction = ({ title, message, input = false, initialValue = "", confirmLabel = "Confirmar" }) =>
+  new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "app-dialog-backdrop";
+    backdrop.innerHTML = `
+      <section class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+        <div class="app-dialog-mark" aria-hidden="true"><i data-lucide="shield-check"></i></div>
+        <h2 id="appDialogTitle">${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        ${input ? `<label><span>Detalle</span><input id="appDialogInput" value="${escapeHtml(initialValue)}" maxlength="500" /></label>` : ""}
+        <div>
+          <button type="button" class="dialog-cancel">Cancelar</button>
+          <button type="button" class="dialog-confirm">${escapeHtml(confirmLabel)}</button>
+        </div>
+      </section>`;
+    document.body.append(backdrop);
+    window.lucide?.createIcons();
+    const field = backdrop.querySelector("#appDialogInput");
+    const close = (value) => {
+      backdrop.classList.remove("visible");
+      window.setTimeout(() => backdrop.remove(), 180);
+      resolve(value);
+    };
+    backdrop.querySelector(".dialog-cancel").addEventListener("click", () => close(input ? "" : false));
+    backdrop.querySelector(".dialog-confirm").addEventListener("click", () => close(input ? field.value.trim() : true));
+    backdrop.addEventListener("click", (event) => {
+      if (event.target === backdrop) close(input ? "" : false);
+    });
+    backdrop.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") close(input ? "" : false);
+      if (event.key === "Enter" && (!input || document.activeElement === field)) close(input ? field.value.trim() : true);
+    });
+    requestAnimationFrame(() => {
+      backdrop.classList.add("visible");
+      (field || backdrop.querySelector(".dialog-confirm")).focus();
+    });
+  });
+
+const confirmAction = (message, title = "Confirmar acción") =>
+  dialogAction({ title, message, confirmLabel: "Continuar" });
+
+const promptAction = (message, initialValue = "", title = "Cuéntanos qué ocurrió") =>
+  dialogAction({ title, message, input: true, initialValue, confirmLabel: "Enviar" });
 
 const selectedProduct = () => state.products.find((item) => item.id === state.selectedProductId);
 
@@ -476,7 +532,7 @@ const currentIdentity = () => {
 
 const hasCompleteAccess = (user = state.user) =>
   Boolean(
-    (user?.admin || state.authToken) &&
+    (user?.admin || state.authenticated || state.authToken) &&
       user?.authComplete &&
       user?.hasPassword &&
       user?.email &&
@@ -524,7 +580,7 @@ const api = async (path, options = {}) => {
     ...(requestOptions.headers || {})
   };
   try {
-    const response = await fetch(path, { ...requestOptions, headers });
+    const response = await fetch(path, { credentials: "same-origin", ...requestOptions, headers });
     const body = await response.text();
     let data = {};
     try {
@@ -639,10 +695,25 @@ const bindAssistantEvents = () => {
   });
 };
 
+const migrateLegacySession = async () => {
+  if (!state.authToken) return;
+  const result = await api("/api/auth/session/migrate", {
+    method: "POST",
+    assistant: false,
+    body: "{}"
+  });
+  if (result.ok) {
+    state.user = result.user || state.user;
+    state.authenticated = true;
+    state.authToken = "";
+    localStorage.removeItem("marketAuthToken");
+  }
+};
+
 const loadData = async () => {
-  if (state.user && !state.user.admin && !state.authToken) {
+  await migrateLegacySession();
+  if (state.user && !state.user.admin && !state.authToken && !state.authenticated) {
     state.user = null;
-    localStorage.removeItem("marketUser");
   }
   const [products, conversations, savedUser, orders, notifications] = await Promise.all([
     api("/api/products"),
@@ -655,12 +726,9 @@ const loadData = async () => {
   state.conversations = conversations;
   state.orders = Array.isArray(orders) ? orders : [];
   state.notifications = Array.isArray(notifications) ? notifications : [];
-  if (
-    hasCompleteAccess(savedUser) &&
-    (!hasCompleteAccess(state.user) || !state.user?.email || state.user.email === savedUser.email)
-  ) {
+  if (savedUser?.email) state.authenticated = true;
+  if (savedUser?.email && (!state.user?.email || state.user.email === savedUser.email)) {
     state.user = savedUser;
-    localStorage.setItem("marketUser", JSON.stringify(savedUser));
   }
   if (state.user && !state.user.admin) {
     const dashboard = await api("/api/seller-dashboard");
@@ -669,7 +737,7 @@ const loadData = async () => {
   state.selectedChatId = conversations[0]?.id || null;
   connectSocket();
   render();
-  window.setTimeout(dismissSplash, 680);
+  window.setTimeout(dismissSplash, 560);
 };
 
 const normalizeProduct = (item) => ({
@@ -696,7 +764,7 @@ const connectSocket = () => {
   if (state.socket?.readyState === WebSocket.OPEN || state.socket?.readyState === WebSocket.CONNECTING) return;
   state.socket = new WebSocket(`${protocol}://${location.host}`);
   state.socket.addEventListener("open", () => {
-    state.socket.send(JSON.stringify({ type: "hello", token: state.authToken }));
+    state.socket.send(JSON.stringify({ type: "hello", ...(state.authToken ? { token: state.authToken } : {}) }));
   });
   state.socket.addEventListener("message", (event) => {
     const payload = JSON.parse(event.data);
@@ -1294,7 +1362,7 @@ const orderTimeline = (order) => {
             <strong>${escapeHtml(item.event)}</strong>
             <small>${escapeHtml(item.at || "")}</small>
           </div>
-        `).join("") : `<div class="empty">Todavia no hay eventos.</div>`}
+        `).join("") : `<div class="empty">Todavía no hay eventos.</div>`}
       </div>
     </section>
   `;
@@ -1305,7 +1373,7 @@ const orderChatCard = (order) => {
   return `
     <section class="order-detail-card">
       <p class="eyebrow">Chat vinculado</p>
-      <h2>Conversacion de esta orden</h2>
+      <h2>Conversación de esta orden</h2>
       <p class="muted">Todo acuerdo, evidencia o alerta queda unido a la orden para reclamos y revision admin.</p>
       ${chat ? `
         <div class="linked-chat">
@@ -1510,7 +1578,7 @@ const entryGate = () => `
             <form id="resetConfirmForm" class="mini-auth-form" novalidate>
               <input name="email" required type="email" placeholder="Gmail" />
               <input name="code" required placeholder="Código recibido" />
-              <input name="password" required type="password" minlength="8" placeholder="Nueva contraseña" />
+              <input name="password" required type="password" minlength="10" placeholder="Nueva contraseña segura" />
               <button class="secondary-btn" type="submit">Cambiar contraseña</button>
             </form>
           </section>
@@ -1521,7 +1589,7 @@ const entryGate = () => `
             <div class="field"><label>Nombre completo</label><input name="name" required autocomplete="name" placeholder="Debe coincidir con tu documento" /></div>
             <div class="two-col">
               <div class="field"><label>Gmail</label><input name="email" required type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="tu@gmail.com" /></div>
-              <div class="field"><label>Contraseña</label><input name="password" required type="password" minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres" /></div>
+              <div class="field"><label>Contraseña</label><input name="password" required type="password" minlength="10" autocomplete="new-password" placeholder="10 caracteres, mayúscula, minúscula y número" /></div>
             </div>
             <div class="two-col">
               <div class="field"><label>Cédula / documento</label><input name="cedula" required placeholder="Documento de identidad" /></div>
@@ -1545,7 +1613,7 @@ const entryGate = () => `
       </section>
 
       <section class="entry-v2-trust">
-        <article><i data-lucide="house-lock"></i><strong>Cuenta segura</strong><span>Verificación de identidad</span></article>
+        <article><i data-lucide="shield-check"></i><strong>Cuenta segura</strong><span>Verificación de identidad</span></article>
         <article><i data-lucide="badge-dollar-sign"></i><strong>Pagos protegidos</strong><span>Con Mercado Pago</span></article>
         <article><i data-lucide="truck"></i><strong>Entrega segura</strong><span>Con seguimiento</span></article>
         <article><i data-lucide="messages-square"></i><strong>Soporte 24/7</strong><span>Siempre disponible</span></article>
@@ -1553,7 +1621,11 @@ const entryGate = () => `
 
       ${canShowAdminEntry() ? `<section class="admin-entry">
         <div><span>Acceso privado del creador</span><small>Panel administrativo protegido.</small></div>
-        <form id="adminEntryForm"><input name="password" required type="password" placeholder="Contraseña admin" /><button type="submit">Entrar</button></form>
+        <form id="adminEntryForm">
+          <input name="password" required type="password" autocomplete="current-password" placeholder="Contraseña admin" />
+          <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Código de seguridad" />
+          <button type="submit">Entrar</button>
+        </form>
         <a href="/admin.html">Abrir panel privado</a>
       </section>` : ""}
 
@@ -1568,6 +1640,14 @@ const entryGate = () => `
 
 const feedView = () => {
   const products = filteredProducts();
+  const filtering = Boolean(
+    state.query.trim() ||
+    state.filters.category !== "Todo" ||
+    state.filters.minPrice ||
+    state.filters.maxPrice ||
+    state.filters.condition !== "Todas" ||
+    state.filters.distance !== "50"
+  );
   return `
     ${sidebar()}
     <main>
@@ -1591,14 +1671,16 @@ const feedView = () => {
       <div class="content-head">
         <div>
           <h2>Publicaciones</h2>
-          <div class="muted">${products.length} articulos verificados</div>
+          <div class="muted">${products.length} artículos verificados</div>
         </div>
         <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Filtros"}</button>
       </div>
       ${
         products.length
           ? `<section class="grid">${products.map(productCard).join("")}</section>`
-          : `<div class="empty real-listings-empty"><strong>Aun no hay publicaciones reales.</strong><span>Se mostrarán aquí cuando un usuario verificado publique su artículo.</span><button class="sell-action" data-view="compose">Publicar el primero</button></div>`
+          : filtering
+            ? `<div class="empty real-listings-empty"><strong>No encontramos coincidencias.</strong><span>Prueba con otra palabra o ajusta los filtros.</span><button class="secondary-btn" data-clear-filters>Limpiar búsqueda</button></div>`
+            : `<div class="empty real-listings-empty"><strong>Aún no hay publicaciones reales.</strong><span>Se mostrarán aquí cuando un usuario verificado publique su artículo.</span><button class="sell-action" data-view="compose">Publicar el primero</button></div>`
       }
     </main>
   `;
@@ -1813,7 +1895,7 @@ const composeView = () => {
         <section class="panel verification-gate rejected-gate">
           <p class="eyebrow">Atencion</p>
           <h1>Tu cuenta ha sido rechazada.</h1>
-          <p class="muted">No cumples con los requisitos de seguridad de MarketPro. Por este motivo no puedes publicar ni vender articulos dentro de la app.</p>
+          <p class="muted">No cumples con los requisitos de seguridad de MarketPro. Por este motivo no puedes publicar ni vender artículos dentro de la app.</p>
           <button class="secondary-btn" data-view="profile">Ver estado de cuenta</button>
         </section>
       </main>
@@ -2006,6 +2088,15 @@ const composeStudioView = () => {
 const messagesView = () => {
   const active = state.conversations.find((chat) => chat.id === state.selectedChatId) || state.conversations[0];
   if (active && state.selectedChatId !== active.id) state.selectedChatId = active.id;
+  const contactFor = (chat) => {
+    const fallbackName = chat.buyerId === state.user?.id ? chat.seller : chat.buyer;
+    const contact = chat.otherParticipant || {};
+    const name = contact.name || fallbackName || "Usuario";
+    return {
+      name,
+      avatar: contact.avatar || chat.avatar || `/api/avatar/${encodeURIComponent(name)}.svg`,
+    };
+  };
   return `
     <main class="messages-page ${state.mobileChatList ? "show-chat-list" : "show-active-chat"}">
       <section class="panel chat-shell">
@@ -2016,31 +2107,34 @@ const messagesView = () => {
         </div>
         <div class="chat-list">
           ${state.conversations
-            .map(
-              (chat) => `
+            .map((chat) => {
+              const contact = contactFor(chat);
+              return `
               <button class="chat-row ${chat.id === state.selectedChatId ? "active" : ""}" data-chat="${chat.id}">
-                <img src="${chat.avatar || `/api/avatar/${encodeURIComponent(chat.seller || "Usuario")}.svg`}" alt="${escapeHtml(chat.seller)}" />
+                <img src="${escapeHtml(contact.avatar)}" alt="${escapeHtml(contact.name)}" />
                 <div class="chat-row-copy">
-                  <strong>${escapeHtml(chat.seller)}</strong>
+                  <strong>${escapeHtml(contact.name)}</strong>
                   <div class="muted">${escapeHtml(chat.productTitle)}</div>
                   <small>${escapeHtml(chat.messages?.at(-1)?.text || "Conversación protegida")}</small>
                 </div>
                 <time>${escapeHtml(chat.messages?.at(-1)?.time || "")}</time>
-              </button>`
-            )
+              </button>`;
+            })
             .join("")}
         </div>
       </aside>
       ${
         active
-          ? `<section class="chat-main">
+          ? (() => {
+              const contact = contactFor(active);
+              return `<section class="chat-main">
               <div class="chat-header">
                 <button class="chat-back" type="button" data-chat-list aria-label="Volver a conversaciones"><i data-lucide="arrow-left"></i></button>
-                <img src="${active.avatar || `/api/avatar/${encodeURIComponent(active.seller || "Usuario")}.svg`}" alt="${escapeHtml(active.seller)}" />
+                <img src="${escapeHtml(contact.avatar)}" alt="${escapeHtml(contact.name)}" />
                 <div>
-                  <strong>${escapeHtml(active.seller)}</strong>
+                  <strong>${escapeHtml(contact.name)}</strong>
                   <div class="muted">${escapeHtml(active.productTitle)}</div>
-                  <small class="chat-presence"><i></i> Conversacion sincronizada</small>
+                  <small class="chat-presence"><i></i> Conversación sincronizada</small>
                 </div>
               </div>
               <div class="chat-warning">
@@ -2077,8 +2171,9 @@ const messagesView = () => {
                 <input name="message" autocomplete="off" enterkeyhint="send" placeholder="${active.blocked ? "Chat bloqueado por seguridad" : "Escribe un mensaje"}" ${active.blocked ? "disabled" : ""} />
                 <button class="send-btn" title="Enviar" aria-label="Enviar mensaje" ${active.blocked ? "disabled" : ""}><i data-lucide="send"></i></button>
               </form>
-            </section>`
-          : `<div class="empty">Todavia no tienes chats reales. Abre una publicacion y contacta al vendedor para iniciar una conversacion conectada.</div>`
+            </section>`;
+            })()
+          : `<div class="empty">Todavía no tienes chats reales. Abre una publicación y contacta al vendedor para iniciar una conversación conectada.</div>`
       }
       </section>
     </main>
@@ -2112,7 +2207,7 @@ const profileView = () => {
             </div>
             <div class="field">
               <label>Contrasena</label>
-              <input name="password" required type="password" minlength="8" autocomplete="current-password" placeholder="Minimo 8 caracteres" />
+              <input name="password" required type="password" minlength="10" autocomplete="current-password" placeholder="10 caracteres, mayúscula, minúscula y número" />
             </div>
             <div class="two-col">
               <div class="field">
@@ -2157,7 +2252,7 @@ const profileView = () => {
         <section class="panel verification-gate rejected-gate">
           <p class="eyebrow">Atencion</p>
           <h1>Tu cuenta ha sido rechazada.</h1>
-          <p class="muted">No cumples con los requisitos de seguridad de MarketPro. La publicacion y venta de articulos queda bloqueada.</p>
+          <p class="muted">No cumples con los requisitos de seguridad de MarketPro. La publicación y venta de artículos queda bloqueada.</p>
           <div class="seller-metrics">
             <div class="metric-card">
               <span>Estado</span>
@@ -2185,9 +2280,11 @@ const profileView = () => {
           </button>
         </div>
         <section class="panel verification-gate">
-          <p class="eyebrow">Verificacion pendiente</p>
-          <h1>Tu cuenta esta esperando revision del administrador.</h1>
-          <p class="muted">Tus datos fueron guardados en la memoria privada. Cuando el admin corrobore cedula, telefono y ubicacion exacta, vas a poder publicar productos.</p>
+          <p class="eyebrow">${state.user.emailVerified ? "Verificación pendiente" : "Confirma tu correo"}</p>
+          <h1>${state.user.emailVerified ? "Tu cuenta está esperando revisión del administrador." : "Verifica que este correo te pertenece."}</h1>
+          <p class="muted">${state.user.emailVerified
+            ? "Tus documentos están guardados de forma privada. Cuando el administrador corrobore identidad, teléfono y ubicación, podrás publicar."
+            : `Enviamos un código de seis números a ${escapeHtml(state.user.email)}. MarketPro nunca te pedirá ese código por chat.`}</p>
           <div class="seller-metrics">
             <div class="metric-card">
               <span>Estado</span>
@@ -2198,6 +2295,16 @@ const profileView = () => {
               <strong>${escapeHtml(state.user.email)}</strong>
             </div>
           </div>
+          ${state.user.emailVerified ? "" : `
+            <form id="emailVerificationForm" class="email-verification-form">
+              <label for="emailVerificationCode">Código de verificación</label>
+              <div>
+                <input id="emailVerificationCode" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" />
+                <button class="sell-action" type="submit">Verificar correo</button>
+              </div>
+              <button class="tertiary-btn" id="resendEmailCode" type="button">Enviar un código nuevo</button>
+            </form>
+          `}
           <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesion</button>
           <button class="danger-btn account-delete-btn" id="deleteAccount">Eliminar cuenta</button>
         </section>
@@ -2453,10 +2560,11 @@ const bindEvents = () => {
     });
   });
 
-  document.querySelector("#clearFilters")?.addEventListener("click", () => {
+  document.querySelectorAll("#clearFilters, [data-clear-filters]").forEach((button) => button.addEventListener("click", () => {
+    state.query = "";
     state.filters = { category: "Todo", minPrice: "", maxPrice: "", distance: "50", condition: "Todas" };
     render();
-  });
+  }));
 
   document.querySelectorAll("[data-product]").forEach((button) => {
     button.addEventListener("click", () => navigate("detail", { selectedProductId: button.dataset.product, galleryIndex: 0 }));
@@ -2509,6 +2617,8 @@ const bindEvents = () => {
   });
   document.querySelector("#adminEntryForm")?.addEventListener("submit", authenticateAdminEntry);
   document.querySelector("#logoutUser")?.addEventListener("click", logoutUser);
+  document.querySelector("#emailVerificationForm")?.addEventListener("submit", verifyEmailCode);
+  document.querySelector("#resendEmailCode")?.addEventListener("click", resendEmailCode);
   document.querySelector("#useDeviceLocation")?.addEventListener("click", useDeviceLocation);
   document.querySelector("#reportListing")?.addEventListener("click", reportListing);
   document.querySelectorAll("input[name='paymentMethod']").forEach((input) => {
@@ -2708,7 +2818,10 @@ const validateAccountForm = (data) => {
   const required = ["name", "email", "cedula", "phone", "exactLocation"].filter((key) => !requiredValue(data, key));
   if (required.length) return `Faltan datos obligatorios: ${required.join(", ")}`;
   if (!email.endsWith("@gmail.com")) return "Usa un Gmail valido para crear la cuenta segura.";
-  if (password.length < 8) return "La contrasena debe tener al menos 8 caracteres.";
+  if (password.length < 10) return "La contraseña debe tener al menos 10 caracteres.";
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+    return "La contraseña debe incluir mayúscula, minúscula y número.";
+  }
   if (!data.get("profilePhoto")?.size) return "Sube una foto clara de tu rostro.";
   if (!data.get("documentPhoto")?.size) return "Sube la foto frontal de tu cedula.";
   return "";
@@ -2720,7 +2833,7 @@ const validateListingForm = (data) => {
   if (Number(data.get("price")) <= 0) return "El precio tiene que ser mayor a cero.";
   if (requiredValue(data, "description").length < 80) return "La descripcion tiene que tener al menos 80 caracteres: estado real, detalles, fallas, accesorios y forma de entrega.";
   if (Number(data.get("price")) > 1000 && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(`${requiredValue(data, "title")} ${requiredValue(data, "description")}`)) {
-    return "Para articulos de valor agrega un identificador verificable: factura, serie, IMEI, chasis, matricula, modelo o medidas.";
+    return "Para artículos de valor agrega un identificador verificable: factura, serie, IMEI, chasis, matrícula, modelo o medidas.";
   }
   const textRisk = analyzeMessageRisk(`${requiredValue(data, "title")} ${requiredValue(data, "description")} ${requiredValue(data, "location")}`);
   if (textRisk.level === "Alto") return `La publicacion contiene senales de riesgo: ${textRisk.flags.join(", ")}. Ajusta el texto para mantener la operacion dentro de MarketPro.`;
@@ -2865,7 +2978,11 @@ const startOrderConversation = async (orderId) => {
 
 const reportListing = async () => {
   const item = selectedProduct();
-  const reason = prompt("Motivo del reporte", "Posible estafa o informacion incorrecta");
+  const reason = await promptAction(
+    "Describe brevemente por qué esta publicación necesita revisión.",
+    "Posible estafa o información incorrecta",
+    "Reportar publicación"
+  );
   if (!reason) return;
   const result = await api(`/api/products/${item.id}/report`, {
     method: "POST",
@@ -2885,7 +3002,11 @@ const activeChat = () => state.conversations.find((chat) => chat.id === state.se
 const reportActiveChat = async () => {
   const chat = activeChat();
   if (!chat) return;
-  const reason = prompt("Motivo del reporte", "Mensaje sospechoso o intento de pago fuera de MarketPro");
+  const reason = await promptAction(
+    "Describe el mensaje o comportamiento que debemos revisar.",
+    "Mensaje sospechoso o intento de pago fuera de MarketPro",
+    "Reportar conversación"
+  );
   if (!reason) return;
   const result = await api(`/api/conversations/${chat.id}/report`, {
     method: "POST",
@@ -2901,7 +3022,10 @@ const reportActiveChat = async () => {
 const blockActiveChat = async () => {
   const chat = activeChat();
   if (!chat || chat.blocked) return;
-  if (!confirm("¿Bloquear este chat por seguridad? No se podran enviar mas mensajes en esta conversacion.")) return;
+  if (!await confirmAction(
+    "No se podrán enviar más mensajes y la conversación quedará marcada para revisión.",
+    "Bloquear conversación"
+  )) return;
   const result = await api(`/api/conversations/${chat.id}/block`, {
     method: "POST",
     body: JSON.stringify({ reason: "Bloqueo solicitado por usuario" })
@@ -2944,14 +3068,16 @@ const connectMercadoPago = async () => {
 };
 
 const disconnectMercadoPago = async () => {
-  if (!confirm("Las nuevas compras quedaran deshabilitadas hasta que vuelvas a conectar Mercado Pago. ¿Desconectar?")) return;
+  if (!await confirmAction(
+    "Las nuevas compras quedarán deshabilitadas hasta que vuelvas a conectar tu cuenta.",
+    "Desconectar Mercado Pago"
+  )) return;
   const result = await api("/api/payments/mercadopago/oauth/connection", { method: "DELETE" });
   if (result.error) {
     alert(result.error);
     return;
   }
   state.user = { ...state.user, mercadoPago: result.mercadoPago };
-  localStorage.setItem("marketUser", JSON.stringify(state.user));
   render();
 };
 
@@ -3165,7 +3291,10 @@ const sendMessage = async (event) => {
   if (!text && !pendingChatAttachment) return;
   const risk = analyzeMessageRisk(text);
   if (risk.level === "Alto") {
-    const proceed = confirm(`MP Shield detecto posible ${risk.flags.join(", ")}. No compartas codigos, pagos externos ni datos bancarios. ¿Enviar igualmente como evidencia auditada?`);
+    const proceed = await confirmAction(
+      `MP Shield detectó posible ${risk.flags.join(", ")}. No compartas códigos, pagos externos ni datos bancarios.`,
+      "Mensaje de riesgo"
+    );
     if (!proceed) return;
   }
   const result = await api(`/api/conversations/${state.selectedChatId}/messages`, {
@@ -3221,12 +3350,11 @@ const authenticate = async (event) => {
     alert(result.fields?.length ? `${result.error}: ${result.fields.join(", ")}` : result.error);
     return;
   }
-  if (result.sessionToken) {
-    state.authToken = result.sessionToken;
-    localStorage.setItem("marketAuthToken", result.sessionToken);
-  }
   state.user = result;
-  localStorage.setItem("marketUser", JSON.stringify(state.user));
+  state.authenticated = true;
+  state.authToken = "";
+  localStorage.removeItem("marketAuthToken");
+  localStorage.removeItem("marketUser");
   await refreshSellerDashboard();
   render();
   scrollToTop();
@@ -3246,13 +3374,39 @@ const loginUser = async (event) => {
     alert(result.error);
     return;
   }
-  state.authToken = result.sessionToken || "";
   state.user = result;
-  localStorage.setItem("marketAuthToken", state.authToken);
-  localStorage.setItem("marketUser", JSON.stringify(state.user));
+  state.authenticated = true;
+  state.authToken = "";
+  localStorage.removeItem("marketAuthToken");
+  localStorage.removeItem("marketUser");
   await refreshSellerDashboard();
   render();
   scrollToTop();
+};
+
+const verifyEmailCode = async (event) => {
+  event.preventDefault();
+  const code = requiredValue(new FormData(event.currentTarget), "code");
+  const result = await api("/api/auth/email/verify", {
+    method: "POST",
+    body: JSON.stringify({ code })
+  });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  state.user = result.user;
+  showToast("Correo verificado. Tu identidad pasó a revisión.", "success");
+  render();
+};
+
+const resendEmailCode = async () => {
+  const result = await api("/api/auth/email/resend", { method: "POST", body: "{}" });
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  showToast(result.demoCode ? `${result.message} Código: ${result.demoCode}` : result.message, "success");
 };
 
 const requestPasswordReset = async (event) => {
@@ -3285,16 +3439,17 @@ const confirmPasswordReset = async (event) => {
 
 const authenticateAdminEntry = async (event) => {
   event.preventDefault();
-  const password = new FormData(event.currentTarget).get("password");
+  const data = new FormData(event.currentTarget);
+  const password = data.get("password");
   const result = await api("/api/admin/login", {
     method: "POST",
-    body: JSON.stringify({ password })
+    body: JSON.stringify({ password, code: data.get("code") || "" })
   });
   if (result.error) {
     alert(result.error);
     return;
   }
-  sessionStorage.setItem("mpAdminToken", result.token);
+  sessionStorage.setItem("mpAdminToken", "cookie");
   state.user = {
     id: "marketpro-admin",
     name: "Admin MarketPro",
@@ -3310,18 +3465,18 @@ const authenticateAdminEntry = async (event) => {
     verificationStatus: "Admin verificado",
     admin: true
   };
-  localStorage.setItem("marketUser", JSON.stringify(state.user));
   state.sellerDashboard = { user: state.user, stats: { active: 0, sold: 0, grossSales: 0, balance: 0, pendingBalance: 0, securityScore: 100 }, listings: [] };
   render();
   scrollToTop();
 };
 
-const logoutUser = () => {
-  if (state.authToken) {
-    api("/api/auth/logout", { method: "POST", body: JSON.stringify({}) }).catch(() => {});
-  }
+const logoutUser = async () => {
+  const endpoint = state.user?.admin ? "/api/admin/logout" : "/api/auth/logout";
+  await api(endpoint, { method: "POST", assistant: false, body: "{}" });
+  state.socket?.close();
   state.user = null;
   state.authToken = "";
+  state.authenticated = false;
   state.sellerDashboard = null;
   state.view = "profile";
   state.selectedChatId = null;
@@ -3335,11 +3490,14 @@ const logoutUser = () => {
 };
 
 const deleteAccount = async () => {
-  if (!state.authToken) {
+  if (!state.authenticated && !state.authToken) {
     alert("Para eliminar la cuenta tienes que iniciar sesion.");
     return;
   }
-  const confirmed = confirm("¿Eliminar tu cuenta de MarketPro? Tus publicaciones quedaran pausadas y la sesion se cerrara.");
+  const confirmed = await confirmAction(
+    "Tus publicaciones quedarán pausadas, la sesión se cerrará y la cuenta dejará de estar disponible.",
+    "Eliminar cuenta"
+  );
   if (!confirmed) return;
   const result = await api("/api/user", { method: "DELETE" });
   if (result.error) {
@@ -3347,6 +3505,7 @@ const deleteAccount = async () => {
     return;
   }
   state.authToken = "";
+  state.authenticated = false;
   state.user = null;
   state.sellerDashboard = null;
   state.view = "profile";
@@ -3400,6 +3559,17 @@ window.addEventListener("appinstalled", () => {
   state.canInstallPwa = false;
   render();
 });
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("/service-worker.js?v=99", { updateViaCache: "none" });
+      await registration.update();
+    } catch {
+      showToast("La instalación sin conexión no está disponible en este momento.", "danger");
+    }
+  });
+}
 
 window.addEventListener("error", (event) => {
   if (!event.error) return;

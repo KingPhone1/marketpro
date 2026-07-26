@@ -4,7 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: starter
-    buildCommand: npm install
+    buildCommand: npm ci --omit=dev
     startCommand: npm start
     healthCheckPath: /healthz
     envVars:
@@ -22,10 +22,16 @@ services:
         sync: false
       - key: SUPABASE_STORE_TABLE
         value: marketpro_store
+      - key: SUPABASE_BACKUP_TABLE
+        value: marketpro_store_backups
       - key: SUPABASE_STORE_ID
         value: production
       - key: SUPABASE_PRIVATE_BUCKET
         value: marketpro-private
+      - key: SUPABASE_PUBLIC_BUCKET
+        value: marketpro-public
+      - key: REQUIRE_PRODUCTION_CONFIG
+        value: "false"
       - key: ADMIN_PASSWORD
         sync: false
       - key: ADMIN_TOTP_SECRET
