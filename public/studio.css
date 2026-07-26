@@ -39,6 +39,17 @@ textarea {
   font: inherit;
 }
 
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--mp-text) !important;
+  caret-color: var(--mp-text);
+  box-shadow: 0 0 0 1000px var(--mp-surface) inset !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
 button {
   transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, color 180ms ease, opacity 180ms ease;
 }
