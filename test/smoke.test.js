@@ -12,13 +12,25 @@ let anaCookie = "";
 let adminCookie = "";
 let belenCookie = "";
 let listingId = "";
+let conversationId = "";
 
 const request = async (route, { cookie = "", method = "GET", body, originHeader = origin } = {}) => {
+  const stateChanging = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  let csrfToken = "";
+  let csrfCookie = "";
+  if (stateChanging && route !== "/api/payments/mercadopago/webhook") {
+    const csrfResponse = await fetch(`${origin}/api/security/csrf`, {
+      headers: cookie ? { Cookie: cookie } : {}
+    });
+    csrfToken = (await csrfResponse.json()).token;
+    csrfCookie = csrfResponse.headers.get("set-cookie")?.split(";")[0] || "";
+  }
   const response = await fetch(`${origin}${route}`, {
     method,
     headers: {
       ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(cookie ? { Cookie: cookie } : {}),
+      ...((cookie || csrfCookie) ? { Cookie: [cookie, csrfCookie].filter(Boolean).join("; ") } : {}),
+      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
       ...(originHeader ? { Origin: originHeader } : {})
     },
     ...(body ? { body: JSON.stringify(body) } : {})
@@ -42,7 +54,12 @@ const waitForServer = async () => {
   throw new Error("MarketPro no inicio para las pruebas.");
 };
 
-const testImage = `data:image/jpeg;base64,${Buffer.alloc(2048, 1).toString("base64")}`;
+const testImageBytes = Buffer.concat([
+  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+  Buffer.alloc(2042, 1),
+  Buffer.from([0xff, 0xd9])
+]);
+const testImage = `data:image/jpeg;base64,${testImageBytes.toString("base64")}`;
 const accountPayload = (email, name) => ({
   name,
   email,
@@ -222,6 +239,7 @@ test("chat connects both verified users and preserves the correct contact", asyn
     body: { productId: listingId }
   });
   assert.equal(conversation.response.status, 201);
+  conversationId = conversation.data.id;
 
   const sent = await request(`/api/conversations/${conversation.data.id}/messages`, {
     method: "POST",
@@ -258,6 +276,23 @@ test("chat connects both verified users and preserves the correct contact", asyn
   }
 });
 
+test("chat records read receipts for the other participant", async () => {
+  const read = await request(`/api/conversations/${conversationId}/read`, {
+    method: "POST",
+    cookie: anaCookie,
+    body: {}
+  });
+  assert.equal(read.response.status, 200);
+
+  const buyerChats = await request("/api/conversations", {
+    cookie: belenCookie,
+    originHeader: ""
+  });
+  const buyerChat = buyerChats.data.find((item) => item.id === conversationId);
+  const buyerMessage = buyerChat.messages.find((message) => message.text.includes("sigue disponible"));
+  assert.ok(buyerMessage.readAt);
+});
+
 test("the delivery code is visible to the buyer and hidden from the seller", async () => {
   const simulation = await request("/api/admin/simulate/antifraud-purchase", {
     method: "POST",
@@ -289,4 +324,50 @@ test("cross-origin state changes are rejected", async () => {
     body: { email: "ana.launch@gmail.com", password: "LaunchSecure2026A" }
   });
   assert.equal(response.response.status, 403);
+});
+
+test("state changes without a CSRF token are rejected", async () => {
+  const response = await fetch(`${origin}/api/auth/logout`, {
+    method: "POST",
+    headers: {
+      Cookie: anaCookie,
+      Origin: origin,
+      "Content-Type": "application/json"
+    },
+    body: "{}"
+  });
+  assert.equal(response.status, 403);
+});
+
+test("fake image payloads are rejected even when the MIME label says JPEG", async () => {
+  const fakeImage = `data:image/jpeg;base64,${Buffer.alloc(2048, 1).toString("base64")}`;
+  const response = await request("/api/user", {
+    method: "POST",
+    body: {
+      ...accountPayload("fake.image@gmail.com", "Fake Image"),
+      profilePhoto: fakeImage,
+      documentPhoto: fakeImage
+    }
+  });
+  assert.equal(response.response.status, 400);
+});
+
+test("global logout invalidates every active session for the account", async () => {
+  const secondLogin = await request("/api/auth/login", {
+    method: "POST",
+    body: { email: "ana.launch@gmail.com", password: "LaunchSecure2026A" }
+  });
+  assert.equal(secondLogin.response.status, 200);
+
+  const logoutAll = await request("/api/auth/logout-all", {
+    method: "POST",
+    cookie: anaCookie,
+    body: {}
+  });
+  assert.equal(logoutAll.response.status, 200);
+
+  const firstSession = await request("/api/user", { cookie: anaCookie, originHeader: "" });
+  const secondSession = await request("/api/user", { cookie: secondLogin.cookie, originHeader: "" });
+  assert.equal(firstSession.data, null);
+  assert.equal(secondSession.data, null);
 });

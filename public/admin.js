@@ -7,7 +7,8 @@ const state = {
   innovationStatus: { activeCount: 0, total: 0 },
   mercadoPago: null,
   mercadoPagoTest: null,
-  error: ""
+  error: "",
+  csrfToken: ""
 };
 
 const money = (value) =>
@@ -25,11 +26,30 @@ const escapeHtml = (value = "") =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 
+let csrfRequest = null;
+const ensureCsrfToken = async () => {
+  if (state.csrfToken) return state.csrfToken;
+  if (csrfRequest) return csrfRequest;
+  csrfRequest = fetch("/api/security/csrf", { credentials: "same-origin", cache: "no-store" })
+    .then((response) => response.json())
+    .then((data) => {
+      state.csrfToken = data.token || "";
+      return state.csrfToken;
+    })
+    .finally(() => {
+      csrfRequest = null;
+    });
+  return csrfRequest;
+};
+
 const api = async (path, options = {}) => {
+  const stateChanging = ["POST", "PUT", "PATCH", "DELETE"].includes(String(options.method || "GET").toUpperCase());
+  if (stateChanging) await ensureCsrfToken();
   const response = await fetch(path, {
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
+      ...(stateChanging && state.csrfToken ? { "X-CSRF-Token": state.csrfToken } : {}),
       ...(state.token && state.token !== "cookie" ? { Authorization: `Bearer ${state.token}` } : {}),
       ...(options.headers || {})
     },
@@ -179,6 +199,7 @@ const dashboardView = () => {
   const blockedPairs = overview.blockedPairs || [];
   const adminAudit = overview.adminAudit || [];
   const security = overview.security || {};
+  const metrics = overview.metrics || {};
   const launch = overview.launch || { ready: false, checks: [], blockers: [] };
   const disputes = orders.flatMap((order) => (order.disputes || []).map((dispute) => ({ ...dispute, order })));
   const pending = pendingUsers.length;
@@ -205,6 +226,20 @@ const dashboardView = () => {
       <div class="metric-card"><span>Disputas</span><strong>${disputes.filter((item) => item.status !== "Cerrada").length}</strong></div>
       <div class="metric-card"><span>Reportes</span><strong>${reports.length}</strong></div>
       <div class="metric-card"><span>Soporte</span><strong>${supportTickets.length}</strong></div>
+    </section>
+
+    <section class="panel">
+      <div class="admin-section-head">
+        <div><p class="eyebrow">Operación en tiempo real</p><h1>Salud de MarketPro</h1></div>
+      </div>
+      <div class="seller-metrics admin-metrics">
+        <div class="metric-card"><span>Solicitudes</span><strong>${Number(metrics.requests || 0)}</strong></div>
+        <div class="metric-card"><span>Respuesta media</span><strong>${Number(metrics.averageResponseTimeMs || 0)} ms</strong></div>
+        <div class="metric-card"><span>Errores del servidor</span><strong>${Number(metrics.errors || 0)}</strong></div>
+        <div class="metric-card"><span>Sesiones activas</span><strong>${Number(metrics.activeSessions || 0)}</strong></div>
+        <div class="metric-card"><span>Chats conectados</span><strong>${Number(metrics.activeSockets || 0)}</strong></div>
+        <div class="metric-card"><span>Errores de interfaz</span><strong>${(overview.clientErrors || []).length}</strong></div>
+      </div>
     </section>
 
     <section class="panel launch-readiness ${launch.ready ? "ready" : "blocked"}">
@@ -262,6 +297,7 @@ const dashboardView = () => {
             <div><small>Articulo/chat</small><b>${escapeHtml(report.productTitle || report.chatId || "")}</b></div>
             <div><small>Reporta</small><b>${escapeHtml(report.reporter?.name || "Usuario")}</b></div>
             <div><small>Fecha</small><b>${escapeHtml(report.createdAt || "")}</b></div>
+            ${report.status !== "Resuelto" ? `<div class="admin-actions"><button class="secondary-btn" data-resolve-report="${report.id}">Resolver</button>${report.productId ? `<button class="danger-btn" data-pause-report="${report.id}">Pausar publicación</button>` : ""}</div>` : ""}
           </article>
         `).join("") : `<div class="empty">No hay reportes pendientes.</div>`}
         ${supportTickets.length ? supportTickets.slice(0, 8).map((ticket) => `
@@ -303,6 +339,7 @@ const dashboardView = () => {
             <div><small>Huella</small><b>${escapeHtml(order.security?.stamp?.productFingerprint || "")}</b></div>
             <div><small>Evidencia vendedor</small><b>${order.delivery?.sellerProof ? "Cargada" : "Pendiente"}</b></div>
             <div><small>Disputas</small><b>${order.disputes?.length || 0}</b></div>
+            ${(order.disputes || []).filter((dispute) => dispute.status !== "Cerrada").map((dispute) => `<button class="secondary-btn" data-resolve-dispute="${order.id}" data-dispute-id="${dispute.id}">Cerrar disputa</button>`).join("")}
           </article>
         `).join("") : `<div class="empty">Todavía no hay órdenes.</div>`}
       </div>
@@ -367,7 +404,7 @@ const dashboardView = () => {
               <div><small>Telefono</small><b>${escapeHtml(user.phone)}</b></div>
               <div><small>Publicaciones</small><b>${user.listings}</b></div>
               <div class="admin-actions">
-                <button class="danger-btn" data-reject="${user.id}">Rechazar</button>
+                <button class="danger-btn" data-suspend="${user.id}">Suspender</button>
               </div>
             </article>`
           )
@@ -419,6 +456,40 @@ const bindEvents = () => {
 
   document.querySelectorAll("[data-reject]").forEach((button) => {
     button.addEventListener("click", () => reviewUser(button.dataset.reject, "rejected"));
+  });
+
+  document.querySelectorAll("[data-suspend]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await api(`/api/admin/users/${button.dataset.suspend}/suspend`, {
+        method: "POST",
+        body: JSON.stringify({ reason: "Suspensión preventiva iniciada desde el panel administrativo." })
+      });
+      await loadOverview();
+    });
+  });
+
+  document.querySelectorAll("[data-resolve-report], [data-pause-report]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const reportId = button.dataset.resolveReport || button.dataset.pauseReport;
+      await api(`/api/admin/reports/${reportId}/resolve`, {
+        method: "POST",
+        body: JSON.stringify({
+          pauseListing: Boolean(button.dataset.pauseReport),
+          resolution: button.dataset.pauseReport ? "Publicación pausada para revisión." : "Reporte revisado y cerrado."
+        })
+      });
+      await loadOverview();
+    });
+  });
+
+  document.querySelectorAll("[data-resolve-dispute]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await api(`/api/admin/orders/${button.dataset.resolveDispute}/disputes/${button.dataset.disputeId}/resolve`, {
+        method: "POST",
+        body: JSON.stringify({ decision: "Expediente revisado por administración. Las partes fueron notificadas." })
+      });
+      await loadOverview();
+    });
   });
 };
 

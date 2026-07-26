@@ -44,6 +44,9 @@ https://tu-dominio.com/api/payments/mercadopago/webhook
 ```
 
 El checkout ya no usa pagos internos ni simulados. MarketPro crea una orden protegida y deriva el cobro a Mercado Pago.
+Cada vendedor conecta su propia cuenta mediante OAuth. El cobro llega directamente a esa cuenta;
+MarketPro no recibe, retiene ni libera dinero. La aplicación verifica el webhook firmado, el monto,
+la moneda y la cuenta receptora antes de marcar el pago como confirmado.
 
 Desde el panel admin puedes entrar a **Mercado Pago vinculado** y usar **Probar preferencia real**. Si las credenciales son correctas, se crea una preferencia y aparece un link de checkout real.
 
@@ -111,3 +114,38 @@ El proyecto tambien incluye `Procfile`, `Dockerfile` y `render.yaml`.
 - Ejecutar `npm test` y confirmar que todas las pruebas pasan.
 - Verificar en el panel admin que **Control de lanzamiento** muestre todos los servicios criticos en `OK`.
 - Mantener una sola instancia mientras se use la memoria de lanzamiento basada en snapshots.
+
+## 7. Operacion y monitoreo
+
+- `/healthz` comprueba que el proceso esta activo.
+- `/readyz` informa si las integraciones obligatorias estan listas.
+- El panel admin muestra solicitudes, tiempo medio de respuesta, errores, sesiones y chats conectados.
+- Los errores de interfaz se registran de forma limitada y sin documentos, contrasenas ni datos bancarios.
+- Revisa periodicamente las copias de `marketpro_store_backups` y prueba una restauracion.
+- Antes de cada despliegue ejecuta `npm run check`, `npm test` y `npm audit --omit=dev`.
+
+## 8. Controles implementados
+
+- Cookies de sesion `HttpOnly`, `Secure` en produccion y `SameSite=Strict`.
+- Token CSRF obligatorio para cambios de estado.
+- Caducidad de sesion por tiempo total e inactividad.
+- Cierre de una sesion o de todos los dispositivos.
+- Contraseñas con `scrypt`, codigos temporales almacenados como hash y bloqueo por intentos.
+- Datos de identidad cifrados con `TOKEN_ENCRYPTION_KEY`.
+- Validacion de firma binaria, formato y tamaño de imagenes.
+- Webhooks firmados e idempotentes.
+- Codigo de entrega oculto hasta que Mercado Pago confirme el pago, nunca visible para el vendedor.
+- Evidencia obligatoria antes del despacho, tracking para agencias y bloqueo de intentos del codigo.
+- Auditoria de acciones administrativas, reportes y resolucion de disputas.
+
+## 9. Limitaciones externas reales
+
+MarketPro no puede activar por si solo servicios que requieren cuentas y secretos del propietario.
+El lanzamiento comercial queda condicionado a completar en Render:
+
+- Credenciales OAuth y webhook productivo de Mercado Pago.
+- Dominio y correo remitente verificado en Resend.
+- Contraseña administrativa fuerte y secreto TOTP.
+- Clave privada aleatoria para cifrado.
+
+No uses datos inventados ni credenciales de prueba para presentar la aplicacion como productiva.

@@ -342,7 +342,7 @@ const fraudPatterns = [
 ];
 
 const initialView = () => {
-  if (location.pathname === "/privacy") return "legal";
+  if (["/privacy", "/terms", "/cookies"].includes(location.pathname)) return "legal";
   if (location.pathname === "/support") return "support";
   if (location.pathname === "/security") return "security";
   const page = new URLSearchParams(location.search).get("page");
@@ -392,7 +392,9 @@ const state = {
   sessionId: getSessionId(),
   viewKey: 0,
   sellerDashboard: null,
-  socket: null
+  socket: null,
+  csrfToken: "",
+  chatTyping: {}
 };
 
 const money = (value) =>
@@ -580,14 +582,34 @@ const navigate = (view, payload = {}) => {
   scrollToTop();
 };
 
+let csrfRequest = null;
+const ensureCsrfToken = async (force = false) => {
+  if (state.csrfToken && !force) return state.csrfToken;
+  if (csrfRequest && !force) return csrfRequest;
+  csrfRequest = fetch("/api/security/csrf", { credentials: "same-origin", cache: "no-store" })
+    .then((response) => response.json())
+    .then((data) => {
+      state.csrfToken = data.token || "";
+      return state.csrfToken;
+    })
+    .catch(() => "")
+    .finally(() => {
+      csrfRequest = null;
+    });
+  return csrfRequest;
+};
+
 const api = async (path, options = {}) => {
   const { assistant = true, ...requestOptions } = options;
+  const stateChanging = ["POST", "PUT", "PATCH", "DELETE"].includes(String(requestOptions.method || "GET").toUpperCase());
+  if (stateChanging) await ensureCsrfToken();
   const identity = currentIdentity();
   const headers = {
     "Content-Type": "application/json",
     "X-User-Id": identity.id,
     "X-User-Name": encodeURIComponent(identity.name),
     "X-User-Email": identity.email,
+    ...(stateChanging && state.csrfToken ? { "X-CSRF-Token": state.csrfToken } : {}),
     ...(state.authToken ? { Authorization: `Bearer ${state.authToken}` } : {}),
     ...(requestOptions.headers || {})
   };
@@ -723,6 +745,7 @@ const migrateLegacySession = async () => {
 };
 
 const loadData = async () => {
+  await ensureCsrfToken();
   await migrateLegacySession();
   if (state.user && !state.user.admin && !state.authToken && !state.authenticated) {
     state.user = null;
@@ -771,6 +794,19 @@ const refreshSellerDashboard = async () => {
   return state.sellerDashboard;
 };
 
+const refreshLiveData = async () => {
+  const [products, conversations, orders, notifications] = await Promise.all([
+    api("/api/products"),
+    api("/api/conversations"),
+    api("/api/orders"),
+    api("/api/notifications")
+  ]);
+  if (Array.isArray(products)) state.products = products.map(normalizeProduct);
+  if (Array.isArray(conversations)) state.conversations = conversations;
+  if (Array.isArray(orders)) state.orders = orders;
+  if (Array.isArray(notifications)) state.notifications = notifications;
+};
+
 const connectSocket = () => {
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   if (state.socket?.readyState === WebSocket.OPEN || state.socket?.readyState === WebSocket.CONNECTING) return;
@@ -780,6 +816,27 @@ const connectSocket = () => {
   });
   state.socket.addEventListener("message", (event) => {
     const payload = JSON.parse(event.data);
+    if (payload.type === "typing") {
+      state.chatTyping[payload.chatId] = payload.active ? payload.name || "La otra persona" : "";
+      const presence = document.querySelector("[data-chat-presence]");
+      if (presence && payload.chatId === state.selectedChatId) {
+        presence.textContent = payload.active ? `${payload.name || "La otra persona"} está escribiendo…` : "Conversación sincronizada";
+      }
+      return;
+    }
+    if (payload.type === "read") {
+      state.conversations = state.conversations.map((chat) => chat.id === payload.chatId
+        ? {
+            ...chat,
+            messages: chat.messages.map((message) =>
+              isMyMessage(message) ? { ...message, readAt: payload.readAt } : message
+            )
+          }
+        : chat
+      );
+      if (state.view === "messages") render();
+      return;
+    }
     if (payload.type !== "message") return;
     state.conversations = state.conversations.map((chat) => {
       if (chat.id !== payload.chatId) return chat;
@@ -1101,7 +1158,7 @@ const ratingStars = (rating = 0) => {
 const productCard = (item) => `
   <button class="product-card" data-product="${item.id}">
     <div class="card-image">
-      <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" />
+      <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async" />
       ${trustBadge(item)}
       <span class="card-heart" aria-hidden="true">♡</span>
     </div>
@@ -1510,15 +1567,22 @@ const supportView = () => `
 const legalView = () => `
   <main>
     <section class="panel legal-panel">
-      <p class="eyebrow">Privacidad y condiciones</p>
-      <h1>Datos usados para seguridad, no para decorar perfiles.</h1>
+      <p class="eyebrow">Privacidad, términos y cookies</p>
+      <h1>Reglas claras para operar con confianza.</h1>
+      <p class="muted">Versión vigente: julio de 2026. MarketPro conecta a las partes y registra la operación; el pago se procesa directamente en Mercado Pago.</p>
       <div class="legal-grid">
-        <article><strong>Datos de cuenta</strong><span>Gmail, contrasena protegida, telefono, cedula, foto de rostro y foto frontal del documento para revision admin.</span></article>
-        <article><strong>Operaciones</strong><span>Publicaciones, chats, ordenes, evidencias, reportes, pagos derivados a Mercado Pago y estados de entrega.</span></article>
-        <article><strong>Pagos</strong><span>MarketPro no almacena tarjetas ni recibe el dinero. El pago se realiza directamente al vendedor en Mercado Pago.</span></article>
-        <article><strong>Eliminacion</strong><span>Desde Mi cuenta puedes solicitar/eliminar tu cuenta. Tus publicaciones quedan pausadas para evitar operaciones incompletas.</span></article>
-        <article><strong>Moderacion</strong><span>Reportes de publicaciones, chats y disputas quedan disponibles para el admin.</span></article>
-        <article><strong>Seguridad</strong><span>No compartas codigos antes de revisar el articulo. El codigo unico cambia por cada orden.</span></article>
+        <article><strong>Cuenta e identidad</strong><span>Usamos correo, teléfono, cédula, rostro y frente del documento para acceso, recuperación y revisión privada. Las credenciales se protegen y los documentos no forman parte del perfil público.</span></article>
+        <article><strong>Responsabilidad del usuario</strong><span>Cada persona debe publicar información verdadera, conservar el chat dentro de MarketPro, revisar el artículo y no compartir contraseñas, códigos ni datos bancarios.</span></article>
+        <article><strong>Publicaciones y contenido</strong><span>Podemos pausar contenido duplicado, engañoso, denunciado, prohibido o incompatible con las reglas. El vendedor responde por autenticidad, condición, precio y entrega.</span></article>
+        <article><strong>Compras y ventas</strong><span>La orden congela título, precio, fotos, partes y evidencia. MarketPro facilita trazabilidad, pero comprador y vendedor siguen siendo responsables del acuerdo y de la legalidad del artículo.</span></article>
+        <article><strong>Pagos externos</strong><span>Mercado Pago procesa el cobro directamente para el vendedor. MarketPro no almacena tarjetas, no recibe, retiene ni libera dinero y no puede prometer reembolsos ajenos a Mercado Pago.</span></article>
+        <article><strong>Disputas y reclamos</strong><span>MarketPro conserva publicación, chat, rastreo y evidencia para revisión y para que las partes puedan presentar un reclamo documentado ante Mercado Pago o el proveedor correspondiente.</span></article>
+        <article><strong>Retención y eliminación</strong><span>La cuenta puede eliminarse desde Mi cuenta. Conservamos temporalmente registros indispensables de seguridad, fraude, disputas u obligaciones legales y pausamos operaciones incompletas.</span></article>
+        <article><strong>Cookies y sesiones</strong><span>Usamos cookies estrictamente necesarias para iniciar sesión, prevenir solicitudes falsas, mantener seguridad y habilitar la instalación PWA. No usamos cookies publicitarias de terceros.</span></article>
+        <article><strong>Disponibilidad</strong><span>Buscamos continuidad y recuperación ante fallos, pero una plataforma conectada a proveedores externos puede tener interrupciones. Los estados críticos se validan en el servidor.</span></article>
+        <article><strong>Moderación y suspensión</strong><span>El administrador puede revisar evidencia, resolver reportes, suspender cuentas y pausar publicaciones cuando exista riesgo, incumplimiento o información insuficiente.</span></article>
+        <article><strong>Protección del menor</strong><span>El servicio está pensado para personas con capacidad legal para contratar. No se deben registrar documentos de terceros ni usar MarketPro para artículos prohibidos.</span></article>
+        <article><strong>Soporte y contacto</strong><span>Los reclamos deben incluir el número de orden o publicación y enviarse desde Soporte. Nunca pediremos contraseña, código de entrega ni datos completos de tarjeta.</span></article>
       </div>
     </section>
   </main>
@@ -1535,7 +1599,7 @@ const featuredRail = () => `
         .map(
           (item) => `
           <button class="featured-item" data-product="${item.id}">
-            <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" />
+            <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async" />
             <span>${escapeHtml(item.category)}</span>
             <strong>${escapeHtml(item.title)}</strong>
             <b>${money(item.price)}</b>
@@ -2130,6 +2194,7 @@ const messagesView = () => {
                   <small>${escapeHtml(chat.messages?.at(-1)?.text || "Conversación protegida")}</small>
                 </div>
                 <time>${escapeHtml(chat.messages?.at(-1)?.time || "")}</time>
+                ${chat.unreadCount ? `<b class="chat-unread" aria-label="${chat.unreadCount} mensajes sin leer">${chat.unreadCount}</b>` : ""}
               </button>`;
             })
             .join("")}
@@ -2146,7 +2211,7 @@ const messagesView = () => {
                 <div>
                   <strong>${escapeHtml(contact.name)}</strong>
                   <div class="muted">${escapeHtml(active.productTitle)}</div>
-                  <small class="chat-presence"><i></i> Conversación sincronizada</small>
+                  <small class="chat-presence"><i></i><span data-chat-presence>${escapeHtml(state.chatTyping[active.id] ? `${state.chatTyping[active.id]} está escribiendo…` : "Conversación sincronizada")}</span></small>
                 </div>
               </div>
               <div class="chat-warning">
@@ -2162,7 +2227,7 @@ const messagesView = () => {
                       ${msg.attachment ? `<button type="button" class="chat-photo" data-chat-photo><img src="${escapeHtml(msg.attachment)}" alt="Foto compartida en el chat" /></button>` : ""}
                       ${msg.text ? `<p>${escapeHtml(msg.text)}</p>` : ""}
                       ${msg.risk?.level && msg.risk.level !== "Bajo" ? `<small class="risk-note">Alerta ${escapeHtml(msg.risk.level)}: ${escapeHtml(msg.risk.flags.join(", "))}</small>` : ""}
-                      ${msg.time ? `<time>${escapeHtml(msg.time)}</time>` : ""}
+                      ${msg.time ? `<time>${escapeHtml(msg.time)}${isMyMessage(msg) ? ` · ${msg.readAt ? "Leído" : "Enviado"}` : ""}</time>` : ""}
                     </div>`
                   )
             .join("")}
@@ -2425,6 +2490,7 @@ const profileView = () => {
       </section>
       <footer class="dashboard-account-actions">
         <button class="secondary-btn logout-btn" id="logoutUser">Cerrar sesión</button>
+        <button class="secondary-btn" id="logoutAllSessions">Cerrar todas las sesiones</button>
         <button class="danger-btn" id="deleteAccount">Eliminar cuenta</button>
       </footer>
     </main>
@@ -2629,6 +2695,7 @@ const bindEvents = () => {
   });
   document.querySelector("#adminEntryForm")?.addEventListener("submit", authenticateAdminEntry);
   document.querySelector("#logoutUser")?.addEventListener("click", logoutUser);
+  document.querySelector("#logoutAllSessions")?.addEventListener("click", logoutAllSessions);
   document.querySelector("#emailVerificationForm")?.addEventListener("submit", verifyEmailCode);
   document.querySelector("#resendEmailCode")?.addEventListener("click", resendEmailCode);
   document.querySelector("#useDeviceLocation")?.addEventListener("click", useDeviceLocation);
@@ -2676,8 +2743,10 @@ const bindEvents = () => {
   document.querySelector("#authForm")?.addEventListener("submit", authenticate);
 
   document.querySelectorAll("[data-chat]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       state.mobileChatList = false;
+      await api(`/api/conversations/${button.dataset.chat}/read`, { method: "POST", body: "{}" });
+      state.conversations = state.conversations.map((chat) => chat.id === button.dataset.chat ? { ...chat, unreadCount: 0 } : chat);
       navigate("messages", { selectedChatId: button.dataset.chat });
     });
   });
@@ -2687,6 +2756,16 @@ const bindEvents = () => {
   });
 
   document.querySelector("#messageForm")?.addEventListener("submit", sendMessage);
+  const chatMessageInput = document.querySelector("#messageForm input[name='message']");
+  let typingTimer = null;
+  chatMessageInput?.addEventListener("input", () => {
+    if (state.socket?.readyState !== WebSocket.OPEN || !state.selectedChatId) return;
+    state.socket.send(JSON.stringify({ type: "typing", chatId: state.selectedChatId, active: true }));
+    window.clearTimeout(typingTimer);
+    typingTimer = window.setTimeout(() => {
+      state.socket?.send(JSON.stringify({ type: "typing", chatId: state.selectedChatId, active: false }));
+    }, 1200);
+  });
   document.querySelector("#chatPhotoInput")?.addEventListener("change", prepareChatPhoto);
   document.querySelector("#removeChatPhoto")?.addEventListener("click", () => {
     pendingChatAttachment = "";
@@ -2856,7 +2935,7 @@ const useDeviceLocation = () => {
   const input = document.querySelector("#exactLocationInput");
   if (!input) return;
   if (!navigator.geolocation) {
-    alert("Este dispositivo no permite tomar ubicacion automatica. Escribe tu direccion exacta.");
+    showToast("Este dispositivo no permite tomar ubicación automática. Escribe tu dirección exacta.", "danger");
     return;
   }
   input.value = "Tomando ubicacion...";
@@ -2867,7 +2946,7 @@ const useDeviceLocation = () => {
     },
     () => {
       input.value = "";
-      alert("No se pudo obtener la ubicacion. Escribe calle, numero y ciudad.");
+      showToast("No se pudo obtener la ubicación. Escribe calle, número y ciudad.", "danger");
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
   );
@@ -2883,12 +2962,12 @@ const publishListing = async (event) => {
   const data = new FormData(form);
   const validationError = validateListingForm(data);
   if (validationError) {
-    alert(validationError);
+    showToast(validationError, "danger");
     return;
   }
   const images = await collectPhotos(form.photos);
   if ((form.photos?.files || []).length < 2) {
-    alert("Sube al menos 2 fotos reales del articulo para reducir disputas y mejorar la proteccion antiestafa.");
+    showToast("Sube al menos 2 fotos reales del artículo para reducir disputas.", "danger");
     return;
   }
   const created = await api("/api/products", {
@@ -2918,7 +2997,7 @@ const publishListing = async (event) => {
     })
   });
   if (created.error) {
-    alert(created.error);
+    showToast(created.error, "danger");
     navigate("profile");
     return;
   }
@@ -2927,7 +3006,7 @@ const publishListing = async (event) => {
     ? state.products.map((item) => item.id === product.id ? product : item)
     : [product, ...state.products];
   if (created.duplicatePrevented) {
-    alert("La publicación ya existía. Evitamos crear una copia duplicada.");
+    showToast("La publicación ya existía. Evitamos crear una copia duplicada.");
   }
   await refreshSellerDashboard();
   navigate("detail", { selectedProductId: product.id, galleryIndex: 0 });
@@ -2978,7 +3057,7 @@ const startOrderConversation = async (orderId) => {
     })
   });
   if (chat.error) {
-    alert(chat.error);
+    showToast(chat.error, "danger");
     return;
   }
   const exists = state.conversations.some((conversation) => conversation.id === chat.id);
@@ -3001,11 +3080,11 @@ const reportListing = async () => {
     body: JSON.stringify({ reason, details: reason })
   });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   state.products = state.products.map((product) => (product.id === item.id ? normalizeProduct(result.product) : product));
-  alert("Gracias. Revisaremos esta publicacion.");
+  showToast("Gracias. Revisaremos esta publicación.", "success");
   render();
 };
 
@@ -3025,10 +3104,10 @@ const reportActiveChat = async () => {
     body: JSON.stringify({ reason, details: reason })
   });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
-  alert("Chat reportado. El admin podra revisar la evidencia.");
+  showToast("Chat reportado. El administrador podrá revisar la evidencia.", "success");
 };
 
 const blockActiveChat = async () => {
@@ -3043,11 +3122,11 @@ const blockActiveChat = async () => {
     body: JSON.stringify({ reason: "Bloqueo solicitado por usuario" })
   });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   state.conversations = state.conversations.map((item) => (item.id === chat.id ? { ...item, blocked: true } : item));
-  alert("Chat bloqueado y enviado a revision.");
+  showToast("Chat bloqueado y enviado a revisión.", "success");
   render();
 };
 
@@ -3063,17 +3142,17 @@ const submitSupport = async (event) => {
     })
   });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
-  alert(`Soporte recibido. Ticket ${result.id}`);
+  showToast(`Soporte recibido. Ticket ${result.id}`, "success");
   event.currentTarget.reset();
 };
 
 const connectMercadoPago = async () => {
   const result = await api("/api/payments/mercadopago/oauth/start", { method: "POST", body: "{}" });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   window.location.assign(result.url);
@@ -3086,7 +3165,7 @@ const disconnectMercadoPago = async () => {
   )) return;
   const result = await api("/api/payments/mercadopago/oauth/connection", { method: "DELETE" });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   state.user = { ...state.user, mercadoPago: result.mercadoPago };
@@ -3117,7 +3196,7 @@ const secureCheckout = async (event) => {
     })
   });
   if (order.error) {
-    alert(`${order.error}${order.details ? "\nRevisa credenciales o cuenta de Mercado Pago." : ""}`);
+    showToast(`${order.error}${order.details ? " Revisa las credenciales o la cuenta de Mercado Pago." : ""}`, "danger");
     return;
   }
   syncOrder(order);
@@ -3144,11 +3223,11 @@ const confirmDelivery = async (event) => {
     })
   });
   if (order.error) {
-    alert(order.error);
+    showToast(order.error, "danger");
     return;
   }
   syncOrder(order);
-  alert("Entrega confirmada. La operacion quedo completada en MarketPro.");
+  showToast("Entrega confirmada. La operación quedó completada en MarketPro.", "success");
   render();
 };
 
@@ -3163,13 +3242,13 @@ const rateSeller = async (event) => {
     })
   });
   if (order.error) {
-    alert(order.error);
+    showToast(order.error, "danger");
     return;
   }
   syncOrder(order);
   state.products = (await api("/api/products")).map(normalizeProduct);
   await refreshSellerDashboard();
-  alert("Gracias por calificar al vendedor.");
+  showToast("Gracias por calificar al vendedor.", "success");
   render();
 };
 
@@ -3179,14 +3258,14 @@ const promoteProduct = async (productId) => {
     body: JSON.stringify({ productId, buyer: currentIdentity() })
   });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   if (result.checkoutUrl) {
     window.open(result.checkoutUrl, "_blank", "noopener");
-    alert("Abrimos Mercado Pago. Cuando se confirme el pago, tu producto quedara destacado en la portada.");
+    showToast("Abrimos Mercado Pago. Al confirmarse el pago, el producto quedará destacado.", "success");
   } else {
-    alert("Solicitud de anuncio creada.");
+    showToast("Solicitud de anuncio creada.", "success");
   }
 };
 
@@ -3194,7 +3273,7 @@ const promoteFromForm = async (event) => {
   event.preventDefault();
   const productId = new FormData(event.currentTarget).get("productId");
   if (!productId) {
-    alert("Elige una publicacion para destacar.");
+    showToast("Elige una publicación para destacar.", "danger");
     return;
   }
   await promoteProduct(productId);
@@ -3219,7 +3298,7 @@ const submitSellerProof = async (event) => {
     })
   });
   if (order.error) {
-    alert(order.error);
+    showToast(order.error, "danger");
     return;
   }
   syncOrder(order);
@@ -3238,7 +3317,7 @@ const markOrderInTransit = async (event) => {
     })
   });
   if (order.error) {
-    alert(order.error);
+    showToast(order.error, "danger");
     return;
   }
   syncOrder(order);
@@ -3259,7 +3338,7 @@ const openDispute = async (event) => {
     })
   });
   if (order.error) {
-    alert(order.error);
+    showToast(order.error, "danger");
     return;
   }
   syncOrder(order);
@@ -3295,7 +3374,7 @@ const sendMessage = async (event) => {
   event.preventDefault();
   const chat = activeChat();
   if (chat?.blocked) {
-    alert("Este chat esta bloqueado por seguridad.");
+    showToast("Este chat está bloqueado por seguridad.", "danger");
     return;
   }
   const input = event.currentTarget.message;
@@ -3340,7 +3419,7 @@ const authenticate = async (event) => {
   const data = new FormData(event.currentTarget);
   const validationError = validateAccountForm(data);
   if (validationError) {
-    alert(validationError);
+    showToast(validationError, "danger");
     return;
   }
   const profilePhoto = await fileToDataUrl(data.get("profilePhoto"));
@@ -3359,7 +3438,7 @@ const authenticate = async (event) => {
     })
   });
   if (result.error) {
-    alert(result.fields?.length ? `${result.error}: ${result.fields.join(", ")}` : result.error);
+    showToast(result.fields?.length ? `${result.error}: ${result.fields.join(", ")}` : result.error, "danger");
     return;
   }
   state.user = result;
@@ -3367,6 +3446,7 @@ const authenticate = async (event) => {
   state.authToken = "";
   localStorage.removeItem("marketAuthToken");
   localStorage.removeItem("marketUser");
+  await refreshLiveData();
   await refreshSellerDashboard();
   render();
   scrollToTop();
@@ -3383,7 +3463,7 @@ const loginUser = async (event) => {
     })
   });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   state.user = result;
@@ -3391,6 +3471,7 @@ const loginUser = async (event) => {
   state.authToken = "";
   localStorage.removeItem("marketAuthToken");
   localStorage.removeItem("marketUser");
+  await refreshLiveData();
   await refreshSellerDashboard();
   render();
   scrollToTop();
@@ -3404,7 +3485,7 @@ const verifyEmailCode = async (event) => {
     body: JSON.stringify({ code })
   });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   state.user = result.user;
@@ -3415,7 +3496,7 @@ const verifyEmailCode = async (event) => {
 const resendEmailCode = async () => {
   const result = await api("/api/auth/email/resend", { method: "POST", body: "{}" });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   showToast(result.demoCode ? `${result.message} Código: ${result.demoCode}` : result.message, "success");
@@ -3429,10 +3510,10 @@ const requestPasswordReset = async (event) => {
     body: JSON.stringify({ email: requiredValue(data, "email").toLowerCase() })
   });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
-  alert(result.demoCode ? `${result.message} Codigo: ${result.demoCode}` : result.message);
+  showToast(result.demoCode ? `${result.message} Código: ${result.demoCode}` : result.message, "success");
 };
 
 const confirmPasswordReset = async (event) => {
@@ -3446,7 +3527,7 @@ const confirmPasswordReset = async (event) => {
       password: data.get("password")
     })
   });
-  alert(result.error || result.message || "Listo.");
+  showToast(result.error || result.message || "Listo.", result.error ? "danger" : "success");
 };
 
 const authenticateAdminEntry = async (event) => {
@@ -3458,7 +3539,7 @@ const authenticateAdminEntry = async (event) => {
     body: JSON.stringify({ password, code: data.get("code") || "" })
   });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   sessionStorage.setItem("mpAdminToken", "cookie");
@@ -3501,9 +3582,24 @@ const logoutUser = async () => {
   scrollToTop();
 };
 
+const logoutAllSessions = async () => {
+  const confirmed = await confirmAction(
+    "Se cerrará MarketPro en este y en todos los demás dispositivos donde tu cuenta esté abierta.",
+    "Cerrar todas las sesiones"
+  );
+  if (!confirmed) return;
+  const result = await api("/api/auth/logout-all", { method: "POST", assistant: false, body: "{}" });
+  if (result.error) {
+    showToast(result.error, "danger");
+    return;
+  }
+  showToast(result.message, "success");
+  await logoutUser();
+};
+
 const deleteAccount = async () => {
   if (!state.authenticated && !state.authToken) {
-    alert("Para eliminar la cuenta tienes que iniciar sesion.");
+    showToast("Para eliminar la cuenta tienes que iniciar sesión.", "danger");
     return;
   }
   const confirmed = await confirmAction(
@@ -3513,7 +3609,7 @@ const deleteAccount = async () => {
   if (!confirmed) return;
   const result = await api("/api/user", { method: "DELETE" });
   if (result.error) {
-    alert(result.error);
+    showToast(result.error, "danger");
     return;
   }
   state.authToken = "";
@@ -3523,7 +3619,7 @@ const deleteAccount = async () => {
   state.view = "profile";
   localStorage.removeItem("marketUser");
   localStorage.removeItem("marketAuthToken");
-  alert("Cuenta eliminada. Tus publicaciones quedaron pausadas por seguridad.");
+  showToast("Cuenta eliminada. Tus publicaciones quedaron pausadas por seguridad.", "success");
   render();
   scrollToTop();
 };
@@ -3549,7 +3645,7 @@ const deleteListing = async (id) => {
 
 const installPwa = async () => {
   if (!deferredInstallPrompt) {
-    alert("Android/Chrome: abre el menu de tres puntos y toca Instalar app o Agregar a pantalla principal.\n\niPhone/Safari: toca Compartir y luego Agregar a pantalla de inicio.");
+    showToast("Android: usa Instalar app. En iPhone: Compartir y luego Agregar a pantalla de inicio.");
     return;
   }
   deferredInstallPrompt.prompt();
@@ -3575,7 +3671,7 @@ window.addEventListener("appinstalled", () => {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register("/service-worker.js?v=101", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("/service-worker.js?v=102", { updateViaCache: "none" });
       await registration.update();
     } catch {
       showToast("La instalación sin conexión no está disponible en este momento.", "danger");
@@ -3583,18 +3679,40 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+const reportClientError = (payload) => {
+  ensureCsrfToken().then(() => fetch("/api/client-errors", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      ...(state.csrfToken ? { "X-CSRF-Token": state.csrfToken } : {})
+    },
+    body: JSON.stringify(payload)
+  })).catch(() => {});
+};
+
 window.addEventListener("error", (event) => {
-  if (!event.error) return;
+  if (!event.error && !event.message) return;
   recordAssistantIssue("Esta pantalla encontró un error inesperado. El asistente puede ayudarte a continuar.", {
     path: state.view,
     status: 0
   });
+  reportClientError({
+    message: event.message || event.error?.message || "Error de interfaz",
+    source: event.filename || state.view,
+    line: event.lineno,
+    column: event.colno
+  });
 });
 
-window.addEventListener("unhandledrejection", () => {
+window.addEventListener("unhandledrejection", (event) => {
   recordAssistantIssue("Una acción no pudo completarse. Revisa la conexión o consulta al asistente.", {
     path: state.view,
     status: 0
+  });
+  reportClientError({
+    message: event.reason?.message || String(event.reason || "Promesa rechazada"),
+    source: state.view
   });
 });
 

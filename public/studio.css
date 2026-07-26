@@ -2524,6 +2524,19 @@ textarea:focus-visible {
   }
 }
 
+.chat-unread {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  place-items: center;
+  border-radius: 9999px;
+  color: #11110f;
+  background: var(--color-gold-light);
+  font-size: 11px;
+  font-weight: 750;
+}
+
 @media (max-width: 370px) {
   .topbar .brand > span {
     display: none !important;
