@@ -1,5 +1,17 @@
 ﻿const app = document.querySelector("#app");
 
+document.addEventListener(
+  "error",
+  (event) => {
+    const image = event.target;
+    if (!(image instanceof HTMLImageElement) || image.dataset.proxyFallback === "true") return;
+    if (!/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\//i.test(image.currentSrc || image.src)) return;
+    image.dataset.proxyFallback = "true";
+    image.src = `/api/public-image?src=${encodeURIComponent(image.currentSrc || image.src)}`;
+  },
+  true
+);
+
 let deferredInstallPrompt = null;
 let pendingChatAttachment = "";
 let motionMatchMedia = null;
@@ -3563,7 +3575,7 @@ window.addEventListener("appinstalled", () => {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register("/service-worker.js?v=100", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("/service-worker.js?v=101", { updateViaCache: "none" });
       await registration.update();
     } catch {
       showToast("La instalación sin conexión no está disponible en este momento.", "danger");

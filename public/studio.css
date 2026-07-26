@@ -2953,3 +2953,24 @@ textarea:focus-visible {
     transition: none !important;
   }
 }
+
+/* Every primary mobile surface uses the same 16px gutter. */
+@media (max-width: 760px) {
+  .app-shell .hero-panel {
+    width: 100% !important;
+    margin: 16px 0 28px !important;
+    min-height: 0 !important;
+    padding: 26px 20px 28px !important;
+  }
+
+  .app-shell .main-layout > main > .section-head,
+  .app-shell .main-layout > main > .category-cards,
+  .app-shell .main-layout > main > .grid {
+    width: 100% !important;
+    margin-inline: 0 !important;
+  }
+
+  .app-shell .main-layout > main > .grid {
+    padding-inline: 0 !important;
+  }
+}

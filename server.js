@@ -1361,6 +1361,32 @@ app.get("/readyz", (_req, res) => {
   res.status(readiness.ready ? 200 : 503).json(readiness);
 });
 
+app.get("/api/public-image", async (req, res) => {
+  if (!SUPABASE_ORIGIN) return res.status(404).end();
+  let source;
+  try {
+    source = new URL(String(req.query.src || ""));
+  } catch {
+    return res.status(400).json({ error: "URL de imagen invalida." });
+  }
+  const allowedPrefix = `/storage/v1/object/public/${SUPABASE_PUBLIC_BUCKET}/`;
+  if (source.origin !== SUPABASE_ORIGIN || !source.pathname.startsWith(allowedPrefix)) {
+    return res.status(403).json({ error: "Origen de imagen no permitido." });
+  }
+  try {
+    const response = await fetch(source, { redirect: "error" });
+    const contentType = String(response.headers.get("content-type") || "");
+    if (!response.ok || !contentType.startsWith("image/")) return res.status(404).end();
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length > 8 * 1024 * 1024) return res.status(413).end();
+    res.set("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+    res.type(contentType);
+    res.send(bytes);
+  } catch {
+    res.status(502).json({ error: "No se pudo cargar la imagen publica." });
+  }
+});
+
 app.get("/api/private-media/:reference", async (req, res) => {
   const user = authenticatedUser(req);
   if (!user) return res.status(401).json({ error: "Sesion requerida." });
