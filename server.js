@@ -50,6 +50,13 @@ const SUPABASE_BACKUP_TABLE = process.env.SUPABASE_BACKUP_TABLE || "marketpro_st
 const SUPABASE_STORE_ID = process.env.SUPABASE_STORE_ID || "production";
 const SUPABASE_PRIVATE_BUCKET = process.env.SUPABASE_PRIVATE_BUCKET || "marketpro-private";
 const SUPABASE_PUBLIC_BUCKET = process.env.SUPABASE_PUBLIC_BUCKET || "marketpro-public";
+const SUPABASE_ORIGIN = (() => {
+  try {
+    return SUPABASE_URL ? new URL(SUPABASE_URL).origin : "";
+  } catch {
+    return "";
+  }
+})();
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM = process.env.EMAIL_FROM || "MarketPro <no-reply@marketpro.uy>";
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "";
@@ -1271,7 +1278,7 @@ app.use((req, res, next) => {
       "object-src 'none'",
       "script-src 'self'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://images.unsplash.com",
+      `img-src 'self' data: blob: https://images.unsplash.com${SUPABASE_ORIGIN ? ` ${SUPABASE_ORIGIN}` : ""}`,
       "connect-src 'self' https://api.mercadopago.com https://api.openai.com wss:",
       "font-src 'self' data:",
       "media-src 'self' data: blob:",
