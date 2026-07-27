@@ -392,7 +392,8 @@ const state = {
   sessionId: getSessionId(),
   viewKey: 0,
   sellerDashboard: null,
-  socket: null
+  socket: null,
+  cart: JSON.parse(localStorage.getItem("marketCart") || "[]")
 };
 
 const money = (value) =>
@@ -409,6 +410,38 @@ const escapeHtml = (value = "") =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+
+const saveCart = () => localStorage.setItem("marketCart", JSON.stringify(state.cart));
+
+const cartCount = () => state.cart.reduce((sum, row) => sum + row.qty, 0);
+
+const cartTotal = () => state.cart.reduce((sum, row) => {
+  const product = state.products.find((item) => item.id === row.id);
+  return product ? sum + product.price * row.qty : sum;
+}, 0);
+
+const addToCart = (id) => {
+  const existing = state.cart.find((row) => row.id === id);
+  if (existing) existing.qty += 1;
+  else state.cart.push({ id, qty: 1 });
+  saveCart();
+  showToast("Agregado al carrito", "success");
+  render();
+};
+
+const setCartQty = (id, qty) => {
+  const row = state.cart.find((entry) => entry.id === id);
+  if (!row) return;
+  row.qty = Math.max(1, qty);
+  saveCart();
+  render();
+};
+
+const removeFromCart = (id) => {
+  state.cart = state.cart.filter((row) => row.id !== id);
+  saveCart();
+  render();
+};
 
 const showToast = (message, tone = "info") => {
   let stack = document.querySelector("#marketproToasts");
@@ -810,9 +843,11 @@ const topbar = () => `
     </div>
     <div class="top-actions">
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
+      <button class="nav-btn ${state.view === "categorias" ? "active" : ""}" data-view="categorias">Categorías</button>
       <button class="nav-btn ${state.view === "orders" ? "active" : ""}" data-view="orders">Órdenes</button>
       <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
       <button class="nav-btn compact-alert ${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas"><i data-lucide="bell"></i><span>Alertas</span>${state.notifications.filter((item) => !item.read).length ? ` <b>${state.notifications.filter((item) => !item.read).length}</b>` : ""}</button>
+      <button class="nav-btn cart-btn-v2 ${state.view === "cart" ? "active" : ""}" data-view="cart" aria-label="Carrito"><i data-lucide="shopping-cart"></i><span>Carrito</span>${cartCount() ? ` <b>${cartCount()}</b>` : ""}</button>
       <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose"><i data-lucide="circle-plus"></i>Vender</button>
       <button class="avatar-btn ${state.view === "profile" ? "active" : ""}" data-view="profile" title="Perfil">${state.user ? state.user.name[0] : "E"}</button>
     </div>
@@ -1666,11 +1701,11 @@ const feedView = () => {
       <section class="hero-panel ${products.length ? "" : "hero-empty"}">
         <div>
           <p class="eyebrow">Compra y venta verificada</p>
-          <h1>Artículos reales.<br />Personas verificadas.</h1>
-          <p>Publicaciones creadas por usuarios aprobados. Compra y vende con seguimiento dentro de MarketPro.</p>
+          <h1>COMPRA Y VENDE<br />CON CONFIANZA</h1>
+          <p>Personas verificadas, pagos seguros y protección en cada operación.</p>
           <div class="hero-cta-stack">
-            <button class="sell-action hero-action" data-view="compose">Vender ahora</button>
-            <button class="secondary-btn hero-secondary" data-scroll-products>Explorar publicaciones</button>
+            <button class="sell-action hero-action" data-scroll-products>Explorar productos</button>
+            <button class="secondary-btn hero-secondary" data-view="support">Cómo funciona</button>
           </div>
           <div class="hero-metrics">
             <span><strong>${products.length}</strong> publicaciones reales</span>
@@ -1678,6 +1713,12 @@ const feedView = () => {
           </div>
         </div>
         ${heroVisual()}
+      </section>
+      <section class="feature-grid-v2" aria-label="Beneficios MarketPro">
+        <article><span><i data-lucide="shield-check"></i></span><div><strong>Personas verificadas</strong><small>Perfiles verificados</small></div></article>
+        <article><span><i data-lucide="lock-keyhole"></i></span><div><strong>Pagos seguros</strong><small>Protección en cada compra</small></div></article>
+        <article><span><i data-lucide="headphones"></i></span><div><strong>Soporte 24/7</strong><small>Estamos para ayudarte</small></div></article>
+        <article><span><i data-lucide="badge-check"></i></span><div><strong>Protección al comprador</strong><small>Compra con tranquilidad</small></div></article>
       </section>
       ${categoryShowcase()}
       <div class="content-head">
@@ -1884,12 +1925,116 @@ const detailStudioView = () => {
             </form>
           `}
           ${!canBuy ? `<small class="commerce-disabled-note">El vendedor debe conectar Mercado Pago para recibir compras.</small>` : ""}
+          <button class="secondary-btn" type="button" data-add-cart="${item.id}"><i data-lucide="shopping-cart"></i>Agregar al carrito</button>
           <button class="secondary-btn" id="messageSeller">Contactar al vendedor</button>
           <button class="commerce-report" id="reportListing"><i data-lucide="message-square-warning"></i>Reportar publicación</button>
         </aside>
       </section>
       <section class="seller-summary-v2"><span><b>${sellerHasRating(item.seller) ? `${Math.round(item.seller.rating * 20)}%` : "Nuevo"}</b><small>Reputación</small></span><span><b>${escapeHtml(item.postedAt)}</b><small>Publicación</small></span><span><b>${escapeHtml(item.location)}</b><small>Ubicación</small></span></section>
       <section class="similar-section product-similar"><header><h2>Publicaciones similares</h2><button data-view="feed">Ver todas<i data-lucide="arrow-right"></i></button></header><div class="grid">${similar.map(productCard).join("") || '<div class="empty">Sin publicaciones similares.</div>'}</div></section>
+    </main>
+  `;
+};
+
+const categoryIcon = (category) => ({
+  Todo: "layout-grid",
+  Vehiculos: "car-front",
+  Inmuebles: "building-2",
+  Electronica: "smartphone",
+  Ropa: "shirt",
+  Hogar: "armchair",
+  Deportes: "dumbbell",
+  Juguetes: "gamepad-2",
+  Entretenimiento: "clapperboard"
+})[category] || "tag";
+
+const categoriasView = () => `
+  ${sidebar()}
+  <main class="categories-page">
+    <div class="page-title"><h1>Todas las categorías</h1></div>
+    <section class="cat-grid-v2">
+      ${categories.filter((category) => category !== "Todo").map((category) => {
+        const count = state.products.filter((item) => item.category === category).length;
+        return `
+          <button class="cat-card-v2" data-category="${escapeHtml(category)}">
+            <span class="cat-icon-v2"><i data-lucide="${categoryIcon(category)}"></i></span>
+            <strong>${escapeHtml(category)}</strong>
+            <small>${count} ${count === 1 ? "producto" : "productos"}</small>
+          </button>
+        `;
+      }).join("")}
+      <button class="cat-card-v2" data-view="feed">
+        <span class="cat-icon-v2"><i data-lucide="grid-2x2"></i></span>
+        <strong>Más categorías</strong>
+        <small>Explorar todo</small>
+      </button>
+    </section>
+    <section class="promo-banner-v2">
+      <div>
+        <h3>¿Qué estás buscando?</h3>
+        <p>Explora entre ${state.products.length} productos publicados.</p>
+        <button class="sell-action" data-scroll-products data-view="feed">Explorar productos<i data-lucide="arrow-right"></i></button>
+      </div>
+      <img src="/assets/marketpro-shield.png" alt="" aria-hidden="true" />
+    </section>
+  </main>
+`;
+
+const cartView = () => {
+  const rows = state.cart
+    .map((row) => ({ row, product: state.products.find((item) => item.id === row.id) }))
+    .filter((entry) => entry.product);
+  const subtotal = cartTotal();
+  return `
+    ${sidebar()}
+    <main class="cart-page">
+      <div class="page-title">
+        <h1>CARRITO DE COMPRAS</h1>
+        <p class="muted">${rows.length ? `Tienes ${cartCount()} producto${cartCount() === 1 ? "" : "s"} en tu carrito` : "Tu carrito está vacío"}</p>
+      </div>
+      ${rows.length ? `
+        <div class="cart-layout-v2">
+          <section class="cart-items-v2">
+            ${rows.map(({ row, product }) => `
+              <article class="cart-row-v2">
+                <div class="cart-thumb-v2"><img src="${product.images[0]}" alt="${escapeHtml(product.title)}" /></div>
+                <div class="cart-item-info-v2">
+                  <h4>${escapeHtml(product.title)}</h4>
+                  <div class="seller-tag-v2"><i data-lucide="badge-check"></i>${product.seller?.verified ? "Vendedor verificado" : "Vendedor nuevo"}</div>
+                  <div class="price">${money(product.price)}</div>
+                </div>
+                <div class="qty-control-v2">
+                  <button type="button" data-cart-dec="${product.id}">−</button>
+                  <span>${row.qty}</span>
+                  <button type="button" data-cart-inc="${product.id}">+</button>
+                </div>
+                <button type="button" class="remove-link-v2" data-cart-remove="${product.id}"><i data-lucide="trash-2"></i>Eliminar</button>
+              </article>
+            `).join("")}
+          </section>
+          <aside class="summary-card-v2">
+            <h3>Resumen del pedido</h3>
+            <div class="summary-line-v2"><span>Subtotal (${cartCount()} producto${cartCount() === 1 ? "" : "s"})</span><b>${money(subtotal)}</b></div>
+            <div class="summary-line-v2"><span>Envío</span><span class="free">Gratis</span></div>
+            <div class="summary-line-v2"><span>Protección al comprador</span><b>${money(0)}</b></div>
+            <div class="summary-total-v2"><span>Total</span><span>${money(subtotal)}</span></div>
+            <button class="buy-action" type="button" data-cart-checkout>Proceder al pago</button>
+            <button class="secondary-btn" type="button" data-view="feed" data-scroll-products>Seguir comprando</button>
+            <div class="summary-note-v2"><i data-lucide="shield-check"></i>Tu compra está protegida por MarketPro</div>
+            <div class="summary-note-v2"><i data-lucide="lock-keyhole"></i>Pago 100% seguro y protegido</div>
+          </aside>
+        </div>
+      ` : `
+        <div class="empty real-listings-empty">
+          <strong>Tu carrito está vacío.</strong>
+          <span>Agrega productos desde una publicación para verlos aquí.</span>
+          <button class="sell-action" data-view="feed">Explorar productos</button>
+        </div>
+      `}
+      <section class="confidence-banner-v2">
+        <span><i data-lucide="shield-check"></i></span>
+        <div><h4>Compra con confianza</h4><p>Pagos seguros, protección al comprador y soporte 24/7 en cada operación.</p></div>
+      </section>
     </main>
   `;
 };
@@ -2453,6 +2598,8 @@ const notificationsView = () => `
 const view = () =>
   ({
     feed: feedView,
+    categorias: categoriasView,
+    cart: cartView,
     detail: detailStudioView,
     compose: composeStudioView,
     messages: messagesView,
@@ -2563,6 +2710,38 @@ const bindEvents = () => {
       state.view = "feed";
       render();
     });
+  });
+
+  document.querySelectorAll("[data-add-cart]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      addToCart(button.dataset.addCart);
+    });
+  });
+
+  document.querySelectorAll("[data-cart-inc]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = state.cart.find((entry) => entry.id === button.dataset.cartInc);
+      setCartQty(button.dataset.cartInc, (row?.qty || 0) + 1);
+    });
+  });
+
+  document.querySelectorAll("[data-cart-dec]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = state.cart.find((entry) => entry.id === button.dataset.cartDec);
+      setCartQty(button.dataset.cartDec, (row?.qty || 1) - 1);
+    });
+  });
+
+  document.querySelectorAll("[data-cart-remove]").forEach((button) => {
+    button.addEventListener("click", () => removeFromCart(button.dataset.cartRemove));
+  });
+
+  document.querySelector("[data-cart-checkout]")?.addEventListener("click", () => {
+    if (!state.cart.length) return;
+    const firstId = state.cart[0].id;
+    showToast("Completa el pago de cada artículo en su publicación.", "info");
+    navigate("detail", { selectedProductId: firstId });
   });
 
   ["minPrice", "maxPrice", "distance", "condition"].forEach((id) => {
