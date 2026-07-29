@@ -3592,3 +3592,63 @@ textarea:focus-visible {
     grid-row: 1;
   }
 }
+
+/* v110 - actual final rules, intentionally at end of stylesheet. */
+.mercadopago-mark { display: inline-grid; width: 56px; height: 56px; place-content: center; border-radius: 50%; color: #167ac6; background: #f4f7fb; box-shadow: 0 6px 16px rgba(0,0,0,.2); font-size: 10px; font-weight: 700; line-height: .9; text-align: center; letter-spacing: -.04em; }
+.mercadopago-mark b { color: #168bd3; font-size: 14px; }
+
+@media (max-width: 760px) {
+  html, body, #app, .app-shell { width: 100%; max-width: 100%; overflow-x: hidden; }
+  .app-shell .main-layout,
+  .app-shell .main-layout.filters-collapsed { display: block !important; width: 100% !important; max-width: none !important; padding: 0 16px calc(108px + env(safe-area-inset-bottom)) !important; }
+  .app-shell .main-layout > main { width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; }
+
+  .app-shell .market-search-row,
+  .app-shell .topbar .market-search-row { width: 100% !important; min-width: 0 !important; padding: 10px 16px 14px !important; }
+  .app-shell .market-search-row .searchbox,
+  .app-shell .topbar .searchbox { display: grid !important; width: 100% !important; min-width: 0 !important; grid-template-columns: 44px minmax(0,1fr) 48px !important; overflow: hidden !important; }
+  .app-shell .market-search-row .search-scope,
+  .app-shell .topbar .searchbox > span { display: none !important; }
+  .app-shell .market-search-row .search-icon,
+  .app-shell .topbar .searchbox > .search-icon { display: grid !important; width: 44px !important; grid-column: 1 !important; }
+  .app-shell .market-search-row .searchbox input,
+  .app-shell .topbar .searchbox input { width: 100% !important; min-width: 0 !important; grid-column: 2 !important; padding: 0 8px !important; font-size: 14px !important; }
+  .app-shell .market-search-row .search-filter,
+  .app-shell .topbar .search-filter { display: grid !important; width: 48px !important; grid-column: 3 !important; }
+
+  .app-shell .hero-panel { min-height: 0 !important; margin: 12px 0 20px !important; padding: 24px 20px 166px !important; }
+  .app-shell .hero-panel h1 { max-width: 270px !important; font-size: clamp(30px,9vw,38px) !important; }
+  .app-shell .hero-product-visual { display: block !important; width: 100% !important; min-height: 160px !important; opacity: .9; }
+  .app-shell .hero-product-stage { right: 2px !important; bottom: 0 !important; width: 205px !important; height: 155px !important; }
+
+  .app-shell .grid,
+  .app-shell .view-feed .grid { display: grid !important; width: 100% !important; grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 12px !important; padding: 0 0 calc(112px + env(safe-area-inset-bottom)) !important; }
+  .app-shell button.product-card,
+  .app-shell .view-feed button.product-card { display: flex !important; min-height: 0 !important; flex-direction: column !important; align-items: stretch !important; overflow: hidden !important; }
+  .app-shell button.product-card .card-image,
+  .app-shell .view-feed button.product-card .card-image { position: relative !important; display: block !important; width: 100% !important; height: auto !important; min-height: 0 !important; aspect-ratio: 1/1 !important; overflow: hidden !important; }
+  .app-shell button.product-card .card-image img { display: block !important; width: 100% !important; height: 100% !important; object-fit: cover !important; }
+  .app-shell button.product-card .card-body { position: static !important; display: grid !important; width: 100% !important; min-width: 0 !important; padding: 12px !important; background: var(--color-surface) !important; }
+  .app-shell button.product-card .card-title { display: -webkit-box !important; min-height: 36px !important; overflow: hidden !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal !important; }
+  .app-shell button.product-card .rating-line,
+  .app-shell button.product-card .security-strip,
+  .app-shell button.product-card .card-foot { display: none !important; }
+  .app-shell button.product-card .card-kicker { display: block !important; overflow: hidden; font-size: 10px !important; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell button.product-card .price { position: static !important; margin: 0 !important; font-size: 17px !important; }
+  .app-shell button.product-card .card-meta { display: block !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .app-shell .dashboard-mp-connect { display: grid !important; width: 100% !important; min-height: 0 !important; grid-template-columns: 56px minmax(0,1fr) !important; grid-template-rows: auto auto !important; align-items: start !important; gap: 14px !important; padding: 18px !important; overflow: hidden !important; }
+  .app-shell .dashboard-mp-connect > svg { display: none !important; }
+  .app-shell .dashboard-mp-connect .mercadopago-mark { display: grid !important; grid-column: 1; grid-row: 1; align-self: start; }
+  .app-shell .dashboard-mp-connect > div { display: grid !important; min-width: 0 !important; grid-column: 2; grid-row: 1; gap: 6px !important; }
+  .app-shell .dashboard-mp-connect > div strong,
+  .app-shell .dashboard-mp-connect > div span { overflow-wrap: anywhere; }
+  .app-shell .dashboard-mp-connect .mercadopago-link-form,
+  .app-shell .dashboard-mp-connect > button { width: 100% !important; min-width: 0 !important; grid-column: 1 / -1; grid-row: 2; }
+  .app-shell .dashboard-mp-connect .mercadopago-link-form { display: grid !important; gap: 10px !important; }
+  .app-shell .dashboard-mp-connect .mercadopago-link-form .buy-action { width: 100% !important; }
+  .app-shell .dashboard-activity .activity-list button { display: grid !important; min-width: 0 !important; grid-template-columns: 28px minmax(0,1fr) auto !important; }
+  .app-shell .dashboard-activity .activity-list button span { min-width: 0 !important; }
+  .app-shell .dashboard-activity .activity-list button strong,
+  .app-shell .dashboard-activity .activity-list button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

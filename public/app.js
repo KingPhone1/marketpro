@@ -2530,6 +2530,7 @@ const profileView = () => {
 
       <section class="dashboard-mp-connect ${paymentLinksReady ? "connected" : ""}" id="mercadoPagoSetup">
         <i data-lucide="badge-check"></i>
+        <span class="mercadopago-mark" aria-label="Mercado Pago">mercado<br /><b>pago</b></span>
         <div>
           <strong>${state.user.mercadoPago?.connected ? "Mercado Pago conectado" : state.user.mercadoPago?.paymentLinkConfigured ? "Cobros por enlace activados" : "Activa cobros con Mercado Pago"}</strong>
           <span>El comprador paga directamente en tu cuenta. Al publicar, agrega un enlace de Mercado Pago con el importe exacto del artículo.</span>
