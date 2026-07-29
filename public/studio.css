@@ -3435,3 +3435,31 @@ textarea:focus-visible {
   .app-shell .protocol-box { overflow: visible !important; }
   .app-shell .protocol-box .check-row { align-items: start !important; }
 }
+
+/* Seller workspaces are two columns on desktop. A previous generic layout
+   override changed them to a vertical flow, leaving the actual workspace below
+   the visible area next to the sidebar. */
+@media (min-width: 761px) {
+  .app-shell .main-layout:has(.seller-sidebar) {
+    display: grid !important;
+    width: 100% !important;
+    max-width: none !important;
+    grid-template-columns: 258px minmax(0, 1fr) !important;
+    align-items: start;
+    gap: 0 !important;
+    padding: 0 24px 64px 0 !important;
+  }
+
+  .app-shell .main-layout:has(.seller-sidebar) > main {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 22px 0 0 32px !important;
+  }
+
+  .app-shell .main-layout:has(.seller-sidebar) > .seller-sidebar {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
