@@ -2,17 +2,57 @@ const assert = require("node:assert/strict");
 const { after, before, test } = require("node:test");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
+const http = require("node:http");
 const path = require("node:path");
 
 const port = 39741;
 const origin = `http://127.0.0.1:${port}`;
+const mercadoPagoPort = 39742;
+const mercadoPagoOrigin = `http://127.0.0.1:${mercadoPagoPort}`;
 const dataDir = path.join(__dirname, ".tmp-data");
 let child;
+let mercadoPagoMock;
 let anaCookie = "";
 let adminCookie = "";
 let belenCookie = "";
 let listingId = "";
 let conversationId = "";
+let capturedPreferences = [];
+const mockedPayments = new Map();
+
+const mockMercadoPago = () => http.createServer(async (req, res) => {
+  const body = await new Promise((resolve) => {
+    let raw = "";
+    req.on("data", (chunk) => { raw += chunk; });
+    req.on("end", () => resolve(raw ? JSON.parse(raw) : {}));
+  });
+  res.setHeader("Content-Type", "application/json");
+  if (req.method === "POST" && req.url === "/oauth/token") {
+    return res.end(JSON.stringify({ access_token: "seller-access-token", refresh_token: "seller-refresh-token", user_id: "mp-seller-belen", public_key: "TEST-PUBLIC", expires_in: 3600 }));
+  }
+  if (req.method === "POST" && req.url === "/checkout/preferences") {
+    capturedPreferences.push(body);
+    return res.end(JSON.stringify({ id: `pref-${capturedPreferences.length}`, init_point: `${mercadoPagoOrigin}/checkout/${capturedPreferences.length}`, status: "active" }));
+  }
+  if (req.method === "GET" && req.url.startsWith("/v1/payments/")) {
+    const payment = mockedPayments.get(decodeURIComponent(req.url.split("/").pop()));
+    if (!payment) {
+      res.statusCode = 404;
+      return res.end(JSON.stringify({ message: "payment not found" }));
+    }
+    return res.end(JSON.stringify(payment));
+  }
+  res.statusCode = 404;
+  res.end(JSON.stringify({ message: "not found" }));
+});
+
+const signedWebhookHeaders = (paymentId, requestId) => {
+  const crypto = require("node:crypto");
+  const ts = Math.floor(Date.now() / 1000);
+  const manifest = `id:${paymentId};request-id:${requestId};ts:${ts};`;
+  const signature = crypto.createHmac("sha256", "test-webhook-secret").update(manifest).digest("hex");
+  return { "X-Request-Id": requestId, "X-Signature": `ts=${ts},v1=${signature}` };
+};
 
 const request = async (route, { cookie = "", method = "GET", body, originHeader = origin } = {}) => {
   const stateChanging = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
@@ -73,6 +113,8 @@ const accountPayload = (email, name) => ({
 
 before(async () => {
   fs.rmSync(dataDir, { recursive: true, force: true });
+  mercadoPagoMock = mockMercadoPago();
+  await new Promise((resolve) => mercadoPagoMock.listen(mercadoPagoPort, "127.0.0.1", resolve));
   child = spawn(process.execPath, ["server.js"], {
     cwd: path.join(__dirname, ".."),
     env: {
@@ -88,9 +130,10 @@ before(async () => {
       SUPABASE_SERVICE_ROLE_KEY: "",
       RESEND_API_KEY: "",
       MERCADO_PAGO_ACCESS_TOKEN: "",
-      MERCADO_PAGO_CLIENT_ID: "",
-      MERCADO_PAGO_CLIENT_SECRET: "",
-      MERCADO_PAGO_WEBHOOK_SECRET: ""
+      MERCADO_PAGO_CLIENT_ID: "test-client-id",
+      MERCADO_PAGO_CLIENT_SECRET: "test-client-secret",
+      MERCADO_PAGO_WEBHOOK_SECRET: "test-webhook-secret",
+      MERCADO_PAGO_API_BASE: mercadoPagoOrigin
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -99,6 +142,7 @@ before(async () => {
 
 after(() => {
   child?.kill();
+  mercadoPagoMock?.close();
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
@@ -111,6 +155,20 @@ test("health and launch readiness report the real state", async () => {
   assert.equal(readiness.response.status, 503);
   assert.equal(readiness.data.ready, false);
   assert.ok(readiness.data.blockers.includes("Memoria Supabase"));
+});
+
+test("the PWA shell serves versioned assets and a valid manifest", async () => {
+  const page = await fetch(`${origin}/`);
+  const html = await page.text();
+  const serviceWorker = await fetch(`${origin}/service-worker.js`);
+  const manifest = await fetch(`${origin}/manifest.json`);
+  assert.equal(page.status, 200);
+  assert.match(html, /studio\.css\?v=114/);
+  assert.match(html, /app\.js\?v=114/);
+  assert.equal(serviceWorker.status, 200);
+  assert.match(await serviceWorker.text(), /marketpro-v114/);
+  assert.equal(manifest.status, 200);
+  assert.equal((await manifest.json()).name, "MarketPro");
 });
 
 test("registration uses a private cookie and verifies email before admin review", async () => {
@@ -361,11 +419,118 @@ test("verified sellers can use an official Mercado Pago payment link without pla
   assert.equal(confirmation.data.paymentNotification.status, "approved");
 });
 
+test("Mercado Pago creates UYU preferences and signed webhooks confirm the real status", async () => {
+  const adminOverview = await request("/api/admin/overview", { cookie: adminCookie });
+  const belenUserId = adminOverview.data.users.find((user) => user.email === "belen.launch@gmail.com").id;
+  const oauthStart = await request("/api/payments/mercadopago/oauth/start", {
+    method: "POST",
+    cookie: belenCookie,
+    body: {}
+  });
+  assert.equal(oauthStart.response.status, 200);
+  const oauthState = new URL(oauthStart.data.url).searchParams.get("state");
+  const callback = await fetch(`${origin}/api/payments/mercadopago/oauth/callback?state=${encodeURIComponent(oauthState)}&code=test-code`, { redirect: "manual" });
+  assert.equal(callback.status, 302);
+
+  const publish = async (title, price) => request("/api/products", {
+    method: "POST",
+    cookie: belenCookie,
+    body: {
+      title,
+      price,
+      category: "Tecnologia",
+      condition: "Nuevo",
+      description: "Articulo de prueba con descripcion detallada, serie de fabrica verificable, accesorios incluidos y entrega coordinada dentro de Uruguay.",
+      location: "Montevideo",
+      images: [testImage, testImage],
+      safetyAccepted: true
+    }
+  });
+
+  const firstListing = await publish("Auriculares oficiales UYU", 456789);
+  assert.equal(firstListing.response.status, 201);
+  const firstCheckout = await request("/api/checkout", {
+    method: "POST",
+    cookie: anaCookie,
+    body: {
+      productId: firstListing.data.id,
+      paymentMethod: "mercadopago",
+      delivery: { address: "Rambla 123", city: "Montevideo", phone: "099123456", method: "Envio coordinado", note: "" },
+      acceptedRules: true,
+      declaredInspection: true
+    }
+  });
+  assert.equal(firstCheckout.response.status, 201);
+  assert.equal(firstCheckout.data.mercadoPago.mode, "oauth-checkout");
+  const preference = capturedPreferences.at(-1);
+  assert.equal(preference.external_reference, firstCheckout.data.id);
+  assert.equal(preference.items[0].currency_id, "UYU");
+  assert.equal(preference.items[0].unit_price, 456789);
+
+  mockedPayments.set("payment-approved", {
+    id: "payment-approved",
+    external_reference: firstCheckout.data.id,
+    transaction_amount: 456789,
+    currency_id: "UYU",
+    collector_id: "mp-seller-belen",
+    status: "approved",
+    status_detail: "accredited"
+  });
+  const approved = await fetch(`${origin}/api/payments/mercadopago/webhook?seller=${encodeURIComponent(belenUserId)}&topic=payment&data.id=payment-approved`, {
+    method: "POST",
+    headers: signedWebhookHeaders("payment-approved", "approved-request")
+  });
+  assert.equal(approved.status, 200);
+
+  const ordersAfterApproval = await request("/api/orders", { cookie: anaCookie, originHeader: "" });
+  assert.equal(ordersAfterApproval.data.find((order) => order.id === firstCheckout.data.id).paymentNotification.status, "approved");
+
+  const secondListing = await publish("Camara oficial UYU", 125000);
+  assert.equal(secondListing.response.status, 201);
+  const secondCheckout = await request("/api/checkout", {
+    method: "POST",
+    cookie: anaCookie,
+    body: {
+      productId: secondListing.data.id,
+      paymentMethod: "mercadopago",
+      delivery: { address: "Rambla 123", city: "Montevideo", phone: "099123456", method: "Envio coordinado", note: "" },
+      acceptedRules: true,
+      declaredInspection: true
+    }
+  });
+  assert.equal(secondCheckout.response.status, 201);
+  mockedPayments.set("payment-rejected", {
+    id: "payment-rejected",
+    external_reference: secondCheckout.data.id,
+    transaction_amount: 125000,
+    currency_id: "UYU",
+    collector_id: "mp-seller-belen",
+    status: "rejected",
+    status_detail: "cc_rejected_bad_filled_card_number"
+  });
+  const rejected = await fetch(`${origin}/api/payments/mercadopago/webhook?seller=${encodeURIComponent(belenUserId)}&topic=payment&data.id=payment-rejected`, {
+    method: "POST",
+    headers: signedWebhookHeaders("payment-rejected", "rejected-request")
+  });
+  assert.equal(rejected.status, 200);
+  const ordersAfterRejection = await request("/api/orders", { cookie: anaCookie, originHeader: "" });
+  assert.equal(ordersAfterRejection.data.find((order) => order.id === secondCheckout.data.id).paymentNotification.status, "rejected");
+});
+
+test("Mercado Pago rejects unsigned webhooks", async () => {
+  const response = await fetch(`${origin}/api/payments/mercadopago/webhook?topic=payment&data.id=forged-payment`, {
+    method: "POST",
+    headers: { "X-Request-Id": "forged-request", "X-Signature": "ts=1,v1=invalid" }
+  });
+  assert.equal(response.status, 401);
+});
+
 test("the delivery code is visible to the buyer and hidden from the seller", async () => {
   const simulation = await request("/api/admin/simulate/antifraud-purchase", {
     method: "POST",
     cookie: adminCookie,
     body: {
+      productId: listingId,
       buyer: {
         name: "Belen Launch",
         email: "belen.launch@gmail.com",

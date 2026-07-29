@@ -2663,6 +2663,14 @@ const render = () => {
 
 const bindEvents = () => {
   bindAssistantEvents();
+  document.querySelectorAll("img").forEach((image) => {
+    image.addEventListener("error", () => {
+      if (image.dataset.marketproFallback === "done") return;
+      image.dataset.marketproFallback = "done";
+      image.src = "/assets/marketpro-shield.png";
+      image.classList.add("image-fallback");
+    }, { once: true });
+  });
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       if (button.dataset.view === "messages") state.mobileChatList = true;

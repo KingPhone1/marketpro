@@ -14,7 +14,7 @@ const state = {
 const money = (value) =>
   new Intl.NumberFormat("es-UY", {
     style: "currency",
-    currency: "USD",
+    currency: "UYU",
     maximumFractionDigits: 0
   }).format(value || 0);
 

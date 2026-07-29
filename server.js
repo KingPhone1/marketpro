@@ -37,6 +37,7 @@ const MERCADO_PAGO_ACCESS_TOKEN = process.env.MERCADO_PAGO_ACCESS_TOKEN || "";
 const MERCADO_PAGO_PUBLIC_KEY = process.env.MERCADO_PAGO_PUBLIC_KEY || "";
 const MERCADO_PAGO_WEBHOOK_SECRET = process.env.MERCADO_PAGO_WEBHOOK_SECRET || "";
 const MERCADO_PAGO_CURRENCY = "UYU";
+const MERCADO_PAGO_API_BASE = (process.env.MERCADO_PAGO_API_BASE || "https://api.mercadopago.com").replace(/\/$/, "");
 const HIGH_VALUE_THRESHOLD = 100000;
 const PROMOTION_PRICE_UYU = 40;
 const MERCADO_PAGO_CLIENT_ID = process.env.MERCADO_PAGO_CLIENT_ID || "";
@@ -835,8 +836,10 @@ const publicSellerFor = (seller = {}) => {
   };
 };
 
+const mercadoPagoApiUrl = (pathname) => `${MERCADO_PAGO_API_BASE}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+
 const exchangeMercadoPagoToken = async (body) => {
-  const response = await fetch("https://api.mercadopago.com/oauth/token", {
+  const response = await fetch(mercadoPagoApiUrl("/oauth/token"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -896,7 +899,7 @@ const createMercadoPagoPreference = async ({ order, product }) => {
   if (sellerAccess.error) return sellerAccess;
   const { user: sellerUser, accessToken } = sellerAccess;
 
-  const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+  const response = await fetch(mercadoPagoApiUrl("/checkout/preferences"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -961,7 +964,7 @@ const createPromotionPreference = async ({ promotion, product }) => {
     };
   }
 
-  const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+  const response = await fetch(mercadoPagoApiUrl("/checkout/preferences"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${MERCADO_PAGO_ACCESS_TOKEN}`,
@@ -2585,7 +2588,8 @@ app.post("/api/admin/simulate/antifraud-purchase", requireAdmin, (req, res) => {
     return res.status(403).json({ error: "La simulacion privada esta desactivada en produccion." });
   }
 
-  const product = listings.find((item) => item.status !== "sold") || listings[0];
+  const requestedProductId = String(req.body?.productId || "");
+  const product = (requestedProductId && listings.find((item) => item.id === requestedProductId && item.status !== "sold")) || listings.find((item) => item.status !== "sold") || listings[0];
   if (!product) return res.status(404).json({ error: "No hay productos para simular una compra." });
 
   const buyer = {
@@ -3710,7 +3714,7 @@ app.post("/api/payments/mercadopago/webhook", async (req, res) => {
 
   if (paymentId && paymentAccessToken) {
     try {
-      const response = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+      const response = await fetch(mercadoPagoApiUrl(`/v1/payments/${encodeURIComponent(paymentId)}`), {
         headers: { Authorization: `Bearer ${paymentAccessToken}` }
       });
       if (response.ok) payment = await response.json();

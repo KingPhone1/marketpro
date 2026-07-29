@@ -3662,3 +3662,70 @@ textarea:focus-visible {
   .app-shell .checkout-warning { grid-template-columns: 28px minmax(0,1fr); padding: 12px; }
   .app-shell .checkout-warning span { font-size: 12px; }
 }
+
+/* v113 responsive production guardrails. This layer intentionally owns the
+   few views with nested cards that legacy visual experiments styled differently. */
+img.image-fallback { object-fit: contain !important; padding: 18% !important; background: #121310 !important; }
+
+@media (max-width: 760px) {
+  .app-shell .seller-dashboard-v2,
+  .app-shell .orders-page,
+  .app-shell .cart-page,
+  .app-shell .product-studio-page,
+  .app-shell .listing-studio-page,
+  .app-shell .messages-page { width: 100% !important; min-width: 0 !important; max-width: none !important; }
+
+  .app-shell .dashboard-welcome,
+  .app-shell .dashboard-listings > header,
+  .app-shell .orders-panel > header,
+  .app-shell .page-title { align-items: flex-start !important; gap: 12px !important; }
+
+  .app-shell .dashboard-metrics,
+  .app-shell .order-metrics,
+  .app-shell .cart-layout-v2,
+  .app-shell .product-studio-shell,
+  .app-shell .listing-studio-shell { grid-template-columns: minmax(0, 1fr) !important; }
+
+  .app-shell .summary-card-v2,
+  .app-shell .listing-live-preview,
+  .app-shell .product-commerce-card { position: static !important; width: 100% !important; min-width: 0 !important; }
+
+  .app-shell .cart-row-v2 { grid-template-columns: 84px minmax(0, 1fr) !important; gap: 12px !important; }
+  .app-shell .cart-row-v2 .qty-control-v2,
+  .app-shell .cart-row-v2 .remove-link-v2 { grid-column: 2 !important; justify-self: start !important; }
+  .app-shell .cart-thumb-v2 { width: 84px !important; height: 84px !important; }
+
+  .app-shell .profile-grid article.product-card { display: block !important; min-width: 0 !important; overflow: hidden !important; }
+  .app-shell .profile-grid article.product-card > .unstyled-card-button { display: grid !important; width: 100% !important; grid-template-columns: 104px minmax(0, 1fr) !important; text-align: left !important; }
+  .app-shell .profile-grid article.product-card > .unstyled-card-button .card-image { width: 104px !important; height: 104px !important; min-height: 0 !important; aspect-ratio: 1 !important; }
+  .app-shell .profile-grid article.product-card > .unstyled-card-button .card-image img { display: block !important; width: 100% !important; height: 100% !important; object-fit: cover !important; }
+  .app-shell .profile-grid article.product-card > .unstyled-card-button .card-body { display: grid !important; min-width: 0 !important; align-content: center !important; gap: 6px !important; padding: 12px !important; }
+  .app-shell .profile-grid article.product-card > .unstyled-card-button .card-title,
+  .app-shell .profile-grid article.product-card > .unstyled-card-button .card-meta { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+  .app-shell .profile-grid article.product-card > .actions-row { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; padding: 10px !important; }
+  .app-shell .profile-grid article.product-card > .actions-row button { min-width: 0 !important; min-height: 42px !important; padding: 8px 4px !important; font-size: 11px !important; overflow-wrap: anywhere !important; }
+
+  .app-shell .product-thumbs { display: flex !important; max-width: 100% !important; overflow-x: auto !important; }
+  .app-shell .product-main-image { min-height: 0 !important; aspect-ratio: 1 / 1 !important; }
+  .app-shell .product-main-image img { width: 100% !important; height: 100% !important; object-fit: contain !important; }
+  .app-shell .product-commerce-card h1 { overflow-wrap: anywhere !important; }
+
+  .app-shell .commerce-checkout,
+  .app-shell .checkout-box,
+  .app-shell .secure-subform { min-width: 0 !important; overflow: hidden !important; }
+  .app-shell .commerce-checkout .two-col,
+  .app-shell .checkout-box .two-col { grid-template-columns: minmax(0, 1fr) !important; }
+
+  .app-shell .chat-attachment-preview,
+  .app-shell .chat-photo { max-width: 100% !important; }
+  .app-shell .chat-photo img,
+  .app-shell .chat-attachment-preview img { display: block !important; max-width: 100% !important; max-height: 260px !important; object-fit: contain !important; }
+}
+
+@media (max-width: 359px) {
+  .app-shell .market-search-row { padding-inline: 12px !important; }
+  .app-shell .main-layout { padding-inline: 12px !important; }
+  .app-shell .profile-grid article.product-card > .unstyled-card-button { grid-template-columns: 88px minmax(0, 1fr) !important; }
+  .app-shell .profile-grid article.product-card > .unstyled-card-button .card-image { width: 88px !important; height: 88px !important; }
+  .app-shell .hero-panel { padding-inline: 18px !important; }
+}
