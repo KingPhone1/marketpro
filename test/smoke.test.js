@@ -163,10 +163,10 @@ test("the PWA shell serves versioned assets and a valid manifest", async () => {
   const serviceWorker = await fetch(`${origin}/service-worker.js`);
   const manifest = await fetch(`${origin}/manifest.json`);
   assert.equal(page.status, 200);
-  assert.match(html, /studio\.css\?v=115/);
-  assert.match(html, /app\.js\?v=115/);
+  assert.match(html, /studio\.css\?v=116/);
+  assert.match(html, /app\.js\?v=116/);
   assert.equal(serviceWorker.status, 200);
-  assert.match(await serviceWorker.text(), /marketpro-v115/);
+  assert.match(await serviceWorker.text(), /marketpro-v116/);
   assert.equal(manifest.status, 200);
   assert.equal((await manifest.json()).name, "MarketPro");
 });
