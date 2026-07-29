@@ -3665,7 +3665,6 @@ textarea:focus-visible {
 
 /* v113 responsive production guardrails. This layer intentionally owns the
    few views with nested cards that legacy visual experiments styled differently. */
-img.image-fallback { object-fit: contain !important; padding: 18% !important; background: #121310 !important; }
 
 @media (max-width: 760px) {
   .app-shell .seller-dashboard-v2,
@@ -3728,4 +3727,120 @@ img.image-fallback { object-fit: contain !important; padding: 18% !important; ba
   .app-shell .profile-grid article.product-card > .unstyled-card-button { grid-template-columns: 88px minmax(0, 1fr) !important; }
   .app-shell .profile-grid article.product-card > .unstyled-card-button .card-image { width: 88px !important; height: 88px !important; }
   .app-shell .hero-panel { padding-inline: 18px !important; }
+}
+
+/* v115 - responsive layout ownership. These rules replace the conflicting
+   legacy mobile experiments above with content-sized, single-column surfaces. */
+@media (max-width: 760px) {
+  .app-shell .market-search-row,
+  .app-shell .topbar .market-search-row {
+    box-sizing: border-box !important;
+    padding: 10px 16px 14px !important;
+  }
+
+  .app-shell .market-search-row .searchbox,
+  .app-shell .topbar .searchbox {
+    box-sizing: border-box !important;
+    height: 52px !important;
+    grid-template-columns: 44px minmax(0, 1fr) 52px !important;
+  }
+
+  .app-shell .market-search-row .searchbox input,
+  .app-shell .topbar .searchbox input {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    padding-inline: 10px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .app-shell .market-search-row .search-filter,
+  .app-shell .topbar .search-filter {
+    width: 52px !important;
+    min-width: 52px !important;
+    height: 52px !important;
+  }
+
+  .app-shell .hero-panel {
+    display: block !important;
+    min-height: 0 !important;
+    padding: 26px 20px !important;
+  }
+
+  .app-shell .hero-product-visual { display: none !important; }
+  .app-shell .hero-panel h1,
+  .app-shell .hero-panel p:not(.eyebrow) { max-width: none !important; }
+  .app-shell .hero-panel .hero-actions { flex-wrap: wrap !important; }
+  .app-shell .hero-panel .hero-actions > * { min-width: min(100%, 220px) !important; }
+
+  .app-shell .dashboard-mp-connect {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: none !important;
+    gap: 12px !important;
+    padding: 18px !important;
+  }
+
+  .app-shell .dashboard-mp-connect .mercadopago-mark,
+  .app-shell .dashboard-mp-connect > div,
+  .app-shell .dashboard-mp-connect .mercadopago-link-form,
+  .app-shell .dashboard-mp-connect > button {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    min-width: 0 !important;
+  }
+
+  .app-shell .dashboard-mp-connect .mercadopago-mark { width: 52px !important; height: 52px !important; }
+  .app-shell .dashboard-mp-connect > div { width: 100% !important; }
+  .app-shell .dashboard-mp-connect > div strong,
+  .app-shell .dashboard-mp-connect > div span { overflow-wrap: normal !important; word-break: normal !important; }
+  .app-shell .dashboard-mp-connect .mercadopago-link-form,
+  .app-shell .dashboard-mp-connect .mercadopago-link-form > div,
+  .app-shell .dashboard-mp-connect .mercadopago-link-form button { width: 100% !important; }
+
+  .app-shell .dashboard-activity .activity-list { display: grid !important; gap: 8px !important; }
+  .app-shell .dashboard-activity .activity-list button {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns: 28px minmax(0, 1fr) auto !important;
+    gap: 10px !important;
+    align-items: center !important;
+    color: var(--mp-text) !important;
+    background: #151612 !important;
+  }
+  .app-shell .dashboard-activity .activity-list button span { min-width: 0 !important; }
+  .app-shell .dashboard-activity .activity-list button strong,
+  .app-shell .dashboard-activity .activity-list button small {
+    display: block !important;
+    overflow: hidden !important;
+    color: inherit !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .app-shell .dashboard-activity .activity-list button small { color: var(--mp-muted) !important; }
+  .app-shell .dashboard-activity .activity-list button time { color: var(--mp-gold-light) !important; white-space: nowrap !important; }
+
+  .app-shell .grid,
+  .app-shell .view-feed .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .app-shell .product-card,
+  .app-shell .view-feed .product-card {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+  .app-shell .product-card .card-image { aspect-ratio: 1 / 1 !important; }
+  .app-shell .product-card .card-body { min-width: 0 !important; }
+  .app-shell .product-card .card-title { overflow-wrap: anywhere !important; }
+}
+
+@media (max-width: 349px) {
+  .app-shell .grid,
+  .app-shell .view-feed .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell .hero-panel .hero-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell .hero-panel .hero-actions > * { width: 100% !important; }
 }

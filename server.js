@@ -760,7 +760,9 @@ const validMercadoPagoPaymentLink = (value = "") => {
       host.endsWith(".mpago.la") ||
       host === "mercadopago.com" ||
       host.endsWith(".mercadopago.com") ||
-      host.endsWith(".mercadopago.com.uy")
+      host.endsWith(".mercadopago.com.uy") ||
+      host === "mpago.la" ||
+      host.endsWith(".mpago.la")
     );
   } catch {
     return false;

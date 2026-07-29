@@ -1550,7 +1550,7 @@ const orderDetailView = () => {
           <p class="eyebrow">Pago</p>
           <h2>${escapeHtml(order.mercadoPago?.status || order.status)}</h2>
           <p class="muted">${escapeHtml(order.mercadoPago?.note || "Pago directo al vendedor mediante Mercado Pago. MarketPro no recibe ni retiene dinero.")}</p>
-          ${order.mercadoPago?.checkoutUrl ? `<a class="buy-action checkout-link" href="${escapeHtml(order.mercadoPago.checkoutUrl)}" target="_blank" rel="noopener">Abrir Mercado Pago</a>` : ""}
+          ${order.mercadoPago?.checkoutUrl ? `<a class="buy-action checkout-link" data-mercadopago-checkout href="${escapeHtml(order.mercadoPago.checkoutUrl)}" rel="noopener">Abrir Mercado Pago</a>` : ""}
         </section>
         <section class="order-detail-card">
           <p class="eyebrow">Entrega</p>
@@ -2663,13 +2663,31 @@ const render = () => {
 
 const bindEvents = () => {
   bindAssistantEvents();
-  document.querySelectorAll("img").forEach((image) => {
-    image.addEventListener("error", () => {
-      if (image.dataset.marketproFallback === "done") return;
-      image.dataset.marketproFallback = "done";
-      image.src = "/assets/marketpro-shield.png";
-      image.classList.add("image-fallback");
-    }, { once: true });
+  document.querySelectorAll("[data-mercadopago-checkout]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const checkoutUrl = link.href;
+      try {
+        const paymentUrl = new URL(checkoutUrl);
+        const officialHost = paymentUrl.hostname === "mpago.la" ||
+          paymentUrl.hostname.endsWith(".mpago.la") ||
+          paymentUrl.hostname === "mercadopago.com" ||
+          paymentUrl.hostname.endsWith(".mercadopago.com") ||
+          paymentUrl.hostname.endsWith(".mercadopago.com.uy");
+        if (!officialHost) throw new Error("invalid-host");
+      } catch {
+        showToast("El enlace de Mercado Pago de esta orden no es valido.", "danger");
+        return;
+      }
+      // A mobile browser can block secondary windows after an asynchronous action.
+      // The official checkout therefore always opens in this same tab on phones.
+      if (window.matchMedia("(max-width: 760px)").matches) {
+        window.location.assign(checkoutUrl);
+        return;
+      }
+      const paymentWindow = window.open(checkoutUrl, "_blank", "noopener");
+      if (!paymentWindow) window.location.assign(checkoutUrl);
+    });
   });
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -3407,10 +3425,7 @@ const secureCheckout = async (event) => {
     const checkoutUrl = order.mercadoPago.checkoutUrl;
     const isMobile = window.matchMedia("(max-width: 760px)").matches;
     showToast("Tu orden quedó guardada. Te llevamos a Mercado Pago para completar el pago.", "success");
-    if (isMobile) {
-      window.setTimeout(() => window.location.assign(checkoutUrl), 180);
-      return;
-    }
+    if (isMobile) return window.location.assign(checkoutUrl);
     const paymentWindow = window.open(checkoutUrl, "_blank", "noopener");
     if (!paymentWindow) window.location.assign(checkoutUrl);
   }
