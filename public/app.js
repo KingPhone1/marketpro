@@ -346,7 +346,7 @@ const initialView = () => {
   if (location.pathname === "/support") return "support";
   if (location.pathname === "/security") return "security";
   const page = new URLSearchParams(location.search).get("page");
-  return ["legal", "support", "security", "orders", "profile", "compose", "messages", "notifications"].includes(page) ? page : "feed";
+  return ["legal", "support", "security", "orders", "profile", "compose", "messages", "notifications", "categories"].includes(page) ? page : "feed";
 };
 
 const state = {
@@ -859,23 +859,28 @@ const topbar = () => `
       <img class="brand-logo" src="/mp-logo.svg" alt="MP" />
       <span>MarketPro</span>
     </button>
-    <div class="searchbox" role="search">
-      <button class="search-scope" type="button">Todo <i data-lucide="chevron-down"></i></button>
-      <span class="search-icon" aria-hidden="true"></span>
-      <input id="globalSearch" value="${escapeHtml(state.query)}" aria-label="Buscar artículos, usuarios o marcas" placeholder="Buscar artículos, usuarios o marcas" />
-      <button class="search-filter" type="button" data-filter-toggle aria-label="Mostrar u ocultar filtros"><i data-lucide="sliders-horizontal"></i></button>
-    </div>
+    <nav class="market-nav" aria-label="Navegación principal">
+      <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed">Inicio</button>
+      <button class="${state.view === "categories" ? "active" : ""}" data-view="categories">Categorías</button>
+      <button class="${state.view === "compose" ? "active" : ""}" data-view="compose">Vender</button>
+      <button class="${state.view === "orders" ? "active" : ""}" data-view="orders">Órdenes</button>
+      <button class="${state.view === "messages" ? "active" : ""}" data-view="messages">Chats</button>
+    </nav>
     <div class="top-actions">
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
-      <button class="nav-btn ${state.view === "orders" ? "active" : ""}" data-view="orders">Órdenes</button>
-      <button class="nav-btn ${state.view === "messages" ? "active" : ""}" data-view="messages">Mensajes</button>
+      <button class="nav-btn help-btn" data-view="support"><i data-lucide="shield-check"></i><span>Centro de ayuda</span></button>
       <button class="nav-btn compact-alert ${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas"><i data-lucide="bell"></i><span>Alertas</span>${state.notifications.filter((item) => !item.read).length ? ` <b>${state.notifications.filter((item) => !item.read).length}</b>` : ""}</button>
-      <button class="nav-btn sell-btn ${state.view === "compose" ? "active" : ""}" data-view="compose"><i data-lucide="circle-plus"></i>Vender</button>
+      <button class="nav-btn cart-nav" data-view="orders" aria-label="Ver órdenes"><i data-lucide="shopping-cart"></i></button>
       <button class="avatar-btn ${state.view === "profile" ? "active" : ""}" data-view="profile" title="Perfil">${state.user ? state.user.name[0] : "E"}</button>
     </div>
   </header>
-  <div class="category-strip">
-    ${categories.map((category) => `<button data-category="${category}">${escapeHtml(category)}</button>`).join("")}
+  <div class="market-search-row">
+    <div class="searchbox" role="search">
+      <span class="search-icon" aria-hidden="true"><i data-lucide="search"></i></span>
+      <input id="globalSearch" value="${escapeHtml(state.query)}" aria-label="Buscar artículos, usuarios o marcas" placeholder="Buscar productos, usuarios o categorías..." />
+      <button class="search-scope" type="button">Todas las categorías <i data-lucide="chevron-down"></i></button>
+      <button class="search-filter" type="button" data-filter-toggle aria-label="Mostrar u ocultar filtros"><i data-lucide="sliders-horizontal"></i></button>
+    </div>
   </div>
   <nav class="mobile-tabs">
     <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed" aria-label="Inicio"><i data-lucide="house"></i><small>Inicio</small></button>
@@ -1187,19 +1192,25 @@ const featured = () => state.products.slice(0, 3);
 const heroFeature = () => state.products[2] || state.products[0];
 
 const heroVisual = () => {
+  const visuals = state.products.slice(0, 4);
   return `
-    <aside class="hero-visual hero-security-visual" aria-hidden="true">
-      <div class="security-orbit">
-        <img class="security-shield-image" src="/assets/marketpro-shield.png" alt="" />
-      </div>
-      <div class="hero-visual-card">
-        <span>MarketPro Shield</span>
-        <strong>Identidad verificada</strong>
-        <b>Protección activa</b>
+    <aside class="hero-visual hero-product-visual" aria-hidden="true">
+      <div class="hero-product-orbit"></div>
+      <div class="hero-product-stage">
+        ${visuals.map((item, index) => `<img class="hero-product hero-product-${index + 1}" src="${item.images[0]}" alt="" />`).join("")}
       </div>
     </aside>
   `;
 };
+
+const trustFeatures = () => `
+  <section class="trust-feature-row" aria-label="Beneficios de MarketPro">
+    <article><i data-lucide="shield-check"></i><div><strong>Personas verificadas</strong><span>Perfiles revisados</span></div></article>
+    <article><i data-lucide="lock-keyhole"></i><div><strong>Pagos seguros</strong><span>Protección en cada compra</span></div></article>
+    <article><i data-lucide="headphones"></i><div><strong>Soporte 24/7</strong><span>Estamos para ayudarte</span></div></article>
+    <article><i data-lucide="badge-check"></i><div><strong>Protección al comprador</strong><span>Compra con tranquilidad</span></div></article>
+  </section>
+`;
 
 const categoryShowcase = () => `
   <section class="category-showcase" aria-label="Categorías principales">
@@ -1729,25 +1740,21 @@ const feedView = () => {
     <main>
       <section class="hero-panel ${products.length ? "" : "hero-empty"}">
         <div>
-          <p class="eyebrow">Compra y venta verificada</p>
-          <h1>Artículos reales.<br />Personas verificadas.</h1>
-          <p>Publicaciones creadas por usuarios aprobados. Compra y vende con seguimiento dentro de MarketPro.</p>
+          <p class="eyebrow">MarketPro verificado</p>
+          <h1>Compra y vende<br />con confianza.</h1>
+          <p>Personas verificadas, pagos seguros y protección en cada operación.</p>
           <div class="hero-cta-stack">
-            <button class="sell-action hero-action" data-view="compose">Vender ahora</button>
-            <button class="secondary-btn hero-secondary" data-scroll-products>Explorar publicaciones</button>
-          </div>
-          <div class="hero-metrics">
-            <span><strong>${products.length}</strong> publicaciones reales</span>
-            <span><strong>ID</strong> verificada</span>
+            <button class="buy-action hero-action" data-scroll-products>Explorar productos <i data-lucide="arrow-right"></i></button>
+            <button class="secondary-btn hero-secondary" data-view="security"><i data-lucide="circle-play"></i>Cómo funciona</button>
           </div>
         </div>
         ${heroVisual()}
       </section>
-      ${categoryShowcase()}
+      ${trustFeatures()}
       <div class="content-head">
         <div>
-          <h2>Publicaciones</h2>
-          <div class="muted">${products.length} artículos verificados</div>
+          <h2>Destacados para ti</h2>
+          <div class="muted">${products.length} publicaciones verificadas</div>
         </div>
         <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Filtros"}</button>
       </div>
@@ -1761,6 +1768,24 @@ const feedView = () => {
     </main>
   `;
 };
+
+const categoriesView = () => `
+  <main class="categories-page">
+    <section class="categories-heading">
+      <p class="eyebrow">Explora MarketPro</p>
+      <h1>Todas las categorías</h1>
+      <p>Encuentra artículos reales publicados por personas verificadas.</p>
+    </section>
+    <section class="category-grid-premium">
+      ${categories.filter((category) => category !== "Todo").map((category) => {
+        const count = state.products.filter((item) => item.category === category).length;
+        const icon = ({ Vehiculos: "car-front", Inmuebles: "building-2", Electronica: "monitor-smartphone", Ropa: "shirt", Hogar: "armchair", Deportes: "dumbbell", Juguetes: "gamepad-2", Entretenimiento: "clapperboard" })[category] || "grid-2x2";
+        return `<button data-category="${escapeHtml(category)}" class="category-premium-card"><i data-lucide="${icon}"></i><strong>${escapeHtml(category)}</strong><span>${count} ${count === 1 ? "producto" : "productos"}</span></button>`;
+      }).join("")}
+    </section>
+    <section class="category-cta"><div><p class="eyebrow">Encuentra algo especial</p><h2>¿Qué estás buscando?</h2><p>Explora publicaciones con identidad y actividad verificadas.</p><button class="buy-action" data-view="feed">Explorar productos <i data-lucide="arrow-right"></i></button></div><img src="/assets/marketpro-shield.png" alt="" /></section>
+  </main>
+`;
 
 const detailView = () => {
   const item = selectedProduct();
@@ -2519,6 +2544,7 @@ const notificationsView = () => `
 const view = () =>
   ({
     feed: feedView,
+    categories: categoriesView,
     detail: detailStudioView,
     compose: composeStudioView,
     messages: messagesView,
