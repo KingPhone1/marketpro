@@ -1955,7 +1955,8 @@ const detailView = () => {
                 <summary>Agregar instrucciones de entrega</summary>
                 <div class="field"><label>Nota opcional</label><input name="note" placeholder="Horario o referencia" /></div>
               </details>
-              <label class="check-row purchase-consent"><input type="checkbox" name="purchaseConsent" required /> Compra dentro de MarketPro y revisa el articulo antes de compartir el codigo.</label>
+              <aside class="checkout-warning"><i data-lucide="shield-alert"></i><div><strong>Opera con cautela</strong><span>Mercado Pago procesa el pago entre comprador y vendedor. MarketPro registra la operación y ayuda a conservar evidencia, pero no es parte del pago ni garantiza el resultado de un acuerdo entre usuarios.</span></div></aside>
+              <label class="check-row purchase-consent"><input type="checkbox" name="purchaseConsent" required /> Entiendo que debo verificar el artículo, pagar solo por Mercado Pago y no compartir códigos ni datos fuera de la app.</label>
               <button class="buy-action checkout-primary" type="submit">Comprar de forma segura</button>
               <div class="checkout-assurance">
                 <span>Identidad verificada</span>
@@ -2033,7 +2034,8 @@ const detailStudioView = () => {
               <div class="two-col"><div class="field"><label>Ciudad</label><input name="city" required autocomplete="address-level2" placeholder="Ciudad o barrio" /></div><div class="field"><label>Teléfono</label><input name="phone" required type="tel" value="${escapeHtml(state.user?.phone || "")}" placeholder="Teléfono" /></div></div>
               <div class="field"><label>Entrega</label><select name="method"><option>Envío coordinado</option><option>Retiro en punto seguro</option><option>Entrega personal verificada</option></select></div>
               <input type="hidden" name="note" value="" />
-              <label class="check-row"><input type="checkbox" name="purchaseConsent" required /><span>Revisaré el artículo antes de compartir el código de recepción.</span></label>
+              <aside class="checkout-warning"><i data-lucide="shield-alert"></i><div><strong>Advertencia de seguridad</strong><span>MarketPro no recibe el dinero ni responde por pagos hechos fuera de Mercado Pago. Si reportas una estafa, conservamos chat, orden, comprobantes y rastreo para tu denuncia y para responder solicitudes oficiales.</span></div></aside>
+              <label class="check-row"><input type="checkbox" name="purchaseConsent" required /><span>Entiendo que debo verificar el artículo, pagar solo por Mercado Pago y no compartir códigos ni datos fuera de la app.</span></label>
               <button class="buy-action" type="submit">Continuar en Mercado Pago</button>
             </form>
           `}
@@ -3360,6 +3362,15 @@ const secureCheckout = async (event) => {
   const buyer = currentIdentity();
   const data = new FormData(event.currentTarget);
   const purchaseConsent = data.get("purchaseConsent") === "on";
+  if (!purchaseConsent) {
+    showToast("Confirma la advertencia de seguridad para continuar.", "danger");
+    return;
+  }
+  const proceed = await confirmAction(
+    "El pago se realizará directamente en Mercado Pago. MarketPro conservará la orden, el chat y la evidencia, pero no recibe el dinero ni puede resolver pagos externos. ¿Deseas continuar?",
+    "Confirmar compra segura"
+  );
+  if (!proceed) return;
   const order = await api("/api/checkout", {
     method: "POST",
     body: JSON.stringify({
@@ -3383,8 +3394,15 @@ const secureCheckout = async (event) => {
   }
   syncOrder(order);
   if (order.mercadoPago?.checkoutUrl) {
-    window.open(order.mercadoPago.checkoutUrl, "_blank", "noopener");
-    showToast("Abrimos Mercado Pago para completar el pago. Vuelve a esta orden después.", "success");
+    const checkoutUrl = order.mercadoPago.checkoutUrl;
+    const isMobile = window.matchMedia("(max-width: 760px)").matches;
+    showToast("Tu orden quedó guardada. Te llevamos a Mercado Pago para completar el pago.", "success");
+    if (isMobile) {
+      window.setTimeout(() => window.location.assign(checkoutUrl), 180);
+      return;
+    }
+    const paymentWindow = window.open(checkoutUrl, "_blank", "noopener");
+    if (!paymentWindow) window.location.assign(checkoutUrl);
   }
   navigate("orderDetail", { selectedOrderId: order.id });
 };
