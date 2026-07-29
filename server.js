@@ -2065,7 +2065,12 @@ app.get("/api/products", (_req, res) => {
     ...product,
     seller: {
       ...publicSellerFor(product.seller),
-      mercadoPagoConnected: Boolean(sellerUserFor(product.seller)?.mercadoPagoOAuth?.accessTokenEncrypted)
+      // A seller can receive payments either through OAuth or through the
+      // official per-listing Mercado Pago link saved with the publication.
+      mercadoPagoConnected: Boolean(
+        sellerUserFor(product.seller)?.mercadoPagoOAuth?.accessTokenEncrypted ||
+        sellerPaymentLinkFor(product)
+      )
     }
   })));
 });
@@ -2496,7 +2501,7 @@ app.get("/api/seller-dashboard", (_req, res) => {
       balance: 0,
       pendingBalance: 0,
       directPayments: true,
-      mercadoPagoConnected: Boolean(user.mercadoPagoOAuth?.accessTokenEncrypted),
+      mercadoPagoConnected: Boolean(user.mercadoPagoOAuth?.accessTokenEncrypted || user.mercadoPagoPaymentLink),
       securityScore: user.verified ? 98 : 42
     },
     listings: mine

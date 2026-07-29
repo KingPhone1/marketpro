@@ -163,10 +163,10 @@ test("the PWA shell serves versioned assets and a valid manifest", async () => {
   const serviceWorker = await fetch(`${origin}/service-worker.js`);
   const manifest = await fetch(`${origin}/manifest.json`);
   assert.equal(page.status, 200);
-  assert.match(html, /studio\.css\?v=116/);
-  assert.match(html, /app\.js\?v=116/);
+  assert.match(html, /studio\.css\?v=117/);
+  assert.match(html, /app\.js\?v=117/);
   assert.equal(serviceWorker.status, 200);
-  assert.match(await serviceWorker.text(), /marketpro-v116/);
+  assert.match(await serviceWorker.text(), /marketpro-v117/);
   assert.equal(manifest.status, 200);
   assert.equal((await manifest.json()).name, "MarketPro");
 });
@@ -394,6 +394,10 @@ test("verified sellers can use an official Mercado Pago payment link without pla
   });
   assert.equal(linked.response.status, 200);
   assert.equal(linked.data.mercadoPago.paymentLinkConfigured, true);
+
+  const publicProducts = await request("/api/products");
+  const publishedListing = publicProducts.data.find((product) => product.id === listingId);
+  assert.equal(publishedListing.seller.mercadoPagoConnected, true);
 
   const checkout = await request("/api/checkout", {
     method: "POST",

@@ -3731,6 +3731,25 @@ textarea:focus-visible {
 
 /* v115 - responsive layout ownership. These rules replace the conflicting
    legacy mobile experiments above with content-sized, single-column surfaces. */
+.app-shell .market-search-row .search-icon::before,
+.app-shell .market-search-row .search-icon::after,
+.app-shell .market-search-row .search-filter::before {
+  display: none !important;
+  content: none !important;
+}
+
+.app-shell .market-search-row .search-icon,
+.app-shell .market-search-row .search-filter,
+.app-shell .market-search-row .searchbox input {
+  box-shadow: none !important;
+}
+
+.app-shell .market-search-row .searchbox input {
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+}
+
 @media (max-width: 760px) {
   .app-shell .market-search-row,
   .app-shell .topbar .market-search-row {

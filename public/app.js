@@ -3902,7 +3902,7 @@ window.addEventListener("appinstalled", () => {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register("/service-worker.js?v=116", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("/service-worker.js?v=117", { updateViaCache: "none" });
       await registration.update();
     } catch {
       showToast("La instalación sin conexión no está disponible en este momento.", "danger");
