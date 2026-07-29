@@ -2651,6 +2651,87 @@ textarea:focus-visible {
   }
 }
 
+/* v109 - final mobile composition. This is intentionally last: older visual
+   experiments remain in the file, but cannot override the production phone UI. */
+.entry-shell.entry-v2 .auth-switch { background: #151612 !important; border-color: var(--mp-line) !important; }
+.entry-shell.entry-v2 .auth-switch button { color: var(--mp-text-2) !important; background: transparent !important; }
+.entry-shell.entry-v2 .auth-switch button.active { color: var(--mp-gold-light) !important; background: rgba(215,174,85,.07) !important; }
+
+@media (max-width: 760px) {
+  html, body, #app, .app-shell { width: 100%; max-width: 100%; overflow-x: clip; }
+  .app-shell * { min-width: 0; }
+  .app-shell .main-layout,
+  .app-shell .main-layout.filters-collapsed { display: block !important; width: 100% !important; max-width: none !important; padding: 0 16px calc(104px + env(safe-area-inset-bottom)) !important; }
+  .app-shell .main-layout > main { width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; }
+
+  .app-shell .topbar { min-height: calc(64px + env(safe-area-inset-top)) !important; grid-template-columns: minmax(0, 1fr) auto !important; gap: 8px !important; padding: calc(8px + env(safe-area-inset-top)) 16px 8px !important; }
+  .app-shell .topbar .brand { gap: 8px !important; overflow: hidden; }
+  .app-shell .topbar .brand-logo { width: 38px !important; height: 38px !important; flex: 0 0 38px; }
+  .app-shell .topbar .brand > span { overflow: hidden; font-size: 14px !important; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell .topbar .top-actions { gap: 7px !important; }
+  .app-shell .market-search-row { width: 100% !important; padding: 10px 16px 14px !important; }
+  .app-shell .market-search-row .searchbox { width: 100% !important; min-width: 0 !important; height: 52px !important; grid-template-columns: 44px minmax(0, 1fr) 48px !important; }
+  .app-shell .market-search-row .searchbox input { width: 100% !important; min-width: 0 !important; font-size: 14px !important; }
+
+  .app-shell .hero-panel { width: 100% !important; min-height: 0 !important; margin: 12px 0 22px !important; padding: 24px 20px 174px !important; overflow: hidden !important; }
+  .app-shell .hero-panel h1 { max-width: 275px !important; font-size: clamp(30px, 9vw, 38px) !important; }
+  .app-shell .hero-panel p:not(.eyebrow) { max-width: 270px !important; }
+  .app-shell .hero-cta-stack { width: 100% !important; grid-template-columns: 1fr 1fr !important; }
+  .app-shell .hero-cta-stack button { min-width: 0 !important; padding-inline: 8px !important; }
+
+  .app-shell .content-head { display: flex !important; align-items: end !important; gap: 12px !important; margin: 0 0 12px !important; }
+  .app-shell .grid,
+  .app-shell .view-feed .grid { display: grid !important; width: 100% !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; padding: 0 0 calc(110px + env(safe-area-inset-bottom)) !important; }
+  .app-shell .product-card,
+  .app-shell .view-feed .product-card { display: flex !important; min-height: 0 !important; flex-direction: column !important; grid-template-columns: none !important; }
+  .app-shell .product-card .card-image,
+  .app-shell .view-feed .product-card .card-image { width: 100% !important; height: auto !important; min-height: 0 !important; aspect-ratio: 1 / 1 !important; }
+  .app-shell .product-card .card-image img { display: block; width: 100% !important; height: 100% !important; object-fit: cover !important; }
+  .app-shell .product-card .card-body { display: grid !important; min-width: 0 !important; padding: 12px !important; }
+  .app-shell .product-card .card-title { display: -webkit-box !important; min-height: 36px !important; overflow: hidden !important; font-size: 14px !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2; text-overflow: clip !important; white-space: normal !important; }
+  .app-shell .product-card .price { font-size: 17px !important; }
+  .app-shell .product-card .card-meta { display: block !important; overflow: hidden; font-size: 11px !important; text-overflow: ellipsis; white-space: nowrap; }
+
+  .app-shell .seller-sidebar { display: none !important; }
+  .app-shell .listing-studio-page,
+  .app-shell .product-studio-page { width: 100% !important; padding: 16px 0 calc(104px + env(safe-area-inset-bottom)) !important; }
+  .app-shell .listing-studio-shell,
+  .app-shell .compose-grid,
+  .app-shell .product-studio-shell { display: grid !important; width: 100% !important; grid-template-columns: minmax(0, 1fr) !important; gap: 14px !important; }
+  .app-shell .listing-stage,
+  .app-shell .form-panel,
+  .app-shell .preview-panel,
+  .app-shell .orders-panel { width: 100% !important; padding: 18px !important; }
+  .app-shell .listing-step-actions { position: static !important; width: 100% !important; margin-top: 16px; }
+  .app-shell .protocol-box { width: 100% !important; overflow: hidden !important; }
+  .app-shell .protocol-box .check-row { display: grid !important; grid-template-columns: 24px minmax(0,1fr) !important; min-height: 58px !important; gap: 10px !important; padding: 12px 0 !important; }
+  .app-shell .protocol-box .check-row > span { overflow-wrap: anywhere; }
+
+  .app-shell .mp-connect-panel,
+  .app-shell .dashboard-mp-connect { display: grid !important; width: 100% !important; grid-template-columns: minmax(0, 1fr) !important; gap: 14px !important; padding: 18px !important; }
+  .app-shell .mp-connect-panel::before { position: static !important; display: grid !important; width: 44px !important; height: 44px !important; margin: 0 !important; }
+  .app-shell .mercadopago-link-form,
+  .app-shell .mercadopago-link-form > div { width: 100% !important; min-width: 0 !important; grid-template-columns: minmax(0,1fr) !important; }
+  .app-shell .mercadopago-link-form input,
+  .app-shell .mercadopago-link-form button { width: 100% !important; }
+
+  .app-shell .chat-shell { width: 100% !important; min-height: calc(100dvh - 132px) !important; }
+  .app-shell .chat-main { height: calc(100dvh - 132px - env(safe-area-inset-bottom)) !important; grid-template-rows: auto auto minmax(0, 1fr) auto auto !important; }
+  .app-shell .message-form { display: grid !important; grid-template-columns: 44px 44px minmax(0, 1fr) 44px !important; width: 100% !important; gap: 7px !important; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)) !important; }
+  .app-shell .message-form .attach-btn,
+  .app-shell .message-form .receipt-btn,
+  .app-shell .message-form .send-btn { width: 44px !important; min-width: 44px !important; height: 44px !important; min-height: 44px !important; }
+  .app-shell .message-form input[name="message"] { width: 100% !important; min-width: 0 !important; height: 44px !important; min-height: 44px !important; padding-inline: 11px !important; font-size: 14px !important; }
+}
+
+@media (max-width: 359px) {
+  .app-shell .grid,
+  .app-shell .view-feed .grid { grid-template-columns: minmax(0,1fr) !important; }
+  .app-shell .product-card,
+  .app-shell .view-feed .product-card { display: grid !important; grid-template-columns: 118px minmax(0,1fr) !important; }
+  .app-shell .product-card .card-image { height: 100% !important; aspect-ratio: auto !important; }
+}
+
 .dashboard-mp-connect .mercadopago-link-form {
   display: grid;
   min-width: min(100%, 430px);
