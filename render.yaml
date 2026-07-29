@@ -59,7 +59,7 @@ services:
       - key: TOKEN_ENCRYPTION_KEY
         sync: false
       - key: MERCADO_PAGO_CURRENCY
-        value: USD
+        value: UYU
     disk:
       name: marketpro-data
       mountPath: /var/data

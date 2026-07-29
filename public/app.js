@@ -402,9 +402,11 @@ const state = {
 const money = (value) =>
   new Intl.NumberFormat("es-UY", {
     style: "currency",
-    currency: "USD",
+    currency: "UYU",
     maximumFractionDigits: 0
   }).format(value || 0);
+
+const HIGH_VALUE_THRESHOLD = 100000;
 
 const saveCart = () => localStorage.setItem("marketCart", JSON.stringify(state.cart));
 const cartCount = () => state.cart.reduce((sum, row) => sum + row.qty, 0);
@@ -524,10 +526,10 @@ const listingRiskFor = (item = {}) => {
   const flags = [];
   if ((item.images || []).length < 2) flags.push("Pocas fotos");
   if (String(item.description || "").length < 90) flags.push("Descripcion corta");
-  if (Number(item.price || 0) > 1000 && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(`${item.title} ${item.description}`)) {
+  if (Number(item.price || 0) >= HIGH_VALUE_THRESHOLD && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(`${item.title} ${item.description}`)) {
     flags.push("Falta identificador");
   }
-  const score = Math.min(92, 18 + flags.length * 16 + (Number(item.price || 0) > 1000 ? 12 : 0));
+  const score = Math.min(92, 18 + flags.length * 16 + (Number(item.price || 0) >= HIGH_VALUE_THRESHOLD ? 12 : 0));
   return {
     score,
     level: score >= 58 ? "Alto" : score >= 34 ? "Medio" : "Bajo",
@@ -1426,7 +1428,7 @@ const sellerPromotionPanel = () => {
         <div class="promotion-art" aria-hidden="true"><i data-lucide="crown"></i><span><i data-lucide="image"></i><b>DESTACADO</b></span></div>
         <div>
           <p class="eyebrow">Anuncio principal</p>
-          <h2>Destaca un producto por <em>US$ 1</em></h2>
+          <h2>Destaca un producto por <em>$U 40</em></h2>
           <p class="muted">Tu publicación aparece primero en la página principal como anuncio destacado.</p>
           <div class="promotion-benefits">
             <span><i data-lucide="star"></i><b>Más visibilidad</b><small>Aumentá las visitas.</small></span>
@@ -1441,7 +1443,7 @@ const sellerPromotionPanel = () => {
           <option value="">Elige una publicación</option>
           ${mine.map((item) => `<option value="${item.id}">${item.promoted ? "Destacado - " : ""}${escapeHtml(item.title)}</option>`).join("")}
         </select>
-        <button class="sell-action" type="submit"><i data-lucide="shield-check"></i>Pagar US$ 1 y destacar</button>
+        <button class="sell-action" type="submit"><i data-lucide="shield-check"></i>Pagar $U 40 y destacar</button>
         <small>El pago se realiza por Mercado Pago vinculado a MarketPro.</small>
       </form>` : `<div class="empty">Publica un producto activo para poder destacarlo.</div>`}
     </section>
@@ -2123,7 +2125,7 @@ const composeView = () => {
               <input name="title" required maxlength="72" autocomplete="off" placeholder="Ej: Mesa de comedor" />
             </div>
             <div class="field">
-              <label>Precio USD</label>
+              <label>Precio en pesos uruguayos</label>
               <input name="price" required type="number" inputmode="decimal" min="1" placeholder="120" />
             </div>
           </div>
@@ -2162,7 +2164,7 @@ const composeView = () => {
         <div class="preview-card">
           <div class="preview-image-wrap" id="previewImage"></div>
           <div class="card-body">
-            <div class="price" id="previewPrice">USD 0</div>
+            <div class="price" id="previewPrice">$U 0</div>
             <div class="card-title" id="previewTitle">Titulo del articulo</div>
             <div class="card-meta" id="previewLocation">Ubicacion</div>
             <div class="pill-row">
@@ -2232,8 +2234,8 @@ const composeStudioView = () => {
             </div>
             <div class="listing-step-panel" data-step-panel="5" ${state.composeStep === 5 ? "" : "hidden"}>
               <header><span>05</span><div><h2>Precio y protocolo</h2><p>Revisá el valor y la seguridad.</p></div></header>
-              <div class="field price-field"><label for="listingPrice">Precio en USD</label><div><span>US$</span><input id="listingPrice" name="price" required type="number" inputmode="decimal" min="1" placeholder="0" /></div></div>
-              <div class="field"><label for="listingPaymentLink">Enlace de Mercado Pago para este artículo</label><input id="listingPaymentLink" name="paymentLink" type="url" inputmode="url" placeholder="https://mpago.la/..." ${state.user?.mercadoPago?.connected ? "" : "required"} /><small>Crea un enlace con el importe exacto de esta publicación. Quedará congelado con la orden.</small></div>
+              <div class="field price-field"><label for="listingPrice">Precio en pesos uruguayos</label><div><span>$U</span><input id="listingPrice" name="price" required type="number" inputmode="numeric" min="1" placeholder="0" /></div></div>
+              <div class="field"><label for="listingPaymentLink">Enlace de Mercado Pago para este artículo</label><input id="listingPaymentLink" name="paymentLink" type="url" inputmode="url" placeholder="https://mpago.la/..." ${state.user?.mercadoPago?.connected ? "" : "required"} /><small>Crealo en pesos uruguayos con el importe exacto de esta publicación. Quedará congelado con la orden.</small></div>
               <section class="protocol-box"><h3><i data-lucide="shield-check"></i>Protocolo de seguridad</h3>${safetyRules.map((rule, index) => `<label class="check-row"><input type="checkbox" name="safety-${index}" required /><span>${rule}</span></label>`).join("")}</section>
             </div>
             <footer class="listing-step-actions">
@@ -2246,7 +2248,7 @@ const composeStudioView = () => {
           <aside class="listing-live-preview">
             <header><i data-lucide="eye"></i><strong>Vista previa</strong></header>
             <div class="preview-image-wrap" id="previewImage"><i data-lucide="image"></i><span>Tu foto principal</span></div>
-            <div class="preview-copy"><strong id="previewPrice">US$ 0</strong><h3 id="previewTitle">Título del artículo</h3><span id="previewLocation">Ubicación</span><div><span class="pill" id="previewCategory">Categoría</span><span class="pill" id="previewCondition">Condición</span></div></div>
+            <div class="preview-copy"><strong id="previewPrice">$U 0</strong><h3 id="previewTitle">Título del artículo</h3><span id="previewLocation">Ubicación</span><div><span class="pill" id="previewCategory">Categoría</span><span class="pill" id="previewCondition">Condición</span></div></div>
             <div class="preview-note"><i data-lucide="info"></i>La vista previa se actualiza mientras completás los datos.</div>
           </aside>
         </section>
@@ -2577,7 +2579,7 @@ const profileView = () => {
                       </div>
                     </button>
                     <div class="card-body actions-row">
-                      <button class="sell-action" data-promote="${item.id}">${item.promoted ? "Destacado" : "Anunciar US$ 1"}</button>
+                      <button class="sell-action" data-promote="${item.id}">${item.promoted ? "Destacado" : "Anunciar $U 40"}</button>
                       <button class="secondary-btn" data-toggle-sold="${item.id}">${item.status === "sold" ? "Reactivar" : "Vendido"}</button>
                       <button class="danger-btn" data-delete="${item.id}">Eliminar</button>
                     </div>
@@ -3058,7 +3060,7 @@ const validateListingForm = (data) => {
   if (required.length) return `Faltan datos del articulo: ${required.join(", ")}`;
   if (Number(data.get("price")) <= 0) return "El precio tiene que ser mayor a cero.";
   if (requiredValue(data, "description").length < 80) return "La descripcion tiene que tener al menos 80 caracteres: estado real, detalles, fallas, accesorios y forma de entrega.";
-  if (Number(data.get("price")) > 1000 && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(`${requiredValue(data, "title")} ${requiredValue(data, "description")}`)) {
+  if (Number(data.get("price")) >= HIGH_VALUE_THRESHOLD && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(`${requiredValue(data, "title")} ${requiredValue(data, "description")}`)) {
     return "Para artículos de valor agrega un identificador verificable: factura, serie, IMEI, chasis, matrícula, modelo o medidas.";
   }
   const textRisk = analyzeMessageRisk(`${requiredValue(data, "title")} ${requiredValue(data, "description")} ${requiredValue(data, "location")}`);

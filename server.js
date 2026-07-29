@@ -36,7 +36,9 @@ const APP_BASE_URL = (process.env.APP_BASE_URL || `http://localhost:${PORT}`).re
 const MERCADO_PAGO_ACCESS_TOKEN = process.env.MERCADO_PAGO_ACCESS_TOKEN || "";
 const MERCADO_PAGO_PUBLIC_KEY = process.env.MERCADO_PAGO_PUBLIC_KEY || "";
 const MERCADO_PAGO_WEBHOOK_SECRET = process.env.MERCADO_PAGO_WEBHOOK_SECRET || "";
-const MERCADO_PAGO_CURRENCY = process.env.MERCADO_PAGO_CURRENCY || "USD";
+const MERCADO_PAGO_CURRENCY = "UYU";
+const HIGH_VALUE_THRESHOLD = 100000;
+const PROMOTION_PRICE_UYU = 40;
 const MERCADO_PAGO_CLIENT_ID = process.env.MERCADO_PAGO_CLIENT_ID || "";
 const MERCADO_PAGO_CLIENT_SECRET = process.env.MERCADO_PAGO_CLIENT_SECRET || "";
 const MERCADO_PAGO_OAUTH_REDIRECT_URI = process.env.MERCADO_PAGO_OAUTH_REDIRECT_URI || `${APP_BASE_URL}/api/payments/mercadopago/oauth/callback`;
@@ -394,9 +396,9 @@ const analyzeListingRisk = (product = {}) => {
   const flags = [...textRisk.flags];
   if (imageCount < 2) flags.push("Pocas fotos del articulo");
   if (String(product.description || "").length < 90) flags.push("Descripcion corta");
-  if (price > 1000 && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(text)) flags.push("Falta identificador para articulo de valor");
+  if (price >= HIGH_VALUE_THRESHOLD && !/serie|imei|factura|recibo|chasis|matricula|modelo|medida/i.test(text)) flags.push("Falta identificador para articulo de valor");
   if (/(sin garantia|no acepto reclamos|solo efectivo|retira ya)/i.test(text)) flags.push("Condiciones sospechosas");
-  const score = Math.min(95, 14 + flags.length * 14 + (price > 1000 ? 10 : 0) + (price > 10000 ? 12 : 0));
+  const score = Math.min(95, 14 + flags.length * 14 + (price >= HIGH_VALUE_THRESHOLD ? 10 : 0) + (price >= 1000000 ? 12 : 0));
   return {
     score,
     level: score >= 58 ? "Alto" : score >= 34 ? "Medio" : "Bajo",
@@ -676,7 +678,7 @@ const buildSecurityStamp = (product, req) => {
   const price = Number(product.price || 0);
   const listingRisk = product.security?.listingRisk || analyzeListingRisk(product);
   const categoryRisk = ["Vehiculos", "Inmuebles", "Electronica"].includes(product.category) ? 18 : 8;
-  const priceRisk = price > 10000 ? 18 : price > 1000 ? 10 : 4;
+  const priceRisk = price >= 1000000 ? 18 : price >= HIGH_VALUE_THRESHOLD ? 10 : 4;
   const sellerRisk = Number(product.seller?.ratingCount || product.seller?.reviews || 0) > 0 && product.seller?.rating >= 4.8 ? 0 : 8;
   const reportRisk = Number(product.reportCount || 0) * 8;
   const riskScore = Math.min(96, categoryRisk + priceRisk + sellerRisk + reportRisk + Math.round(Number(listingRisk.score || 0) / 5));
@@ -981,7 +983,7 @@ const createPromotionPreference = async ({ promotion, product }) => {
           description: "Publicacion destacada en la pagina principal de MarketPro.",
           quantity: 1,
           currency_id: MERCADO_PAGO_CURRENCY,
-          unit_price: 1
+          unit_price: PROMOTION_PRICE_UYU
         }
       ],
       payer: {
@@ -2805,7 +2807,7 @@ app.post("/api/admin/mercadopago/test-preference", requireAdmin, async (_req, re
       config
     });
   }
-  const testPromotion = { id: `mp-test-${Date.now()}`, amount: 1 };
+  const testPromotion = { id: `mp-test-${Date.now()}`, amount: PROMOTION_PRICE_UYU };
   const testProduct = {
     id: "marketpro-test",
     title: "Prueba de integracion MarketPro",
@@ -3037,7 +3039,7 @@ app.post("/api/promotions", async (req, res) => {
     id: `promo-${Date.now()}`,
     productId: product.id,
     productTitle: product.title,
-    amount: 1,
+    amount: PROMOTION_PRICE_UYU,
     currency: MERCADO_PAGO_CURRENCY,
     status: "Pendiente de pago en Mercado Pago",
     buyer: { id: promotionBuyer.id, name: promotionBuyer.name, email: promotionBuyer.email },
