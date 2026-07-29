@@ -3364,3 +3364,74 @@ textarea:focus-visible {
   .product-studio-shell { gap: 18px !important; }
   .product-gallery-v2, .product-commerce-card { border-radius: 16px !important; }
 }
+
+/* Final alignment pass: legacy mobile declarations must not pull controls out
+   of rhythm in the current storefront layout. */
+.topbar { align-items: center !important; }
+.topbar .brand,
+.topbar .top-actions,
+.market-nav,
+.market-nav button { align-self: stretch; }
+
+.market-nav button {
+  display: inline-grid !important;
+  place-items: center;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.topbar .top-actions {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 72px;
+}
+
+.listing-studio-page,
+.listing-studio-shell,
+.listing-stage,
+.listing-live-preview,
+.listing-step-panel,
+.protocol-box,
+.protocol-box .check-row { min-width: 0; }
+
+.protocol-box .check-row > span {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: var(--mp-text-2) !important;
+}
+
+@media (max-width: 760px) {
+  .app-shell .topbar { align-items: center !important; }
+  .app-shell .topbar .brand,
+  .app-shell .topbar .top-actions { align-self: center !important; }
+  .app-shell .topbar .top-actions { min-height: 0; }
+
+  .app-shell .mobile-tabs {
+    display: grid !important;
+    align-items: center !important;
+    padding-top: 8px !important;
+  }
+
+  .app-shell .mobile-tabs button {
+    align-content: center !important;
+    justify-items: center !important;
+    grid-template-rows: 20px 14px !important;
+    gap: 3px !important;
+    line-height: 1 !important;
+  }
+
+  .app-shell .mobile-tabs button > svg { align-self: end; }
+  .app-shell .mobile-tabs button > small { align-self: start; line-height: 1 !important; }
+
+  .app-shell .listing-studio-page {
+    padding: 14px 16px calc(112px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .app-shell .listing-studio-header { margin-bottom: 14px !important; }
+  .app-shell .listing-stepper { margin: 0 !important; }
+  .app-shell .listing-stage { min-height: 0 !important; padding: 18px !important; }
+  .app-shell .listing-step-actions { bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+  .app-shell .protocol-box { overflow: visible !important; }
+  .app-shell .protocol-box .check-row { align-items: start !important; }
+}
