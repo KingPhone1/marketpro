@@ -2230,6 +2230,7 @@ const composeStudioView = () => {
             <div class="listing-step-panel" data-step-panel="5" ${state.composeStep === 5 ? "" : "hidden"}>
               <header><span>05</span><div><h2>Precio y protocolo</h2><p>Revisá el valor y la seguridad.</p></div></header>
               <div class="field price-field"><label for="listingPrice">Precio en USD</label><div><span>US$</span><input id="listingPrice" name="price" required type="number" inputmode="decimal" min="1" placeholder="0" /></div></div>
+              <div class="field"><label for="listingPaymentLink">Enlace de Mercado Pago para este artículo</label><input id="listingPaymentLink" name="paymentLink" type="url" inputmode="url" placeholder="https://mpago.la/..." ${state.user?.mercadoPago?.connected ? "" : "required"} /><small>Crea un enlace con el importe exacto de esta publicación. Quedará congelado con la orden.</small></div>
               <section class="protocol-box"><h3><i data-lucide="shield-check"></i>Protocolo de seguridad</h3>${safetyRules.map((rule, index) => `<label class="check-row"><input type="checkbox" name="safety-${index}" required /><span>${rule}</span></label>`).join("")}</section>
             </div>
             <footer class="listing-step-actions">
@@ -2482,6 +2483,7 @@ const profileView = () => {
   const dashboard = state.sellerDashboard;
   const stats = dashboard?.stats || { active: 0, sold: 0, balance: 0, pendingBalance: 0, grossSales: 0, securityScore: 98 };
   const mine = state.products.filter((item) => item.seller?.email === state.user.email || item.seller?.name === state.user.name);
+  const paymentLinksReady = mine.some((item) => Boolean(item.mercadoPagoPaymentLink)) || Boolean(state.user.mercadoPago?.connected);
   const visible = mine.filter((item) => (state.profileTab === "sold" ? item.status === "sold" : item.status !== "sold"));
   return `
     ${sellerSidebar("summary")}
@@ -2497,9 +2499,9 @@ const profileView = () => {
       <section class="dashboard-metrics">
         <article class="dashboard-metric mp-status">
           <span>Mercado Pago</span>
-          <strong>${state.user.mercadoPago?.connected || state.user.mercadoPago?.paymentLinkConfigured ? "Cobros activos" : "Pendiente de activar"}</strong>
+          <strong>${paymentLinksReady ? "Cobros activos" : "Pendiente de activar"}</strong>
           <small>Recibe pagos directamente en tu cuenta.</small>
-          <button type="button" data-scroll-payment-link>${state.user.mercadoPago?.connected || state.user.mercadoPago?.paymentLinkConfigured ? "Ver cobros" : "Activar"}</button>
+          <button type="button" data-scroll-payment-link>${paymentLinksReady ? "Ver cobros" : "Activar"}</button>
         </article>
         <article class="dashboard-metric">
           <span>Ventas registradas</span>
@@ -2521,15 +2523,15 @@ const profileView = () => {
         </article>
       </section>
 
-      <section class="dashboard-mp-connect ${state.user.mercadoPago?.connected || state.user.mercadoPago?.paymentLinkConfigured ? "connected" : ""}" id="mercadoPagoSetup">
+      <section class="dashboard-mp-connect ${paymentLinksReady ? "connected" : ""}" id="mercadoPagoSetup">
         <i data-lucide="badge-check"></i>
         <div>
           <strong>${state.user.mercadoPago?.connected ? "Mercado Pago conectado" : state.user.mercadoPago?.paymentLinkConfigured ? "Cobros por enlace activados" : "Activa cobros con Mercado Pago"}</strong>
-          <span>El comprador paga directamente en tu cuenta. MarketPro no recibe ni devuelve el dinero.</span>
+          <span>El comprador paga directamente en tu cuenta. Al publicar, agrega un enlace de Mercado Pago con el importe exacto del artículo.</span>
         </div>
           ${state.user.mercadoPago?.connected
           ? `<button class="secondary-btn" type="button" id="disconnectMercadoPago">Desconectar</button>`
-          : `<form class="mercadopago-link-form" id="mercadoPagoLinkForm"><label for="mercadoPagoPaymentLink">Enlace oficial de cobro</label><div><input id="mercadoPagoPaymentLink" name="paymentLink" type="url" required inputmode="url" placeholder="https://mpago.la/..." /><button class="buy-action" type="submit">${state.user.mercadoPago?.paymentLinkConfigured ? "Actualizar enlace" : "Activar cobros"}</button></div><small>${state.user.mercadoPago?.paymentLinkConfigured ? "Enlace de Mercado Pago guardado. Puedes reemplazarlo cuando generes uno nuevo." : "Usa un enlace oficial creado en tu cuenta de Mercado Pago."}</small>${state.user.mercadoPago?.paymentLinkConfigured ? `<button class="text-btn" type="button" id="removeMercadoPagoLink">Quitar enlace</button>` : ""}</form>`}
+          : `<div class="mercadopago-link-form"><label>Enlace por publicación</label><small>Crea un enlace oficial de Mercado Pago con el importe exacto de cada artículo. Lo agregarás al publicar y quedará congelado en la orden.</small><button class="buy-action" type="button" data-view="compose">Nueva publicación</button></div>`}
       </section>
 
       <section class="dashboard-activity">
@@ -3098,6 +3100,7 @@ const publishListing = async (event) => {
     body: JSON.stringify({
       title: requiredValue(data, "title"),
       price: Number(data.get("price")),
+      paymentLink: data.get("paymentLink"),
       category: requiredValue(data, "category"),
       condition: requiredValue(data, "condition"),
       description: requiredValue(data, "description"),

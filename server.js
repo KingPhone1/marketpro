@@ -762,9 +762,9 @@ const sellerUserFor = (seller = {}) => {
   );
 };
 
-const sellerPaymentLinkFor = (seller = {}) => {
-  const user = sellerUserFor(seller);
-  const paymentLink = String(user?.mercadoPagoPaymentLink || "").trim();
+const sellerPaymentLinkFor = (product = {}) => {
+  const user = sellerUserFor(product.seller);
+  const paymentLink = String(product.mercadoPagoPaymentLink || user?.mercadoPagoPaymentLink || "").trim();
   return validMercadoPagoPaymentLink(paymentLink) ? { user, paymentLink } : null;
 };
 
@@ -869,7 +869,7 @@ const sellerMercadoPagoAccess = async (seller = {}) => {
 };
 
 const createMercadoPagoPreference = async ({ order, product }) => {
-  const sellerPaymentLink = sellerPaymentLinkFor(product.seller);
+  const sellerPaymentLink = sellerPaymentLinkFor(product);
   if (sellerPaymentLink) {
     return {
       id: `seller-link-${order.id}`,
@@ -2930,12 +2930,16 @@ app.post("/api/products", rateLimit({ windowMs: 60 * 60 * 1000, max: 20, key: "c
   const location = boundedText(req.body.location, 140);
   const category = boundedText(req.body.category, 48);
   const condition = boundedText(req.body.condition, 32);
+  const paymentLink = String(req.body.paymentLink || "").trim();
   const price = Number(req.body.price);
   if (title.length < 5 || description.length < 80 || !location) {
     return res.status(400).json({ error: "Completa un titulo, ubicacion y descripcion detallada." });
   }
   if (!Number.isFinite(price) || price <= 0 || price > 100000000) {
     return res.status(400).json({ error: "El precio no es valido." });
+  }
+  if (!savedSeller.mercadoPagoOAuth?.accessTokenEncrypted && !validMercadoPagoPaymentLink(paymentLink)) {
+    return res.status(400).json({ error: "Agrega el enlace oficial de Mercado Pago creado para este artículo." });
   }
   const rawImages = Array.isArray(req.body.images) ? req.body.images.slice(0, 6) : [];
   if (rawImages.length < 2) return res.status(400).json({ error: "Sube al menos dos fotos reales del articulo." });
@@ -2951,6 +2955,7 @@ app.post("/api/products", rateLimit({ windowMs: 60 * 60 * 1000, max: 20, key: "c
     price,
     category,
     condition,
+    mercadoPagoPaymentLink: validMercadoPagoPaymentLink(paymentLink) ? paymentLink : "",
     description,
     location,
     images,
@@ -2962,7 +2967,7 @@ app.post("/api/products", rateLimit({ windowMs: 60 * 60 * 1000, max: 20, key: "c
       ratingCount: Number(savedSeller.ratingCount || 0),
       verified: true,
       verificationStatus: savedSeller.verificationStatus || "Verificado por admin",
-      mercadoPagoConnected: Boolean(savedSeller.mercadoPagoOAuth?.accessTokenEncrypted || savedSeller.mercadoPagoPaymentLink)
+      mercadoPagoConnected: Boolean(savedSeller.mercadoPagoOAuth?.accessTokenEncrypted || validMercadoPagoPaymentLink(paymentLink))
     }
   };
   const duplicate = listings.find((item) =>

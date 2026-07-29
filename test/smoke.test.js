@@ -187,6 +187,7 @@ test("admin approval enables publishing without exposing bearer tokens", async (
       price: 320,
       category: "Hogar",
       condition: "Usado",
+      paymentLink: "https://mpago.la/mesa-roble-test",
       description: "Mesa de roble en excelente estado, con medidas completas, detalles visibles, cuatro sillas y entrega coordinada.",
       location: "Pocitos, Montevideo",
       images: [testImage, testImage],
@@ -322,7 +323,7 @@ test("verified sellers can use an official Mercado Pago payment link without pla
   });
   assert.equal(checkout.response.status, 201);
   assert.equal(checkout.data.mercadoPago.mode, "seller-payment-link");
-  assert.equal(checkout.data.mercadoPago.checkoutUrl, "https://mpago.la/marketpro-test");
+  assert.equal(checkout.data.mercadoPago.checkoutUrl, "https://mpago.la/mesa-roble-test");
 
   const confirmation = await request(`/api/orders/${checkout.data.id}/confirm-payment-link`, {
     method: "POST",
