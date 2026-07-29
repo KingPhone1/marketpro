@@ -3310,10 +3310,10 @@ textarea:focus-visible {
   .app-shell .market-nav { display: none !important; }
   .app-shell .topbar .top-actions { grid-column: 2 !important; grid-row: 1 !important; }
   .app-shell .topbar .top-actions .help-btn,
-  .app-shell .topbar .top-actions .cart-nav,
   .app-shell .topbar .top-actions .install-btn { display: none !important; }
-  .app-shell .topbar .top-actions .compact-alert,
+  .app-shell .topbar .top-actions .cart-nav,
   .app-shell .topbar .top-actions .avatar-btn { display: grid !important; width: 38px !important; min-width: 38px !important; height: 38px !important; min-height: 38px !important; }
+  .app-shell .topbar .top-actions .compact-alert { display: none !important; }
   .market-search-row { padding: 10px 16px 14px !important; }
   .market-search-row .searchbox { height: 50px !important; grid-template-columns: 42px minmax(0,1fr) 44px !important; border-radius: 14px !important; }
   .market-search-row .search-scope { display: none !important; }

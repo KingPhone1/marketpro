@@ -346,7 +346,7 @@ const initialView = () => {
   if (location.pathname === "/support") return "support";
   if (location.pathname === "/security") return "security";
   const page = new URLSearchParams(location.search).get("page");
-  return ["legal", "support", "security", "orders", "profile", "compose", "messages", "notifications", "categories"].includes(page) ? page : "feed";
+  return ["legal", "support", "security", "orders", "profile", "compose", "messages", "notifications", "categories", "cart"].includes(page) ? page : "feed";
 };
 
 const state = {
@@ -394,7 +394,8 @@ const state = {
   sellerDashboard: null,
   socket: null,
   csrfToken: "",
-  chatTyping: {}
+  chatTyping: {},
+  cart: JSON.parse(localStorage.getItem("marketCart") || "[]")
 };
 
 const money = (value) =>
@@ -403,6 +404,33 @@ const money = (value) =>
     currency: "USD",
     maximumFractionDigits: 0
   }).format(value || 0);
+
+const saveCart = () => localStorage.setItem("marketCart", JSON.stringify(state.cart));
+const cartCount = () => state.cart.reduce((sum, row) => sum + row.qty, 0);
+const cartTotal = () => state.cart.reduce((sum, row) => {
+  const product = state.products.find((item) => item.id === row.id);
+  return product ? sum + product.price * row.qty : sum;
+}, 0);
+const addToCart = (id) => {
+  const existing = state.cart.find((row) => row.id === id);
+  if (existing) existing.qty += 1;
+  else state.cart.push({ id, qty: 1 });
+  saveCart();
+  showToast("Agregado al carrito", "success");
+  render();
+};
+const setCartQty = (id, qty) => {
+  const row = state.cart.find((entry) => entry.id === id);
+  if (!row) return;
+  row.qty = Math.max(1, qty);
+  saveCart();
+  render();
+};
+const removeFromCart = (id) => {
+  state.cart = state.cart.filter((row) => row.id !== id);
+  saveCart();
+  render();
+};
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -870,7 +898,7 @@ const topbar = () => `
       ${state.canInstallPwa ? `<button class="nav-btn install-btn" id="installPwa">Instalar app</button>` : ""}
       <button class="nav-btn help-btn" data-view="support"><i data-lucide="shield-check"></i><span>Centro de ayuda</span></button>
       <button class="nav-btn compact-alert ${state.view === "notifications" ? "active" : ""}" data-view="notifications" aria-label="Alertas"><i data-lucide="bell"></i><span>Alertas</span>${state.notifications.filter((item) => !item.read).length ? ` <b>${state.notifications.filter((item) => !item.read).length}</b>` : ""}</button>
-      <button class="nav-btn cart-nav" data-view="orders" aria-label="Ver órdenes"><i data-lucide="shopping-cart"></i></button>
+      <button class="nav-btn cart-nav ${state.view === "cart" ? "active" : ""}" data-view="cart" aria-label="Carrito"><i data-lucide="shopping-cart"></i>${cartCount() ? `<b>${cartCount()}</b>` : ""}</button>
       <button class="avatar-btn ${state.view === "profile" ? "active" : ""}" data-view="profile" title="Perfil">${state.user ? state.user.name[0] : "E"}</button>
     </div>
   </header>
@@ -1787,6 +1815,30 @@ const categoriesView = () => `
   </main>
 `;
 
+const cartView = () => {
+  const rows = state.cart
+    .map((row) => ({ row, product: state.products.find((item) => item.id === row.id) }))
+    .filter((entry) => entry.product);
+  const subtotal = cartTotal();
+  return `
+    <main class="cart-page">
+      <section class="page-title"><p class="eyebrow">Compra protegida</p><h1>Carrito de compras</h1><p class="muted">${rows.length ? `Tienes ${cartCount()} producto${cartCount() === 1 ? "" : "s"} en tu carrito` : "Tu carrito está vacío"}</p></section>
+      ${rows.length ? `
+        <div class="cart-layout-v2">
+          <section class="cart-items-v2">${rows.map(({ row, product }) => `
+            <article class="cart-row-v2">
+              <div class="cart-thumb-v2"><img src="${product.images[0]}" alt="${escapeHtml(product.title)}" /></div>
+              <div class="cart-item-info-v2"><h4>${escapeHtml(product.title)}</h4><div class="seller-tag-v2"><i data-lucide="badge-check"></i>${product.seller?.verified ? "Vendedor verificado" : "Vendedor nuevo"}</div><div class="price">${money(product.price)}</div></div>
+              <div class="qty-control-v2"><button type="button" data-cart-dec="${product.id}" aria-label="Reducir cantidad">−</button><span>${row.qty}</span><button type="button" data-cart-inc="${product.id}" aria-label="Aumentar cantidad">+</button></div>
+              <button type="button" class="remove-link-v2" data-cart-remove="${product.id}"><i data-lucide="trash-2"></i>Eliminar</button>
+            </article>`).join("")}</section>
+          <aside class="summary-card-v2"><h3>Resumen del pedido</h3><div class="summary-line-v2"><span>Subtotal</span><b>${money(subtotal)}</b></div><div class="summary-line-v2"><span>Envío</span><span class="free">A coordinar</span></div><div class="summary-line-v2"><span>Protección al comprador</span><b>${money(0)}</b></div><div class="summary-total-v2"><span>Total</span><span>${money(subtotal)}</span></div><button class="buy-action" type="button" data-cart-checkout>Continuar con la compra</button><button class="secondary-btn" type="button" data-view="feed">Seguir comprando</button><div class="summary-note-v2"><i data-lucide="shield-check"></i>Cada compra se confirma directamente con el vendedor.</div></aside>
+        </div>` : `<div class="empty real-listings-empty"><strong>Tu carrito está vacío.</strong><span>Agrega artículos desde una publicación para verlos aquí.</span><button class="buy-action" data-view="feed">Explorar productos</button></div>`}
+      <section class="confidence-banner-v2"><span><i data-lucide="shield-check"></i></span><div><h4>Compra con confianza</h4><p>Pagos directos, historial de chat y seguimiento para cada operación.</p></div></section>
+    </main>
+  `;
+};
+
 const detailView = () => {
   const item = selectedProduct();
   if (!item) return feedView();
@@ -1973,6 +2025,7 @@ const detailStudioView = () => {
             </form>
           `}
           ${!canBuy ? `<small class="commerce-disabled-note">El vendedor debe conectar Mercado Pago para recibir compras.</small>` : ""}
+          <button class="secondary-btn commerce-add-cart" type="button" data-add-cart="${escapeHtml(item.id)}"><i data-lucide="shopping-cart"></i>Agregar al carrito</button>
           <button class="secondary-btn" id="messageSeller">Contactar al vendedor</button>
           <button class="commerce-report" id="reportListing"><i data-lucide="message-square-warning"></i>Reportar publicación</button>
         </aside>
@@ -2545,6 +2598,7 @@ const view = () =>
   ({
     feed: feedView,
     categories: categoriesView,
+    cart: cartView,
     detail: detailStudioView,
     compose: composeStudioView,
     messages: messagesView,
@@ -2679,6 +2733,31 @@ const bindEvents = () => {
       state.galleryIndex = Number(button.dataset.thumb);
       render();
     });
+  });
+
+  document.querySelectorAll("[data-add-cart]").forEach((button) => {
+    button.addEventListener("click", () => addToCart(button.dataset.addCart));
+  });
+  document.querySelectorAll("[data-cart-inc]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = state.cart.find((item) => item.id === button.dataset.cartInc);
+      if (row) setCartQty(row.id, row.qty + 1);
+    });
+  });
+  document.querySelectorAll("[data-cart-dec]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = state.cart.find((item) => item.id === button.dataset.cartDec);
+      if (row) setCartQty(row.id, row.qty - 1);
+    });
+  });
+  document.querySelectorAll("[data-cart-remove]").forEach((button) => {
+    button.addEventListener("click", () => removeFromCart(button.dataset.cartRemove));
+  });
+  document.querySelector("[data-cart-checkout]")?.addEventListener("click", () => {
+    const first = state.cart[0];
+    if (!first) return;
+    showToast("Completa cada artículo por separado para conservar la protección de la compra.");
+    navigate("detail", { selectedProductId: first.id, galleryIndex: 0 });
   });
 
   document.querySelector("#messageSeller")?.addEventListener("click", startConversation);
