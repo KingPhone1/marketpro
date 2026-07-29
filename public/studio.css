@@ -2651,6 +2651,54 @@ textarea:focus-visible {
   }
 }
 
+.dashboard-mp-connect .mercadopago-link-form {
+  display: grid;
+  min-width: min(100%, 430px);
+  gap: 8px;
+}
+
+.mercadopago-link-form label {
+  color: var(--mp-text-2);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mercadopago-link-form > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.mercadopago-link-form input {
+  min-width: 0;
+  height: 46px;
+}
+
+.mercadopago-link-form .buy-action {
+  min-height: 46px;
+  padding-inline: 16px;
+  white-space: nowrap;
+}
+
+.mercadopago-link-form small {
+  color: var(--mp-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.mercadopago-link-form .text-btn {
+  justify-self: start;
+  min-height: 30px;
+  padding: 0;
+  color: var(--mp-text-2);
+}
+
+@media (max-width: 760px) {
+  .dashboard-mp-connect .mercadopago-link-form { width: 100%; min-width: 0; }
+  .mercadopago-link-form > div { grid-template-columns: 1fr; }
+  .mercadopago-link-form .buy-action { width: 100%; }
+}
+
 @media (min-width: 761px) and (max-width: 1180px) {
   .app-shell .topbar {
     grid-template-columns: minmax(150px, 190px) minmax(260px, 1fr) minmax(170px, auto) !important;

@@ -1049,6 +1049,8 @@ const deliveryWorkflow = (order) => {
   const isBuyer = role === "Compra";
   const isSeller = role === "Venta";
   const tracking = order.delivery?.tracking;
+  const paymentApproved = order.paymentNotification?.status === "approved";
+  const usesSellerPaymentLink = order.mercadoPago?.mode === "seller-payment-link";
   const completed = order.deliveryConfirmation?.status === "Confirmada" || order.delivery?.status === "Completada" || order.paymentRelease?.status === "Liberado";
   const nextAction = hasOpenDispute
     ? "La operacion esta pausada mientras se revisa la disputa."
@@ -1083,6 +1085,16 @@ const deliveryWorkflow = (order) => {
           <strong>Evidencia cargada</strong>
           <span>${escapeHtml(proof.packageNotes)} - ${escapeHtml(proof.serialOrMark)} - ${escapeHtml(proof.accessories)}</span>
         </div>
+      ` : ""}
+      ${isSeller && usesSellerPaymentLink && !paymentApproved ? `
+        <form class="secure-subform" id="sellerPaymentConfirmForm">
+          <span class="action-kicker">Paso del vendedor</span>
+          <strong>Confirma el pago en Mercado Pago antes de preparar el envío</strong>
+          <small>Revisa el cobro en tu cuenta oficial. Esta confirmación queda auditada en la orden.</small>
+          <input name="paymentId" required placeholder="Identificador de pago de Mercado Pago" />
+          <label class="check-row master-check"><input type="checkbox" name="confirmedInMercadoPago" required /> Confirmo que el pago figura acreditado en mi cuenta oficial de Mercado Pago.</label>
+          <button class="buy-action" type="submit">Confirmar pago recibido</button>
+        </form>
       ` : ""}
       ${isSeller && !proof ? `
         <form class="secure-subform" id="sellerProofForm">
@@ -2485,9 +2497,9 @@ const profileView = () => {
       <section class="dashboard-metrics">
         <article class="dashboard-metric mp-status">
           <span>Mercado Pago</span>
-          <strong>${state.user.mercadoPago?.connected ? "Conectado" : "Pendiente de conectar"}</strong>
-          <small>Conecta tu cuenta para recibir pagos.</small>
-          <button type="button" id="connectMercadoPago">${state.user.mercadoPago?.connected ? "Ver cuenta" : "Conectar"}</button>
+          <strong>${state.user.mercadoPago?.connected || state.user.mercadoPago?.paymentLinkConfigured ? "Cobros activos" : "Pendiente de activar"}</strong>
+          <small>Recibe pagos directamente en tu cuenta.</small>
+          <button type="button" data-scroll-payment-link>${state.user.mercadoPago?.connected || state.user.mercadoPago?.paymentLinkConfigured ? "Ver cobros" : "Activar"}</button>
         </article>
         <article class="dashboard-metric">
           <span>Ventas registradas</span>
@@ -2509,15 +2521,15 @@ const profileView = () => {
         </article>
       </section>
 
-      <section class="dashboard-mp-connect ${state.user.mercadoPago?.connected ? "connected" : ""}">
+      <section class="dashboard-mp-connect ${state.user.mercadoPago?.connected || state.user.mercadoPago?.paymentLinkConfigured ? "connected" : ""}" id="mercadoPagoSetup">
         <i data-lucide="badge-check"></i>
         <div>
-          <strong>${state.user.mercadoPago?.connected ? "Mercado Pago conectado" : "Conecta tu cuenta de Mercado Pago"}</strong>
-          <span>Los compradores pagan directamente en tu cuenta. MarketPro no retiene ni devuelve el dinero.</span>
+          <strong>${state.user.mercadoPago?.connected ? "Mercado Pago conectado" : state.user.mercadoPago?.paymentLinkConfigured ? "Cobros por enlace activados" : "Activa cobros con Mercado Pago"}</strong>
+          <span>El comprador paga directamente en tu cuenta. MarketPro no recibe ni devuelve el dinero.</span>
         </div>
-        ${state.user.mercadoPago?.connected
+          ${state.user.mercadoPago?.connected
           ? `<button class="secondary-btn" type="button" id="disconnectMercadoPago">Desconectar</button>`
-          : `<button class="buy-action" type="button" id="connectMercadoPago">Conectar Mercado Pago</button>`}
+          : `<form class="mercadopago-link-form" id="mercadoPagoLinkForm"><label for="mercadoPagoPaymentLink">Enlace oficial de cobro</label><div><input id="mercadoPagoPaymentLink" name="paymentLink" type="url" required inputmode="url" placeholder="https://mpago.la/..." /><button class="buy-action" type="submit">${state.user.mercadoPago?.paymentLinkConfigured ? "Actualizar enlace" : "Activar cobros"}</button></div><small>${state.user.mercadoPago?.paymentLinkConfigured ? "Enlace de Mercado Pago guardado. Puedes reemplazarlo cuando generes uno nuevo." : "Usa un enlace oficial creado en tu cuenta de Mercado Pago."}</small>${state.user.mercadoPago?.paymentLinkConfigured ? `<button class="text-btn" type="button" id="removeMercadoPagoLink">Quitar enlace</button>` : ""}</form>`}
       </section>
 
       <section class="dashboard-activity">
@@ -2844,6 +2856,12 @@ const bindEvents = () => {
   document.querySelector("#promotionForm")?.addEventListener("submit", promoteFromForm);
   document.querySelector("#connectMercadoPago")?.addEventListener("click", connectMercadoPago);
   document.querySelector("#disconnectMercadoPago")?.addEventListener("click", disconnectMercadoPago);
+  document.querySelector("#mercadoPagoLinkForm")?.addEventListener("submit", saveMercadoPagoPaymentLink);
+  document.querySelector("#removeMercadoPagoLink")?.addEventListener("click", removeMercadoPagoPaymentLink);
+  document.querySelector("[data-scroll-payment-link]")?.addEventListener("click", () => {
+    document.querySelector("#mercadoPagoSetup")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  document.querySelector("#sellerPaymentConfirmForm")?.addEventListener("submit", confirmSellerPaymentLink);
   document.querySelector("#photoInput")?.addEventListener("change", previewPhotos);
   document.querySelector("#authForm")?.addEventListener("submit", authenticate);
 
@@ -3277,6 +3295,54 @@ const disconnectMercadoPago = async () => {
   render();
 };
 
+const saveMercadoPagoPaymentLink = async (event) => {
+  event.preventDefault();
+  const paymentLink = new FormData(event.currentTarget).get("paymentLink");
+  const result = await api("/api/payments/mercadopago/payment-link", {
+    method: "PUT",
+    body: JSON.stringify({ paymentLink })
+  });
+  if (result.error) {
+    showToast(result.error, "danger");
+    return;
+  }
+  state.user = { ...state.user, mercadoPago: result.mercadoPago };
+  state.products = (await api("/api/products")).map(normalizeProduct);
+  showToast("Cobros por enlace de Mercado Pago activados.", "success");
+  render();
+};
+
+const removeMercadoPagoPaymentLink = async () => {
+  if (!await confirmAction("Tus publicaciones ya no podrán recibir nuevas compras hasta que agregues otro enlace.", "Quitar enlace de Mercado Pago")) return;
+  const result = await api("/api/payments/mercadopago/payment-link", { method: "DELETE", body: "{}" });
+  if (result.error) {
+    showToast(result.error, "danger");
+    return;
+  }
+  state.user = { ...state.user, mercadoPago: result.mercadoPago };
+  state.products = (await api("/api/products")).map(normalizeProduct);
+  render();
+};
+
+const confirmSellerPaymentLink = async (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const order = await api(`/api/orders/${state.checkoutOrder.id}/confirm-payment-link`, {
+    method: "POST",
+    body: JSON.stringify({
+      paymentId: data.get("paymentId"),
+      confirmedInMercadoPago: data.get("confirmedInMercadoPago") === "on"
+    })
+  });
+  if (order.error) {
+    showToast(order.error, "danger");
+    return;
+  }
+  syncOrder(order);
+  showToast("Pago registrado. Ahora carga la evidencia antes de despachar.", "success");
+  render();
+};
+
 const secureCheckout = async (event) => {
   event.preventDefault();
   const item = selectedProduct();
@@ -3305,6 +3371,10 @@ const secureCheckout = async (event) => {
     return;
   }
   syncOrder(order);
+  if (order.mercadoPago?.checkoutUrl) {
+    window.open(order.mercadoPago.checkoutUrl, "_blank", "noopener");
+    showToast("Abrimos Mercado Pago para completar el pago. Vuelve a esta orden después.", "success");
+  }
   navigate("orderDetail", { selectedOrderId: order.id });
 };
 

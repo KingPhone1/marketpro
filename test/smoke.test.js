@@ -293,6 +293,46 @@ test("chat records read receipts for the other participant", async () => {
   assert.ok(buyerMessage.readAt);
 });
 
+test("verified sellers can use an official Mercado Pago payment link without platform credentials", async () => {
+  const invalid = await request("/api/payments/mercadopago/payment-link", {
+    method: "PUT",
+    cookie: anaCookie,
+    body: { paymentLink: "https://example.com/not-mercadopago" }
+  });
+  assert.equal(invalid.response.status, 400);
+
+  const linked = await request("/api/payments/mercadopago/payment-link", {
+    method: "PUT",
+    cookie: anaCookie,
+    body: { paymentLink: "https://mpago.la/marketpro-test" }
+  });
+  assert.equal(linked.response.status, 200);
+  assert.equal(linked.data.mercadoPago.paymentLinkConfigured, true);
+
+  const checkout = await request("/api/checkout", {
+    method: "POST",
+    cookie: belenCookie,
+    body: {
+      productId: listingId,
+      paymentMethod: "mercadopago",
+      delivery: { address: "Rambla 123", city: "Montevideo", phone: "099123456", method: "Envío coordinado", note: "" },
+      acceptedRules: true,
+      declaredInspection: true
+    }
+  });
+  assert.equal(checkout.response.status, 201);
+  assert.equal(checkout.data.mercadoPago.mode, "seller-payment-link");
+  assert.equal(checkout.data.mercadoPago.checkoutUrl, "https://mpago.la/marketpro-test");
+
+  const confirmation = await request(`/api/orders/${checkout.data.id}/confirm-payment-link`, {
+    method: "POST",
+    cookie: anaCookie,
+    body: { paymentId: "MP-TEST-1234", confirmedInMercadoPago: true }
+  });
+  assert.equal(confirmation.response.status, 200);
+  assert.equal(confirmation.data.paymentNotification.status, "approved");
+});
+
 test("the delivery code is visible to the buyer and hidden from the seller", async () => {
   const simulation = await request("/api/admin/simulate/antifraud-purchase", {
     method: "POST",

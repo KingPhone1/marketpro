@@ -567,6 +567,7 @@ const publicUser = (user) => {
     authComplete: Boolean(safe.authComplete),
     mercadoPago: {
       connected: Boolean(mercadoPagoOAuth?.accessTokenEncrypted),
+      paymentLinkConfigured: Boolean(user.mercadoPagoPaymentLink),
       accountId: mercadoPagoOAuth?.userId || "",
       connectedAt: mercadoPagoOAuth?.connectedAt || ""
     }
@@ -737,12 +738,34 @@ const mercadoPagoOAuthReady = () => Boolean(
   TOKEN_ENCRYPTION_KEY
 );
 
+const validMercadoPagoPaymentLink = (value = "") => {
+  try {
+    const url = new URL(String(value).trim());
+    const host = url.hostname.toLowerCase();
+    return url.protocol === "https:" && (
+      host === "mpago.la" ||
+      host.endsWith(".mpago.la") ||
+      host === "mercadopago.com" ||
+      host.endsWith(".mercadopago.com") ||
+      host.endsWith(".mercadopago.com.uy")
+    );
+  } catch {
+    return false;
+  }
+};
+
 const sellerUserFor = (seller = {}) => {
   const email = String(seller.email || "").toLowerCase();
   return (store.users || []).find((user) =>
     (email && String(user.email || "").toLowerCase() === email) ||
     (!email && seller.name && user.name === seller.name)
   );
+};
+
+const sellerPaymentLinkFor = (seller = {}) => {
+  const user = sellerUserFor(seller);
+  const paymentLink = String(user?.mercadoPagoPaymentLink || "").trim();
+  return validMercadoPagoPaymentLink(paymentLink) ? { user, paymentLink } : null;
 };
 
 const sellerTrustProfile = (seller = {}) => {
@@ -846,6 +869,17 @@ const sellerMercadoPagoAccess = async (seller = {}) => {
 };
 
 const createMercadoPagoPreference = async ({ order, product }) => {
+  const sellerPaymentLink = sellerPaymentLinkFor(product.seller);
+  if (sellerPaymentLink) {
+    return {
+      id: `seller-link-${order.id}`,
+      init_point: sellerPaymentLink.paymentLink,
+      status: "seller-payment-link",
+      mode: "seller-payment-link",
+      marketProSellerUserId: sellerPaymentLink.user.id,
+      sellerAccountId: ""
+    };
+  }
   const sellerAccess = await sellerMercadoPagoAccess(product.seller);
   if (sellerAccess.error) return sellerAccess;
   const { user: sellerUser, accessToken } = sellerAccess;
@@ -1680,8 +1714,11 @@ const publicOrderFor = (user, order) => {
   }
   const confirmation = { ...(order.deliveryConfirmation || {}) };
   if (!isBuyer) delete confirmation.code;
+  const mercadoPago = { ...(order.mercadoPago || {}) };
+  if (!isBuyer) delete mercadoPago.checkoutUrl;
   return {
     ...order,
+    mercadoPago,
     delivery,
     deliveryConfirmation: confirmation,
     ...(isBuyer || isSeller ? {} : { buyer: undefined, seller: undefined })
@@ -2330,6 +2367,43 @@ app.delete("/api/payments/mercadopago/oauth/connection", (req, res) => {
   res.json({ ok: true, mercadoPago: { connected: false, accountId: "", connectedAt: "" } });
 });
 
+app.put("/api/payments/mercadopago/payment-link", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Inicia sesión para configurar cobros." });
+  if (!user.verified || !user.emailVerified) {
+    return res.status(403).json({ error: "Tu identidad debe estar aprobada antes de recibir pagos." });
+  }
+  const paymentLink = String(req.body?.paymentLink || "").trim();
+  if (!validMercadoPagoPaymentLink(paymentLink)) {
+    return res.status(400).json({ error: "Usa un enlace oficial de Mercado Pago, por ejemplo https://mpago.la/..." });
+  }
+  user.mercadoPagoPaymentLink = paymentLink;
+  listings = listings.map((product) =>
+    sameOrderParty(user, product.seller)
+      ? { ...product, seller: { ...product.seller, mercadoPagoConnected: true } }
+      : product
+  );
+  store.products = listings;
+  adminAudit(req, "mercadopago_payment_link_saved", { userId: user.id });
+  writeStore();
+  res.json({ mercadoPago: publicUser(user).mercadoPago });
+});
+
+app.delete("/api/payments/mercadopago/payment-link", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Inicia sesión para modificar cobros." });
+  user.mercadoPagoPaymentLink = "";
+  listings = listings.map((product) =>
+    sameOrderParty(user, product.seller)
+      ? { ...product, seller: { ...product.seller, mercadoPagoConnected: Boolean(user.mercadoPagoOAuth?.accessTokenEncrypted) } }
+      : product
+  );
+  store.products = listings;
+  adminAudit(req, "mercadopago_payment_link_removed", { userId: user.id });
+  writeStore();
+  res.json({ mercadoPago: publicUser(user).mercadoPago });
+});
+
 app.post("/api/auth/password-reset/request", rateLimit({ windowMs: 30 * 60 * 1000, max: 5, key: "password-reset" }), async (req, res) => {
   const email = String(req.body.email || "").toLowerCase().trim();
   const user = userByEmail(email);
@@ -2888,7 +2962,7 @@ app.post("/api/products", rateLimit({ windowMs: 60 * 60 * 1000, max: 20, key: "c
       ratingCount: Number(savedSeller.ratingCount || 0),
       verified: true,
       verificationStatus: savedSeller.verificationStatus || "Verificado por admin",
-      mercadoPagoConnected: Boolean(savedSeller.mercadoPagoOAuth?.accessTokenEncrypted)
+      mercadoPagoConnected: Boolean(savedSeller.mercadoPagoOAuth?.accessTokenEncrypted || savedSeller.mercadoPagoPaymentLink)
     }
   };
   const duplicate = listings.find((item) =>
@@ -3269,10 +3343,21 @@ app.post("/api/checkout", rateLimit({ windowMs: 10 * 60 * 1000, max: 12, key: "c
 
   order.mercadoPago.preferenceId = preference.id;
   order.mercadoPago.checkoutUrl = preference.init_point || preference.sandbox_init_point || "";
-  order.mercadoPago.status = "Preferencia real creada";
+  order.mercadoPago.mode = preference.mode || "oauth-checkout";
+  order.mercadoPago.status = preference.mode === "seller-payment-link" ? "Enlace oficial del vendedor listo" : "Preferencia real creada";
   order.mercadoPago.rawStatus = preference.status || "";
   order.mercadoPago.sellerUserId = preference.marketProSellerUserId || "";
   order.mercadoPago.sellerAccountId = preference.sellerAccountId || "";
+  if (preference.mode === "seller-payment-link") {
+    order.paymentNotification = {
+      status: "waiting_seller_confirmation",
+      statusDetail: "El vendedor debe confirmar el pago desde su cuenta oficial de Mercado Pago.",
+      receivedAt: new Date().toISOString(),
+      verification: "seller-payment-link"
+    };
+    order.delivery.timeline.push({ event: "Enlace oficial de Mercado Pago preparado", at: new Date().toISOString() });
+    order.security.auditTrail.push({ event: "Enlace de cobro congelado dentro de la orden", at: new Date().toISOString() });
+  }
   ensureOrderConversation(order);
 
   store.orders = [order, ...(store.orders || [])];
@@ -3437,6 +3522,37 @@ app.post("/api/orders/:id/seller-proof", async (req, res) => {
     { event: "Evidencia de vendedor registrada", at: order.delivery.sellerProof.declaredAt }
   ];
   notifyUser(order.buyer?.email, "Producto preparado", `El vendedor cargo la evidencia de empaque de ${order.productTitle}.`, "order", "/?page=orders");
+  writeStore();
+  res.json(publicOrderFor(actor.user, order));
+});
+
+app.post("/api/orders/:id/confirm-payment-link", (req, res) => {
+  const order = (store.orders || []).find((item) => item.id === req.params.id);
+  if (!order) return res.status(404).json({ error: "Orden no encontrada" });
+  const actor = requireOrderRole(req, res, order, "seller");
+  if (!actor) return;
+  if (order.mercadoPago?.mode !== "seller-payment-link") {
+    return res.status(409).json({ error: "Esta orden usa la confirmación automática de Mercado Pago." });
+  }
+  if (order.paymentNotification?.status === "approved") return res.json(publicOrderFor(actor.user, order));
+  const paymentId = boundedText(req.body?.paymentId, 100);
+  if (paymentId.length < 4 || !req.body?.confirmedInMercadoPago) {
+    return res.status(400).json({ error: "Confirma que verificaste el pago oficial e indica su identificador." });
+  }
+  const confirmedAt = new Date().toISOString();
+  order.paymentNotification = {
+    status: "approved",
+    paymentId,
+    statusDetail: "Pago confirmado por el vendedor desde su cuenta oficial de Mercado Pago.",
+    receivedAt: confirmedAt,
+    verification: "seller-attested-payment-link",
+    confirmedBy: actor.user.email || actor.user.name
+  };
+  order.status = "Pago confirmado por vendedor";
+  order.delivery.status = "Pago confirmado - preparar evidencia";
+  order.delivery.timeline = [...(order.delivery.timeline || []), { event: "Vendedor confirmó el pago oficial de Mercado Pago", at: confirmedAt }];
+  order.security.auditTrail = [...(order.security.auditTrail || []), { event: `Pago confirmado por vendedor con identificador ${paymentId}`, at: confirmedAt }];
+  notifyUser(order.buyer?.email, "Pago confirmado", `El vendedor confirmó el pago de ${order.productTitle}. Ahora debe cargar la evidencia de preparación.`, "order", "/?page=orders");
   writeStore();
   res.json(publicOrderFor(actor.user, order));
 });
