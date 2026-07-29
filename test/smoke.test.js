@@ -294,6 +294,33 @@ test("chat records read receipts for the other participant", async () => {
   assert.ok(buyerMessage.readAt);
 });
 
+test("chat protects Mercado Pago receipts and preserves antifraud alerts for admin", async () => {
+  const receipt = await request(`/api/conversations/${conversationId}/messages`, {
+    method: "POST",
+    cookie: belenCookie,
+    body: {
+      text: "Adjunto comprobante de Mercado Pago. Confirma desde tu cuenta antes de despachar.",
+      attachment: testImage,
+      attachmentKind: "mercadopago-receipt"
+    }
+  });
+  assert.equal(receipt.response.status, 201);
+  assert.equal(receipt.data.message.attachmentKind, "mercadopago-receipt");
+  assert.match(receipt.data.systemMessage.text, /No confirma el pago por sí solo/);
+
+  const risky = await request(`/api/conversations/${conversationId}/messages`, {
+    method: "POST",
+    cookie: belenCookie,
+    body: { text: "Paga por transferencia afuera y pasame el codigo OTP para confirmar." }
+  });
+  assert.equal(risky.response.status, 201);
+  assert.equal(risky.data.message.risk.level, "Alto");
+
+  const overview = await request("/api/admin/overview", { cookie: adminCookie });
+  assert.ok(overview.data.conversations.some((chat) => chat.id === conversationId));
+  assert.ok(overview.data.chatAlerts.some((alert) => alert.chatId === conversationId && alert.level === "Alto"));
+});
+
 test("verified sellers can use an official Mercado Pago payment link without platform credentials", async () => {
   const invalid = await request("/api/payments/mercadopago/payment-link", {
     method: "PUT",

@@ -364,6 +364,16 @@ const suspiciousPatterns = [
 
 const analyzeTextRisk = (text = "") => {
   const hits = suspiciousPatterns.filter((item) => item.pattern.test(text));
+  const normalized = String(text || "").toLowerCase();
+  if (/(mandame|pasame|decime).{0,48}(codigo|clave|pin|otp|verificacion)/i.test(normalized) && !hits.some((item) => item.key === "secret-code")) {
+    hits.push({ key: "secret-code", label: "Solicitud de codigo sensible" });
+  }
+  if (/(paga|deposita|transferi).{0,64}(afuera|directo|cuenta|banco|whatsapp|telegram)/i.test(normalized) && !hits.some((item) => item.key === "external-payment")) {
+    hits.push({ key: "external-payment", label: "Posible pago externo" });
+  }
+  if (/(captura|comprobante|recibo).{0,70}(ya esta|confirma|libera|despacha)/i.test(normalized)) {
+    hits.push({ key: "receipt-pressure", label: "Comprobante sin validar" });
+  }
   return {
     level: hits.length >= 2 || hits.some((hit) => ["secret-code", "external-payment"].includes(hit.key)) ? "Alto" : hits.length === 1 ? "Medio" : "Bajo",
     flags: hits.map((item) => item.label)
@@ -1384,6 +1394,7 @@ const hydrateRuntimeStore = (nextStore = {}) => {
   store.oauthStates = store.oauthStates || [];
   store.notifications = store.notifications || [];
   store.adminAudit = store.adminAudit || [];
+  store.chatAlerts = store.chatAlerts || [];
   store.clientErrors = store.clientErrors || [];
   store.processedWebhooks = store.processedWebhooks || [];
 };
@@ -1602,7 +1613,6 @@ app.post("/api/client-errors", rateLimit({ windowMs: 10 * 60 * 1000, max: 20, ke
 });
 
 app.get("/api/public-image", async (req, res) => {
-  if (!SUPABASE_ORIGIN) return res.status(404).end();
   let source;
   try {
     source = new URL(String(req.query.src || ""));
@@ -1610,7 +1620,9 @@ app.get("/api/public-image", async (req, res) => {
     return res.status(400).json({ error: "URL de imagen invalida." });
   }
   const allowedPrefix = `/storage/v1/object/public/${SUPABASE_PUBLIC_BUCKET}/`;
-  if (source.origin !== SUPABASE_ORIGIN || !source.pathname.startsWith(allowedPrefix)) {
+  const isSupabasePublicImage = SUPABASE_ORIGIN && source.origin === SUPABASE_ORIGIN && source.pathname.startsWith(allowedPrefix);
+  const isDemoImage = source.protocol === "https:" && source.hostname === "images.unsplash.com";
+  if (!isSupabasePublicImage && !isDemoImage) {
     return res.status(403).json({ error: "Origen de imagen no permitido." });
   }
   try {
@@ -1656,7 +1668,8 @@ app.get("/api/private-media/:reference", async (req, res) => {
     const disputePhotos = (order.disputes || []).flatMap((dispute) => dispute.evidence || []);
     return sellerPhotos.includes(reference) || disputePhotos.includes(reference);
   });
-  if (!ownsObject && !chatAccess && !orderAccess) return res.status(403).json({ error: "Este archivo pertenece a otra conversacion u orden." });
+  const adminAccess = Boolean(adminTokens.get(String(parseCookies(req.headers.cookie)[ADMIN_SESSION_COOKIE] || "")) > Date.now());
+  if (!ownsObject && !chatAccess && !orderAccess && !adminAccess) return res.status(403).json({ error: "Este archivo pertenece a otra conversacion u orden." });
   try {
     const response = await fetch(`${SUPABASE_URL}/storage/v1/object/authenticated/${SUPABASE_PRIVATE_BUCKET}/${objectPath}`, {
       headers: supabaseHeaders()
@@ -2528,6 +2541,7 @@ app.get("/api/admin/overview", requireAdmin, async (_req, res) => {
     verificationRequests: store.verificationRequests,
     products: listings.filter(isRealListing),
     conversations: chats,
+    chatAlerts: store.chatAlerts || [],
     orders: store.orders || [],
     reports: store.reports || [],
     supportTickets: store.supportTickets || [],
@@ -3865,6 +3879,7 @@ app.post("/api/conversations/:id/messages", rateLimit({ windowMs: 10 * 60 * 1000
 
   const text = String(req.body.text || "").trim().slice(0, 2000);
   const rawAttachment = String(req.body.attachment || "");
+  const attachmentKind = req.body.attachmentKind === "mercadopago-receipt" ? "mercadopago-receipt" : "image";
   const validAttachment = validDataImage(rawAttachment, 1024 * 1024);
   let attachment = "";
   if (validAttachment) {
@@ -3884,6 +3899,7 @@ app.post("/api/conversations/:id/messages", rateLimit({ windowMs: 10 * 60 * 1000
     senderAvatar: sender.avatar,
     text,
     attachment,
+    attachmentKind: attachment ? attachmentKind : "",
     risk,
     time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
     createdAt: new Date().toISOString()
@@ -3899,7 +3915,17 @@ app.post("/api/conversations/:id/messages", rateLimit({ windowMs: 10 * 60 * 1000
         time: message.time,
         createdAt: new Date().toISOString()
       }
-    : null;
+    : attachmentKind === "mercadopago-receipt" && attachment
+      ? {
+          id: `msg-${Date.now()}-receipt`,
+          from: "system",
+          senderId: "system",
+          senderName: "MarketPro Shield",
+          text: "Comprobante compartido de forma privada. No confirma el pago por sí solo: verifica el estado directamente en Mercado Pago antes de despachar o entregar.",
+          time: message.time,
+          createdAt: new Date().toISOString()
+        }
+      : null;
 
   chats = chats.map((item) => item.id === chat.id
     ? {
@@ -3913,6 +3939,22 @@ app.post("/api/conversations/:id/messages", rateLimit({ windowMs: 10 * 60 * 1000
     : item
   );
   store.conversations = chats;
+  if (risk.level !== "Bajo") {
+    store.chatAlerts = [
+      {
+        id: `chat-alert-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
+        chatId: chat.id,
+        productTitle: chat.productTitle || "Publicación",
+        sender: { id: sender.id, name: sender.name, email: sender.email },
+        level: risk.level,
+        flags: risk.flags,
+        messageId: message.id,
+        createdAt: message.createdAt,
+        status: "Abierta"
+      },
+      ...(store.chatAlerts || [])
+    ].slice(0, 1000);
+  }
   (chat.participants || [])
     .filter((participant) =>
       participant.email &&

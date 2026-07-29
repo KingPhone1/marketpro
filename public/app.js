@@ -5,7 +5,7 @@ document.addEventListener(
   (event) => {
     const image = event.target;
     if (!(image instanceof HTMLImageElement) || image.dataset.proxyFallback === "true") return;
-    if (!/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\//i.test(image.currentSrc || image.src)) return;
+    if (!/^https:\/\/(?:[^/]+\.supabase\.co\/storage\/v1\/object\/public\/|images\.unsplash\.com\/)/i.test(image.currentSrc || image.src)) return;
     image.dataset.proxyFallback = "true";
     image.src = `/api/public-image?src=${encodeURIComponent(image.currentSrc || image.src)}`;
   },
@@ -14,6 +14,7 @@ document.addEventListener(
 
 let deferredInstallPrompt = null;
 let pendingChatAttachment = "";
+let pendingChatAttachmentKind = "image";
 let motionMatchMedia = null;
 let motionRefreshFrame = null;
 let lastAnimatedViewKey = -1;
@@ -2315,7 +2316,7 @@ const messagesView = () => {
                     (msg) => `
                     <div class="bubble ${isMyMessage(msg) ? "me" : ""} ${msg.from === "system" ? "system" : ""}">
                       ${msg.senderName && msg.from !== "system" ? `<span>${escapeHtml(msg.senderName)}</span>` : ""}
-                      ${msg.attachment ? `<button type="button" class="chat-photo" data-chat-photo><img src="${escapeHtml(msg.attachment)}" alt="Foto compartida en el chat" /></button>` : ""}
+                      ${msg.attachment ? `<button type="button" class="chat-photo ${msg.attachmentKind === "mercadopago-receipt" ? "payment-receipt" : ""}" data-chat-photo>${msg.attachmentKind === "mercadopago-receipt" ? `<b><i data-lucide="receipt-text"></i> Comprobante Mercado Pago</b>` : ""}<img src="${escapeHtml(msg.attachment)}" alt="${msg.attachmentKind === "mercadopago-receipt" ? "Comprobante de Mercado Pago compartido en el chat" : "Foto compartida en el chat"}" /></button>` : ""}
                       ${msg.text ? `<p>${escapeHtml(msg.text)}</p>` : ""}
                       ${msg.risk?.level && msg.risk.level !== "Bajo" ? `<small class="risk-note">Alerta ${escapeHtml(msg.risk.level)}: ${escapeHtml(msg.risk.flags.join(", "))}</small>` : ""}
                       ${msg.time ? `<time>${escapeHtml(msg.time)}${isMyMessage(msg) ? ` · ${msg.readAt ? "Leído" : "Enviado"}` : ""}</time>` : ""}
@@ -2330,11 +2331,15 @@ const messagesView = () => {
                   <button class="danger-btn" id="blockChat">${active.blocked ? "Chat bloqueado" : "Bloquear chat"}</button>
                 </div>
               </details>
-              ${pendingChatAttachment ? `<div class="chat-attachment-preview"><img src="${pendingChatAttachment}" alt="Foto lista para enviar" /><span>Foto lista</span><button type="button" id="removeChatPhoto" aria-label="Quitar foto">×</button></div>` : ""}
+              ${pendingChatAttachment ? `<div class="chat-attachment-preview ${pendingChatAttachmentKind === "mercadopago-receipt" ? "payment-receipt" : ""}"><img src="${pendingChatAttachment}" alt="Adjunto listo para enviar" /><span>${pendingChatAttachmentKind === "mercadopago-receipt" ? "Comprobante Mercado Pago listo" : "Foto lista"}</span><button type="button" id="removeChatPhoto" aria-label="Quitar foto">×</button></div>` : ""}
               <form class="message-form" id="messageForm">
                 <label class="attach-btn ${pendingChatAttachment ? "ready" : ""}" title="Añadir foto">
                   <input id="chatPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" ${active.blocked ? "disabled" : ""} />
                   <i data-lucide="paperclip"></i>
+                </label>
+                <label class="receipt-btn" title="Adjuntar comprobante de Mercado Pago">
+                  <input id="chatReceiptInput" type="file" accept="image/jpeg,image/png,image/webp" ${active.blocked ? "disabled" : ""} />
+                  <span>MP</span>
                 </label>
                 <input name="message" autocomplete="off" enterkeyhint="send" placeholder="${active.blocked ? "Chat bloqueado por seguridad" : "Escribe un mensaje"}" ${active.blocked ? "disabled" : ""} />
                 <button class="send-btn" title="Enviar" aria-label="Enviar mensaje" ${active.blocked ? "disabled" : ""}><i data-lucide="send"></i></button>
@@ -2892,8 +2897,10 @@ const bindEvents = () => {
     }, 1200);
   });
   document.querySelector("#chatPhotoInput")?.addEventListener("change", prepareChatPhoto);
+  document.querySelector("#chatReceiptInput")?.addEventListener("change", prepareChatPhoto);
   document.querySelector("#removeChatPhoto")?.addEventListener("click", () => {
     pendingChatAttachment = "";
+    pendingChatAttachmentKind = "image";
     render();
   });
   document.querySelectorAll("[data-chat-photo]").forEach((button) => {
@@ -3541,6 +3548,7 @@ const prepareChatPhoto = async (event) => {
     return;
   }
   pendingChatAttachment = compressed;
+  pendingChatAttachmentKind = event.target.id === "chatReceiptInput" ? "mercadopago-receipt" : "image";
   render();
   requestAnimationFrame(() => {
     const messages = document.querySelector(".messages");
@@ -3568,7 +3576,7 @@ const sendMessage = async (event) => {
   }
   const result = await api(`/api/conversations/${state.selectedChatId}/messages`, {
     method: "POST",
-    body: JSON.stringify({ text, attachment: pendingChatAttachment })
+    body: JSON.stringify({ text, attachment: pendingChatAttachment, attachmentKind: pendingChatAttachmentKind })
   });
   if (result.error) return;
   const additions = [result.message, result.systemMessage].filter(Boolean);
@@ -3585,6 +3593,7 @@ const sendMessage = async (event) => {
   );
   input.value = "";
   pendingChatAttachment = "";
+  pendingChatAttachmentKind = "image";
   render();
   requestAnimationFrame(() => {
     const messages = document.querySelector(".messages");

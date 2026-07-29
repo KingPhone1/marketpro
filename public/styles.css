@@ -2629,6 +2629,45 @@ body {
   }
 }
 
+/* v108 - stable mobile cards, media and private receipt sharing. */
+.receipt-btn { display: grid; width: 46px; height: 46px; flex: 0 0 46px; place-items: center; border: 1px solid var(--border-gold); border-radius: 50%; color: var(--color-gold-light); background: rgba(215,174,85,.06); cursor: pointer; }
+.receipt-btn input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.receipt-btn span { font-size: 11px; font-weight: 800; letter-spacing: .02em; }
+.chat-photo.payment-receipt { display: grid; gap: 8px; width: min(100%, 310px); padding: 9px; border: 1px solid var(--border-gold); border-radius: 14px; background: rgba(215,174,85,.06); }
+.chat-photo.payment-receipt b { display: inline-flex; align-items: center; gap: 6px; color: var(--color-gold-light); font-size: 11px; }
+.chat-photo.payment-receipt b svg { width: 14px; height: 14px; }
+.chat-attachment-preview.payment-receipt { border-color: var(--border-gold) !important; }
+.chat-attachment-preview.payment-receipt span { color: var(--color-gold-light); }
+
+@media (max-width: 760px) {
+  .app-shell .content-head,
+  .app-shell .grid { width: 100% !important; max-width: 100% !important; }
+  .app-shell .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; padding: 0 0 calc(110px + env(safe-area-inset-bottom)) !important; }
+  .app-shell .product-card { display: flex !important; min-width: 0 !important; min-height: 0 !important; flex-direction: column !important; grid-template-columns: none !important; border-radius: 16px !important; }
+  .app-shell .product-card .card-image { width: 100% !important; height: auto !important; min-height: 0 !important; aspect-ratio: 1 / 1 !important; }
+  .app-shell .product-card .card-image img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+  .app-shell .product-card .card-body { min-width: 0 !important; padding: 12px !important; }
+  .app-shell .product-card .card-title { display: -webkit-box !important; min-height: 36px !important; overflow: hidden !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal !important; }
+  .app-shell .product-card .price { font-size: 17px !important; }
+  .app-shell .product-card .card-meta { display: block !important; overflow: hidden; color: var(--color-text-muted) !important; font-size: 11px !important; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell .mp-connect-panel { position: relative !important; min-width: 0 !important; padding: 20px !important; overflow: hidden; }
+  .app-shell .mp-connect-panel::before { position: static !important; display: grid !important; width: 46px !important; height: 46px !important; margin-bottom: 12px; }
+  .app-shell .dashboard-mp-connect { min-width: 0 !important; padding: 18px !important; }
+  .app-shell .dashboard-mp-connect > svg { width: 34px; height: 34px; }
+  .app-shell .message-form { display: grid !important; grid-template-columns: 44px 44px minmax(0, 1fr) 44px !important; gap: 7px !important; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)) !important; }
+  .app-shell .message-form .attach-btn,
+  .app-shell .message-form .receipt-btn,
+  .app-shell .message-form .send-btn { width: 44px !important; height: 44px !important; min-width: 44px !important; }
+  .app-shell .message-form input[name="message"] { width: 100% !important; min-width: 0 !important; height: 44px !important; min-height: 44px !important; padding-inline: 12px !important; font-size: 14px !important; }
+  .app-shell .chat-attachment-preview { bottom: 66px !important; max-width: calc(100% - 24px); }
+}
+
+@media (max-width: 359px) {
+  .app-shell .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell .product-card { display: grid !important; grid-template-columns: 118px minmax(0, 1fr) !important; }
+  .app-shell .product-card .card-image { height: 100% !important; aspect-ratio: auto !important; }
+}
+
 /* v86 - final cascade guard for the compact app experience. */
 @media (max-width: 760px) {
   html,

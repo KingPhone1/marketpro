@@ -195,6 +195,8 @@ const dashboardView = () => {
   const approvedUsers = reviewableUsers.filter((user) => user.verified);
   const orders = overview.orders || [];
   const reports = overview.reports || [];
+  const chatAlerts = overview.chatAlerts || [];
+  const conversations = overview.conversations || [];
   const supportTickets = overview.supportTickets || [];
   const blockedPairs = overview.blockedPairs || [];
   const adminAudit = overview.adminAudit || [];
@@ -279,6 +281,33 @@ const dashboardView = () => {
     </section>
 
     ${privateRoadmapView()}
+
+    <section class="panel admin-chat-vault">
+      <div class="admin-section-head">
+        <div>
+          <p class="eyebrow">Archivo privado en la nube</p>
+          <h1>Chats y señales antifraude</h1>
+          <p class="muted">Las conversaciones, comprobantes adjuntos y alertas quedan guardados de forma privada para revisión administrativa.</p>
+        </div>
+        <strong class="vault-count">${conversations.length} chats</strong>
+      </div>
+      <div class="mp-checks">
+        <article class="${chatAlerts.some((alert) => alert.level === "Alto") ? "missing" : "ok"}"><span>${chatAlerts.filter((alert) => alert.status === "Abierta").length}</span><strong>Alertas abiertas</strong><small>Señales detectadas automáticamente en mensajes.</small></article>
+        <article class="ok"><span>${conversations.reduce((count, chat) => count + (chat.messages || []).filter((message) => message.attachmentKind === "mercadopago-receipt").length, 0)}</span><strong>Comprobantes privados</strong><small>Adjuntos compartidos entre participantes y administración.</small></article>
+      </div>
+      <div class="admin-orders admin-chat-list">
+        ${conversations.length ? conversations.slice(0, 20).map((chat) => {
+          const last = (chat.messages || []).at(-1) || {};
+          const alerts = (chat.riskEvents || []).filter((event) => event.level !== "Bajo");
+          return `<article class="admin-order admin-chat-row">
+            <div><strong>${escapeHtml(chat.productTitle || "Conversación")}</strong><span>${escapeHtml(chat.buyer || chat.participants?.[0]?.name || "Comprador")} · ${escapeHtml(chat.seller || chat.participants?.[1]?.name || "Vendedor")}</span></div>
+            <div><small>Último mensaje</small><b>${escapeHtml(last.text || (last.attachmentKind === "mercadopago-receipt" ? "Comprobante Mercado Pago" : "Adjunto privado"))}</b></div>
+            <div><small>Riesgo</small><b>${alerts.length ? `${alerts.at(-1).level} · ${alerts.at(-1).flags.join(", ")}` : "Sin alertas"}</b></div>
+            <div><small>Estado</small><b>${chat.blocked ? "Bloqueado" : "Activo"}</b></div>
+          </article>`;
+        }).join("") : `<div class="empty">Aún no hay conversaciones guardadas.</div>`}
+      </div>
+    </section>
 
     <section class="panel">
       <div class="admin-section-head">
