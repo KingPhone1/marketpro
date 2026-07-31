@@ -661,3 +661,271 @@
     font-size: 30px !important;
   }
 }
+
+/* ================================================================
+   MarketPro mobile app layer — pase 2 (Home, Vender, Perfil).
+   Solo mobile (<=760px). No toca el layout de escritorio: todo va
+   con el prefijo .app-shell que ya usa este archivo, igual que el
+   resto de las reglas de arriba.
+   ================================================================ */
+@media (max-width: 760px) {
+  /* ---- Home: banner mas corto, un solo CTA, sin parrafo largo ---- */
+  .app-shell .hero-panel {
+    padding-bottom: 108px !important;
+  }
+
+  .app-shell .hero-panel p:not(.eyebrow) {
+    display: none !important;
+  }
+
+  .app-shell .hero-cta-stack {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .app-shell .hero-cta-stack .hero-secondary {
+    display: none !important;
+  }
+
+  /* ---- Home: barra de confianza compacta, una sola fila ---- */
+  .app-shell .trust-feature-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    margin: 0 0 22px !important;
+  }
+
+  .app-shell .trust-feature-row article {
+    min-height: 74px !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 10px 4px !important;
+    text-align: center !important;
+  }
+
+  .app-shell .trust-feature-row article svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .app-shell .trust-feature-row article div {
+    gap: 0 !important;
+    justify-items: center !important;
+  }
+
+  .app-shell .trust-feature-row strong {
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* La descripcion larga (ej. "Perfiles revisados") se oculta para que
+     entren los 4 items en una fila; el titulo corto ya comunica la idea. */
+  .app-shell .trust-feature-row span {
+    display: none !important;
+  }
+
+  /* ---- Vender: asistente de publicacion en una sola columna ---- */
+  .app-shell .listing-studio-shell {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+
+  .app-shell .listing-stepper {
+    display: flex !important;
+    justify-content: space-between !important;
+    padding: 12px 10px !important;
+    overflow-x: auto !important;
+  }
+
+  .app-shell .listing-stepper button {
+    width: auto !important;
+    min-height: 0 !important;
+    grid-template-columns: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 4px 6px !important;
+  }
+
+  /* En mobile solo hace falta ver el numero de paso y si esta activo;
+     el titulo/descripcion de cada paso ya aparece arriba del formulario. */
+  .app-shell .listing-stepper button div {
+    display: none !important;
+  }
+
+  .app-shell .listing-stepper button svg {
+    display: none !important;
+  }
+
+  .app-shell .listing-live-preview {
+    order: 3 !important;
+  }
+
+  .app-shell .listing-step-actions {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  /* ---- Perfil: metricas del dashboard en 2 columnas, no 4 ---- */
+  .app-shell .dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .app-shell .dashboard-metric {
+    min-height: 128px !important;
+    padding: 16px !important;
+  }
+
+  .app-shell .dashboard-metric > strong {
+    font-size: 20px !important;
+  }
+
+  .app-shell .dashboard-welcome {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .app-shell .dashboard-mp-connect {
+    grid-template-columns: minmax(0, 1fr) !important;
+    text-align: left !important;
+  }
+}
+
+/* ================================================================
+   MarketPro mobile app layer — pase 3 (Categorías, Carrito, Producto).
+   Solo mobile (<=760px). No toca desktop ni backend.
+   Corrige: contraste de títulos casi invisibles (heredan --lux-ink
+   oscuro sobre fondo negro) y layouts de 2 columnas que no se
+   adaptaban a pantallas angostas (Carrito, Producto).
+   ================================================================ */
+@media (max-width: 760px) {
+  /* ---- Contraste: cualquier título del app debe leerse sobre fondo oscuro ---- */
+  .app-shell h1,
+  .app-shell h2,
+  .app-shell h3,
+  .app-shell .panel-title,
+  .app-shell .card-title,
+  .app-shell .categories-heading h1,
+  .app-shell .page-title h1,
+  .app-shell .category-cta h2 {
+    color: var(--color-text) !important;
+  }
+
+  /* ---- Carrito: la grilla de 2 columnas (items + resumen) no existía
+     en ningún breakpoint mobile; en una pantalla angosta el resumen de
+     380px de ancho fijo se salía de la pantalla. Apilar en una columna. ---- */
+  .app-shell .cart-layout-v2 {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  .app-shell .cart-items-v2 {
+    padding: 4px 14px !important;
+  }
+
+  .app-shell .cart-row-v2 {
+    display: grid !important;
+    grid-template-columns: 72px minmax(0, 1fr) !important;
+    grid-template-areas: "thumb info" "actions actions" !important;
+    gap: 10px 14px !important;
+    padding: 16px 0 !important;
+  }
+
+  .app-shell .cart-thumb-v2 {
+    grid-area: thumb !important;
+    width: 72px !important;
+    height: 64px !important;
+  }
+
+  .app-shell .cart-item-info-v2 {
+    grid-area: info !important;
+  }
+
+  .app-shell .cart-item-info-v2 h4 {
+    font-size: 14px !important;
+  }
+
+  .app-shell .qty-control-v2 {
+    grid-area: actions !important;
+    justify-self: start !important;
+  }
+
+  .app-shell .remove-link-v2 {
+    grid-area: actions !important;
+    justify-self: end !important;
+    align-self: center !important;
+  }
+
+  .app-shell .summary-card-v2 {
+    padding: 18px !important;
+  }
+
+  /* ---- Producto: la ficha (galería + tarjeta de compra) es una grilla de
+     2 columnas con un mínimo de 370px para la tarjeta de compra, lo que
+     desborda cualquier pantalla de celular. Apilar galería arriba,
+     compra abajo; miniaturas como tira horizontal sobre la imagen. ---- */
+  .app-shell .product-studio-shell {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  .app-shell .product-gallery-v2 {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .app-shell .product-main-image {
+    order: 1 !important;
+    width: 100% !important;
+  }
+
+  .app-shell .product-thumbs {
+    order: 2 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    width: 100% !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+
+  .app-shell .product-thumbs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-shell .product-thumbs button {
+    flex: 0 0 60px !important;
+    width: 60px !important;
+    height: 60px !important;
+  }
+
+  .app-shell .product-trust-strip,
+  .app-shell .seller-summary-v2 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .app-shell .product-trust-strip > span,
+  .app-shell .seller-summary-v2 > span {
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--mp-line, rgba(255, 255, 255, 0.08)) !important;
+  }
+
+  .app-shell .product-trust-strip > span:last-child,
+  .app-shell .seller-summary-v2 > span:last-child {
+    border-bottom: 0 !important;
+  }
+
+  .app-shell .commerce-checkout .two-col {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .app-shell .product-commerce-card {
+    position: static !important;
+  }
+}
