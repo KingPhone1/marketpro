@@ -929,3 +929,504 @@
     position: static !important;
   }
 }
+
+/* ================================================================
+   MarketPro mobile app layer — pase 4 (rediseño integral "app nativa").
+   Solo mobile (<=760px, equivalente al <768px pedido — se mantiene
+   760px para no crear un rango muerto con el resto de reglas mobile
+   ya existentes en este archivo y en studio.css). No toca desktop,
+   HTML, rutas, APIs ni lógica: todo es CSS aditivo con !important
+   sobre clases que ya existen en el HTML servido por app.js.
+   ================================================================ */
+@media (max-width: 760px) {
+  /* ---- Design tokens (solo mobile) ---- */
+  .app-shell {
+    --mp-r-lg: 20px;
+    --mp-r-md: 16px;
+    --mp-r-sm: 12px;
+    --mp-space: 16px;
+    --mp-shadow-card: 0 6px 18px rgba(0, 0, 0, 0.32);
+    --mp-shadow-pop: 0 14px 34px rgba(0, 0, 0, 0.45);
+    --mp-fast: 200ms cubic-bezier(.22, 1, .36, 1);
+  }
+
+  /* ---- Base: tap targets, inputs sin zoom de iOS, transiciones ---- */
+  .app-shell button,
+  .app-shell a.buy-action,
+  .app-shell a.checkout-link {
+    transition: transform var(--mp-fast), opacity var(--mp-fast), background-color var(--mp-fast), border-color var(--mp-fast) !important;
+  }
+
+  .app-shell button:active {
+    transform: scale(0.97);
+  }
+
+  .app-shell input:not([type="checkbox"]):not([type="range"]),
+  .app-shell select,
+  .app-shell textarea {
+    min-height: 50px !important;
+    font-size: 16px !important;
+    border-radius: var(--mp-r-sm) !important;
+  }
+
+  .app-shell textarea {
+    min-height: 96px !important;
+  }
+
+  /* Cualquier grilla de 2 columnas que haya quedado sin cubrir se apila. */
+  .app-shell .two-col {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* ---- Header: más limpio, logo izquierda, acciones derecha, menos alto ---- */
+  .app-shell .topbar {
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.28) !important;
+  }
+
+  .app-shell .market-search-row .searchbox {
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  .app-shell .topbar .cart-nav,
+  .app-shell .topbar .avatar-btn {
+    transition: transform var(--mp-fast) !important;
+  }
+
+  .app-shell .topbar .cart-nav:active,
+  .app-shell .topbar .avatar-btn:active {
+    transform: scale(0.92) !important;
+  }
+
+  .app-shell .topbar .cart-nav b {
+    box-shadow: 0 0 0 2px rgba(8, 9, 8, 0.95);
+  }
+}
+
+@media (max-width: 760px) {
+  /* ---- Home: hero con sombra premium, radios consistentes ---- */
+  .app-shell .hero-panel {
+    box-shadow: var(--mp-shadow-card) !important;
+    border-radius: var(--mp-r-lg) !important;
+  }
+
+  .app-shell .trust-feature-row article {
+    border-radius: var(--mp-r-sm) !important;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22) !important;
+  }
+
+  .app-shell .category-showcase > * {
+    border-radius: var(--mp-r-sm) !important;
+  }
+
+  /* ---- Cards de producto: imagen grande, sombra sutil, tap feedback ---- */
+  .app-shell .grid {
+    row-gap: 18px !important;
+  }
+
+  .app-shell .product-card {
+    border-radius: var(--mp-r-md) !important;
+    box-shadow: var(--mp-shadow-card) !important;
+    transition: transform var(--mp-fast), box-shadow var(--mp-fast) !important;
+  }
+
+  .app-shell .product-card:active {
+    transform: scale(0.98) !important;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  .app-shell .product-card .card-body {
+    padding: 12px !important;
+  }
+
+  .app-shell .product-card .card-kicker {
+    color: var(--color-text-secondary) !important;
+    font-size: 10.5px !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+  }
+
+  .app-shell .product-card .card-title {
+    margin-top: 2px !important;
+    font-size: 14px !important;
+    font-weight: 650 !important;
+  }
+
+  .app-shell .product-card .price {
+    color: var(--color-gold-light) !important;
+    font-size: 17px !important;
+    font-weight: 750 !important;
+  }
+
+  .app-shell .product-card .security-strip {
+    display: none !important;
+  }
+
+  .app-shell .product-card .card-foot {
+    display: none !important;
+  }
+
+  .app-shell .card-heart {
+    display: grid !important;
+    width: 32px !important;
+    height: 32px !important;
+    place-items: center !important;
+    border-radius: 50% !important;
+    color: #fff !important;
+    background: rgba(10, 10, 9, 0.55) !important;
+    backdrop-filter: blur(6px);
+    transition: transform var(--mp-fast) !important;
+  }
+
+  .app-shell .card-heart:active {
+    transform: scale(0.88) !important;
+  }
+
+  .app-shell .trust-badge {
+    border-radius: var(--mp-r-sm) !important;
+    backdrop-filter: blur(4px);
+  }
+}
+
+@media (max-width: 760px) {
+  /* ---- Vender: wizard con look de app nativa ----
+     Se mantienen los 5 pasos existentes (no se toca la lógica del
+     formulario ni la creación de publicaciones) pero se pule el
+     estilo: inputs grandes, stepper compacto, botón principal fijo
+     abajo con blur, como un asistente premium. */
+  .app-shell .listing-studio-page {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .app-shell .listing-stepper {
+    border-radius: var(--mp-r-md) !important;
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  .app-shell .listing-stepper button.active {
+    transform: scale(1.06);
+    transition: transform var(--mp-fast) !important;
+  }
+
+  .app-shell .form-panel {
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  .app-shell .form-panel .field label {
+    font-size: 12.5px !important;
+    font-weight: 650 !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  .app-shell .form-panel .photo-slot {
+    border-radius: var(--mp-r-sm) !important;
+  }
+
+  /* Nota: ya existe una regla previa en studio.css que puso
+     .listing-step-actions en position:static (revirtiendo un intento
+     anterior de position:sticky, probablemente por un bug visual) —
+     se respeta esa decision y solo se pule el estilo, sin forzar
+     sticky de nuevo. */
+  .app-shell .listing-step-actions {
+    margin-top: 14px !important;
+    padding: 10px !important;
+    border-radius: var(--mp-r-md) !important;
+    background: rgba(10, 10, 9, 0.55) !important;
+    backdrop-filter: blur(10px);
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  .app-shell .listing-step-actions button {
+    min-height: 48px !important;
+    flex: 1 1 auto !important;
+    border-radius: var(--mp-r-sm) !important;
+  }
+
+  /* ---- Formulario simple de Vender (composeView, si se usa) ---- */
+  .app-shell .compose-grid .field select,
+  .app-shell .compose-grid .field input,
+  .app-shell .compose-grid .field textarea {
+    border-radius: var(--mp-r-sm) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* ---- Perfil: cabecera tipo app premium con avatar grande ---- */
+  .app-shell .dashboard-welcome {
+    align-items: center !important;
+    padding: 4px 2px 6px !important;
+  }
+
+  .app-shell .dashboard-welcome h1 {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    font-size: 22px !important;
+  }
+
+  .app-shell .dashboard-welcome p {
+    color: var(--color-text-secondary) !important;
+    font-size: 13px !important;
+  }
+
+  .app-shell .dashboard-account {
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 50% !important;
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  .app-shell .dashboard-account span {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+  }
+
+  .app-shell .dashboard-metric {
+    border-radius: var(--mp-r-md) !important;
+    box-shadow: var(--mp-shadow-card) !important;
+    transition: transform var(--mp-fast) !important;
+  }
+
+  .app-shell .dashboard-metric:active {
+    transform: scale(0.97) !important;
+  }
+
+  .app-shell .dashboard-mp-connect {
+    border-radius: var(--mp-r-md) !important;
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  /* ---- Actividad reciente: filas tipo lista de app ---- */
+  .app-shell .dashboard-activity {
+    border-radius: var(--mp-r-md) !important;
+    overflow: hidden !important;
+  }
+
+  .app-shell .activity-list button {
+    min-height: 56px !important;
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
+  }
+
+  .app-shell .activity-list button:last-child {
+    border-bottom: 0 !important;
+  }
+
+  .app-shell .activity-list button:active {
+    background: rgba(255, 255, 255, 0.03) !important;
+  }
+
+  /* ---- Cuenta: acciones como lista de configuración, no botones sueltos ---- */
+  .app-shell .dashboard-account-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    margin-top: 22px !important;
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
+    border-radius: var(--mp-r-md) !important;
+    overflow: hidden !important;
+  }
+
+  .app-shell .dashboard-account-actions button {
+    min-height: 52px !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    font-size: 14px !important;
+    text-align: left !important;
+  }
+
+  .app-shell .dashboard-account-actions button:last-child {
+    border-bottom: 0 !important;
+  }
+
+  /* ---- Publicaciones del perfil ----
+     studio.css ya convierte cada tarjeta en una fila horizontal
+     (imagen 104px + info + 3 acciones abajo) para esta grilla
+     especifica — es un patron mas legible que 2 columnas para una
+     lista de gestion con 3 botones por item, asi que no se pisa;
+     solo se pulen las pestanas Activos/Vendidos. */
+  .app-shell .profile-tab {
+    min-height: 40px !important;
+    border-radius: var(--mp-r-sm) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* ---- Órdenes / Historial ---- */
+  .app-shell .orders-panel {
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  .app-shell .seller-metrics.order-metrics {
+    gap: 10px !important;
+  }
+
+  .app-shell .metric-card {
+    border-radius: var(--mp-r-md) !important;
+  }
+
+  .app-shell .order-tabs {
+    display: flex !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .app-shell .order-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-shell .order-tabs button {
+    flex: 0 0 auto !important;
+    min-height: 40px !important;
+    padding: 0 16px !important;
+    border-radius: var(--mp-r-sm) !important;
+    white-space: nowrap;
+  }
+
+  .app-shell .order-card {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 10px 12px !important;
+    padding: 14px !important;
+    border-radius: var(--mp-r-md) !important;
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  .app-shell .order-card img {
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: var(--mp-r-sm) !important;
+  }
+
+  .app-shell .order-card > button {
+    width: 100% !important;
+    min-height: 44px !important;
+    border-radius: var(--mp-r-sm) !important;
+  }
+
+  .app-shell .order-detail-hero {
+    border-radius: var(--mp-r-lg) !important;
+  }
+
+  .app-shell .order-detail-grid,
+  .app-shell .party-grid,
+  .app-shell .trust-center-grid,
+  .app-shell .legal-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .app-shell .order-detail-card {
+    border-radius: var(--mp-r-md) !important;
+  }
+
+  .app-shell .linked-chat {
+    flex-wrap: wrap !important;
+  }
+
+  .app-shell .linked-chat button {
+    width: 100% !important;
+    min-height: 44px !important;
+  }
+
+  /* ---- Chats ---- */
+  .app-shell .chat-shell {
+    box-shadow: none !important;
+  }
+
+  .app-shell .bubble {
+    border-radius: 16px 16px 16px 5px !important;
+  }
+
+  .app-shell .message-form input,
+  .app-shell .message-form button {
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  /* ---- Notificaciones ---- */
+  .app-shell .notifications-panel {
+    box-shadow: var(--mp-shadow-card) !important;
+  }
+
+  .app-shell .notification-list {
+    border-radius: var(--mp-r-md) !important;
+    overflow: hidden !important;
+  }
+
+  .app-shell .notification-item {
+    min-height: 64px !important;
+    padding: 12px 14px !important;
+    border-radius: 0 !important;
+  }
+
+  .app-shell .notification-item.unread {
+    background: rgba(215, 174, 85, 0.06) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* ---- Seguridad (Centro de confianza) y Centro de ayuda (Soporte) ----
+     Configuración, Direcciones y Métodos de pago todavía no existen como
+     pantallas propias en la app (los accesos del perfil apuntan a otras
+     vistas) — por eso no se listan acá; se puede armar esas pantallas
+     como paso siguiente si querés. */
+  .app-shell .trust-center,
+  .app-shell .support-panel,
+  .app-shell .legal-panel {
+    box-shadow: var(--mp-shadow-card) !important;
+    border-radius: var(--mp-r-lg) !important;
+  }
+
+  .app-shell .trust-center-grid article,
+  .app-shell .legal-grid article {
+    border-radius: var(--mp-r-sm) !important;
+  }
+
+  .app-shell .secure-flow {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .app-shell .secure-flow span {
+    padding: 12px 14px !important;
+    border-radius: var(--mp-r-sm) !important;
+    background: var(--color-surface-secondary) !important;
+  }
+
+  .app-shell .support-form button {
+    min-height: 50px !important;
+    border-radius: var(--mp-r-sm) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* ---- Bottom nav: animación al cambiar de pestaña, área táctil grande ---- */
+  .app-shell .mobile-tabs {
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  .app-shell .mobile-tabs button {
+    border-radius: var(--mp-r-sm) !important;
+    transition: transform var(--mp-fast), color var(--mp-fast), background-color var(--mp-fast) !important;
+  }
+
+  .app-shell .mobile-tabs button svg {
+    transition: transform var(--mp-fast) !important;
+  }
+
+  .app-shell .mobile-tabs button.active {
+    background: rgba(215, 174, 85, 0.1) !important;
+  }
+
+  .app-shell .mobile-tabs button.active svg {
+    transform: translateY(-2px) scale(1.08);
+  }
+
+  .app-shell .mobile-tabs button:active {
+    transform: scale(0.92) !important;
+  }
+}
