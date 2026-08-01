@@ -1204,10 +1204,28 @@ const ratingStars = (rating = 0) => {
   return "*****".slice(0, rounded) + "-----".slice(0, 5 - rounded);
 };
 
+const fallbackProductImage = (category = "") => {
+  const fallbacks = {
+    Vehiculos: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=900&q=82",
+    Inmuebles: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=82",
+    Electronica: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=900&q=82",
+    Ropa: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=82",
+    Hogar: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=900&q=82",
+    Deportes: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=82",
+  };
+  return fallbacks[category] || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=82";
+};
+
+const productImage = (item, index = 0, extra = "") => {
+  const fallback = fallbackProductImage(item.category);
+  const source = item.images?.[index] || fallback;
+  return `<img ${extra} data-product-image data-fallback="${escapeHtml(fallback)}" src="${escapeHtml(source)}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async" />`;
+};
+
 const productCard = (item) => `
   <button class="product-card" data-product="${item.id}">
     <div class="card-image">
-      <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async" />
+      ${productImage(item)}
       ${trustBadge(item)}
       <span class="card-heart" aria-hidden="true">♡</span>
     </div>
@@ -1242,7 +1260,7 @@ const heroVisual = () => {
     <aside class="hero-visual hero-product-visual" aria-hidden="true">
       <div class="hero-product-orbit"></div>
       <div class="hero-product-stage">
-        ${visuals.map((item, index) => `<img class="hero-product hero-product-${index + 1}" src="${item.images[0]}" alt="" />`).join("")}
+        ${visuals.map((item, index) => productImage(item, 0, `class="hero-product hero-product-${index + 1}" aria-hidden="true"`)).join("")}
       </div>
     </aside>
     <aside class="hero-mobile-shield" aria-hidden="true">
@@ -2305,7 +2323,7 @@ const messagesView = () => {
           <small>${state.conversations.length} conversaciones</small>
         </div>
         <div class="chat-list">
-          ${state.conversations
+          ${state.conversations.length ? state.conversations
             .map((chat) => {
               const contact = contactFor(chat);
               return `
@@ -2320,7 +2338,7 @@ const messagesView = () => {
                 ${chat.unreadCount ? `<b class="chat-unread" aria-label="${chat.unreadCount} mensajes sin leer">${chat.unreadCount}</b>` : ""}
               </button>`;
             })
-            .join("")}
+            .join("") : `<section class="chat-empty-state"><i data-lucide="messages-square"></i><strong>Todavía no tienes conversaciones</strong><span>Contacta a un vendedor desde una publicación para iniciar un chat protegido.</span><button type="button" class="buy-action" data-view="feed">Explorar publicaciones</button></section>`}
         </div>
       </aside>
       ${
@@ -2549,6 +2567,16 @@ const profileView = () => {
         </div>
       </section>
 
+      <section class="mobile-profile-actions" aria-label="Accesos de mi cuenta">
+        <button type="button" data-dashboard-listings><i data-lucide="notebook-tabs"></i><span>Mis publicaciones</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="orders"><i data-lucide="tags"></i><span>Ventas</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="orders"><i data-lucide="shopping-bag"></i><span>Compras</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="feed"><i data-lucide="heart"></i><span>Guardados</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-scroll-payment-link><i data-lucide="badge-dollar-sign"></i><span>Mercado Pago</span><small>${paymentLinksReady ? "Cobros activos" : "Configurar cobros"}</small><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="security"><i data-lucide="shield-check"></i><span>Verificación y seguridad</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="support"><i data-lucide="settings"></i><span>Configuración y ayuda</span><i data-lucide="chevron-right"></i></button>
+      </section>
+
       <section class="dashboard-metrics">
         <article class="dashboard-metric mp-status">
           <span>Mercado Pago</span>
@@ -2707,6 +2735,14 @@ const render = () => {
 
 const bindEvents = () => {
   bindAssistantEvents();
+  document.querySelectorAll("img[data-product-image]").forEach((image) => {
+    image.addEventListener("error", () => {
+      const fallback = image.dataset.fallback;
+      if (!fallback || image.dataset.fallbackApplied === "true") return;
+      image.dataset.fallbackApplied = "true";
+      image.src = fallback;
+    }, { once: true });
+  });
   document.querySelectorAll("[data-mercadopago-checkout]").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
@@ -3954,7 +3990,7 @@ window.addEventListener("appinstalled", () => {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register("/service-worker.js?v=123", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("/service-worker.js?v=124", { updateViaCache: "none" });
       await registration.update();
     } catch {
       showToast("La instalación sin conexión no está disponible en este momento.", "danger");

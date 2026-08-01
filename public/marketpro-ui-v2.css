@@ -521,7 +521,8 @@
 .mobile-card-verification,
 .chat-linked-product,
 .mobile-profile-title,
-.mobile-profile-summary { display: none; }
+.mobile-profile-summary,
+.mobile-profile-actions { display: none; }
 
 @media (max-width: 760px) {
   .app-shell.view-feed .pwa-install-card,
@@ -742,12 +743,12 @@
     padding: calc(16px + env(safe-area-inset-top)) 20px 12px !important;
     gap: 12px !important;
   }
-  .app-shell.view-feed .topbar .brand { gap: 13px !important; }
-  .app-shell.view-feed .topbar .brand-logo { width: 70px !important; height: 70px !important; flex-basis: 70px !important; }
-  .app-shell.view-feed .topbar .brand > span { font-size: 25px !important; font-weight: 760 !important; letter-spacing: .055em !important; }
-  .app-shell.view-feed .topbar .top-actions { gap: 13px !important; }
+  .app-shell.view-feed .topbar .brand { gap: 11px !important; }
+  .app-shell.view-feed .topbar .brand-logo { width: 54px !important; height: 54px !important; flex-basis: 54px !important; }
+  .app-shell.view-feed .topbar .brand > span { font-size: 20px !important; font-weight: 760 !important; letter-spacing: .055em !important; }
+  .app-shell.view-feed .topbar .top-actions { gap: 8px !important; }
   .app-shell.view-feed .topbar .top-actions .cart-nav,
-  .app-shell.view-feed .topbar .top-actions .avatar-btn { width: 52px !important; min-width: 52px !important; height: 52px !important; min-height: 52px !important; }
+  .app-shell.view-feed .topbar .top-actions .avatar-btn { width: 46px !important; min-width: 46px !important; height: 46px !important; min-height: 46px !important; }
   .app-shell.view-feed .topbar .top-actions .cart-nav svg { width: 29px !important; height: 29px !important; }
   .app-shell.view-feed .topbar .top-actions .avatar-btn { border: 0 !important; background: transparent !important; font-size: 0 !important; }
   .app-shell.view-feed .topbar .top-actions .avatar-btn::before { width: 33px; height: 33px; border: 2px solid #f4f1e8; border-radius: 50%; content: ""; }
@@ -805,8 +806,27 @@
   .app-shell.view-messages .bubble { max-width: 82% !important; padding: 14px 16px !important; font-size: 16px !important; }
 
   .app-shell.view-profile .main-layout { padding-inline: 20px !important; }
-  .app-shell.view-profile .dashboard-welcome h1 { font-size: 36px !important; }
+  .app-shell.view-profile .dashboard-welcome { display: block !important; min-height: auto !important; padding: 18px 0 12px !important; }
+  .app-shell.view-profile .dashboard-welcome h1 { display: block !important; margin: 0 !important; font-size: 34px !important; }
   .app-shell.view-profile .mobile-profile-summary { border-radius: 20px !important; }
+  .app-shell.view-profile .dashboard-metrics,
+  .app-shell.view-profile .dashboard-mp-connect,
+  .app-shell.view-profile .dashboard-activity,
+  .app-shell.view-profile .dashboard-listings { display: none !important; }
+  .app-shell.view-profile .mobile-profile-actions { display: grid !important; margin-top: 18px !important; border-top: 1px solid var(--v2-line) !important; }
+  .app-shell.view-profile .mobile-profile-actions button { display: grid !important; grid-template-columns: 28px minmax(0, 1fr) auto auto !important; align-items: center !important; gap: 12px !important; min-height: 68px !important; padding: 0 2px !important; border: 0 !important; border-bottom: 1px solid var(--v2-line) !important; background: transparent !important; color: var(--v2-text) !important; text-align: left !important; }
+  .app-shell.view-profile .mobile-profile-actions button > svg:first-child { width: 24px !important; color: var(--v2-gold) !important; }
+  .app-shell.view-profile .mobile-profile-actions button > span { font-size: 17px !important; }
+  .app-shell.view-profile .mobile-profile-actions button > small { color: #75c991 !important; font-size: 12px !important; white-space: nowrap !important; }
+  .app-shell.view-profile .mobile-profile-actions button > svg:last-child { width: 20px !important; color: var(--v2-muted) !important; }
+  .app-shell.view-profile .dashboard-account-actions { display: grid !important; margin-top: 12px !important; }
+  .app-shell.view-profile .dashboard-account-actions .logout-btn { color: #ff6b6b !important; }
+
+  .app-shell.view-messages .chat-empty-state { display: grid !important; place-items: center !important; align-content: center !important; gap: 14px !important; min-height: calc(100dvh - 180px) !important; padding: 36px 28px !important; color: var(--v2-muted) !important; text-align: center !important; }
+  .app-shell.view-messages .chat-empty-state > svg { width: 46px !important; height: 46px !important; color: var(--v2-gold) !important; }
+  .app-shell.view-messages .chat-empty-state strong { color: var(--v2-text) !important; font-size: 20px !important; }
+  .app-shell.view-messages .chat-empty-state span { max-width: 290px !important; font-size: 14px !important; line-height: 1.5 !important; }
+  .app-shell.view-messages .chat-empty-state .buy-action { width: auto !important; min-height: 48px !important; padding-inline: 22px !important; }
 }
 
 @media (max-width: 359px) {
