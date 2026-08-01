@@ -343,3 +343,10 @@
     grid-template-columns: repeat(4, 1fr);
   }
 }
+
+/* ---------- Fase 7: encabezado duplicado del wizard en mobile ---------- */
+@media (max-width: 760px) {
+  .app-shell.view-compose .listing-studio-header {
+    display: none !important;
+  }
+}
