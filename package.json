@@ -12,7 +12,8 @@
     "backup:verify": "node scripts/verify-store-backup.js",
     "migration:export": "node scripts/export-relational-store.js",
     "migration:verify": "node scripts/verify-relational-export.js",
-    "migration:import:staging": "node scripts/import-relational-store.js"
+    "migration:import:staging": "node scripts/import-relational-store.js",
+    "migration:verify:staging": "node scripts/verify-relational-destination.js"
   },
   "engines": {
     "node": "22.x"
