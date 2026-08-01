@@ -7,7 +7,9 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node --test test/*.test.js",
-    "check": "node --check server.js && node --check public/app.js && node --check public/admin.js"
+    "check": "node --check server.js && node --check public/app.js && node --check public/admin.js",
+    "backup:audit": "node scripts/backup-store.js",
+    "backup:verify": "node scripts/verify-store-backup.js"
   },
   "engines": {
     "node": "22.x"
