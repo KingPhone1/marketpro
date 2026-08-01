@@ -13,6 +13,7 @@ if (!target) throw new Error("Ejecuta migration:export antes de verificar el des
 
 const manifest = JSON.parse(fs.readFileSync(path.join(target, "manifest.json"), "utf8"));
 const mapping = { privateIdentities: "user_private_identities", listingImages: "listing_images", participants: "conversation_participants", audits: "audit_events" };
+const countColumns = { privateIdentities: "user_id", participants: "conversation_id" };
 const headers = {
   apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
@@ -20,8 +21,8 @@ const headers = {
 };
 const baseUrl = process.env.SUPABASE_URL.replace(/\/$/, "");
 
-async function count(table) {
-  const response = await fetch(`${baseUrl}/rest/v1/${table}?select=id&limit=1`, { headers });
+async function count(table, column) {
+  const response = await fetch(`${baseUrl}/rest/v1/${table}?select=${column}&limit=1`, { headers });
   if (!response.ok) throw new Error(`${table}: ${response.status} ${await response.text()}`);
   const contentRange = response.headers.get("content-range");
   const total = contentRange?.split("/").at(-1);
@@ -39,7 +40,7 @@ async function latestMigration() {
   const migration = await latestMigration();
   if (!migration || migration.source_hash !== manifest.sourceHash) throw new Error("No existe una migracion de staging que coincida con el export actual.");
   for (const [key, expected] of Object.entries(manifest.counts)) {
-    const actual = await count(mapping[key] || key);
+    const actual = await count(mapping[key] || key, countColumns[key] || "id");
     if (actual !== expected) throw new Error(`Conteo invalido para ${key}: esperado ${expected}, recibido ${actual}.`);
   }
   console.log("Destino de staging verificado: hash y conteos coinciden.");

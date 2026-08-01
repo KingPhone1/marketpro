@@ -1,7 +1,15 @@
 const crypto = require("crypto");
 
 const array = (value) => Array.isArray(value) ? value : [];
-const iso = (value) => value || new Date().toISOString();
+const iso = (value) => {
+  const parsed = value ? new Date(value) : null;
+  return parsed && !Number.isNaN(parsed.valueOf()) ? parsed.toISOString() : new Date().toISOString();
+};
+const nullableIso = (value) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.valueOf()) ? null : parsed.toISOString();
+};
 const without = (value, keys) => Object.fromEntries(Object.entries(value || {}).filter(([key]) => !keys.includes(key)));
 const hash = (value) => crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
@@ -16,11 +24,40 @@ function exportStore(store) {
     password_salt: user.passwordSalt || "",
     email_verified: Boolean(user.emailVerified),
     verification_status: user.verificationStatus || (user.verified ? "approved" : "not_started"),
-    verified_at: user.verifiedAt || null,
+    verified_at: nullableIso(user.verifiedAt),
     metadata: without(user, ["cedula", "exactLocation", "documentPhoto", "privateMedia", "passwordHash", "passwordSalt", "profilePhoto"]),
     created_at: iso(user.createdAt),
     updated_at: iso(user.updatedAt || user.createdAt)
   }));
+  const usersById = new Set(users.map((user) => user.id));
+  const usersByEmail = new Map(users.filter((user) => user.email).map((user) => [user.email, user.id]));
+  const legacyParticipantId = (participant) => {
+    const rawId = participant.id || participant.userId || null;
+    const email = String(participant.email || "").trim().toLowerCase();
+    if (rawId && usersById.has(rawId)) return rawId;
+    if (email && usersByEmail.has(email)) return usersByEmail.get(email);
+    const legacyId = `legacy-participant-${hash(rawId || email || "unknown").slice(0, 20)}`;
+    if (!usersById.has(legacyId)) {
+      users.push({
+        id: legacyId,
+        name: participant.name || "Participante legado",
+        email: email || `${legacyId}@invalid.marketpro`,
+        phone: null,
+        profile_image: null,
+        password_hash: "",
+        password_salt: "",
+        email_verified: false,
+        verification_status: "not_started",
+        verified_at: null,
+        metadata: { legacyParticipant: true, sourceIdentifier: rawId || null },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      usersById.add(legacyId);
+      if (email) usersByEmail.set(email, legacyId);
+    }
+    return legacyId;
+  };
   const privateIdentities = array(store.users).map((user) => ({
     user_id: user.id,
     encrypted_identity: { cedula: user.cedula || null, exactLocation: user.exactLocation || null },
@@ -29,7 +66,7 @@ function exportStore(store) {
   }));
   const listings = array(store.products).map((product) => ({
     id: product.id,
-    seller_id: product.seller?.id || product.sellerId || null,
+    seller_id: (product.seller?.id || product.sellerId) ? legacyParticipantId({ id: product.seller?.id || product.sellerId }) : null,
     title: product.title || "Sin título",
     description: product.description || "",
     price: Number(product.price || 0),
@@ -39,7 +76,7 @@ function exportStore(store) {
     location: product.location || null,
     status: product.status || "active",
     verified: Boolean(product.verified),
-    posted_at: product.postedAt || null,
+    posted_at: nullableIso(product.postedAt),
     metadata: without(product, ["id", "seller", "sellerId", "title", "description", "price", "currency", "category", "condition", "location", "status", "verified", "postedAt", "images"]),
     created_at: iso(product.postedAt),
     updated_at: iso(product.updatedAt || product.postedAt)
@@ -56,31 +93,31 @@ function exportStore(store) {
     listing_id: conversation.productId || null,
     order_id: conversation.orderId || null,
     created_at: iso(conversation.createdAt),
-    last_message_at: conversation.lastMessageAt || null,
+    last_message_at: nullableIso(conversation.lastMessageAt),
     metadata: without(conversation, ["id", "productId", "orderId", "participants", "messages", "createdAt", "lastMessageAt"])
   }));
   const participants = array(store.conversations).flatMap((conversation) => array(conversation.participants).map((participant) => ({
     conversation_id: conversation.id,
-    user_id: participant.id || participant.userId || participant.email,
+    user_id: legacyParticipantId(participant),
     role: participant.role || null,
     joined_at: iso(conversation.createdAt)
   }))).filter((entry) => entry.user_id);
   const messages = array(store.conversations).flatMap((conversation) => array(conversation.messages).map((message, index) => ({
     id: message.id || `${conversation.id}-message-${index}`,
     conversation_id: conversation.id,
-    sender_id: message.senderId || null,
+    sender_id: message.senderId ? legacyParticipantId({ id: message.senderId }) : null,
     body: message.text || "",
     attachment: message.attachment ? { source: message.attachment, kind: message.attachmentKind || "attachment" } : null,
     risk: message.risk || null,
-    read_at: message.readAt || null,
+    read_at: nullableIso(message.readAt),
     created_at: iso(message.createdAt),
     metadata: without(message, ["id", "senderId", "text", "attachment", "attachmentKind", "risk", "readAt", "createdAt"])
   })));
   const orders = array(store.orders).map((order) => ({
     id: order.id,
     listing_id: order.productId || null,
-    buyer_id: order.buyer?.id || order.buyerId || null,
-    seller_id: order.seller?.id || order.sellerId || null,
+    buyer_id: (order.buyer?.id || order.buyerId) ? legacyParticipantId({ id: order.buyer?.id || order.buyerId }) : null,
+    seller_id: (order.seller?.id || order.sellerId) ? legacyParticipantId({ id: order.seller?.id || order.sellerId }) : null,
     amount: Number(order.amount || 0),
     currency: order.currency || "UYU",
     status: order.status || "pending",
@@ -112,7 +149,7 @@ function exportStore(store) {
     reason: dispute.reason || "",
     evidence: dispute.evidence || [],
     created_at: iso(dispute.createdAt),
-    resolved_at: dispute.resolvedAt || null,
+    resolved_at: nullableIso(dispute.resolvedAt),
     metadata: without(dispute, ["id", "openedBy", "status", "reason", "evidence", "createdAt", "resolvedAt"])
   })));
   const reports = array(store.reports).map((report) => ({
@@ -124,7 +161,7 @@ function exportStore(store) {
     reason: report.reason || "",
     metadata: without(report, ["id", "reporterId", "targetType", "targetId", "productId", "chatId", "status", "reason", "createdAt", "resolvedAt"]),
     created_at: iso(report.createdAt),
-    resolved_at: report.resolvedAt || null
+    resolved_at: nullableIso(report.resolvedAt)
   }));
   const audits = array(store.adminAudit).map((event) => ({
     id: event.id,

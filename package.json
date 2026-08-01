@@ -13,7 +13,8 @@
     "migration:export": "node scripts/export-relational-store.js",
     "migration:verify": "node scripts/verify-relational-export.js",
     "migration:import:staging": "node scripts/import-relational-store.js",
-    "migration:verify:staging": "node scripts/verify-relational-destination.js"
+    "migration:verify:staging": "node scripts/verify-relational-destination.js",
+    "migration:sync-public-catalog:staging": "node scripts/sync-public-render-catalog.js"
   },
   "engines": {
     "node": "22.x"

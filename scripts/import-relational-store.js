@@ -15,9 +15,10 @@ const mapping = { privateIdentities: "user_private_identities", listingImages: "
 const headers = { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" };
 const manifest = JSON.parse(fs.readFileSync(path.join(target, "manifest.json"), "utf8"));
 
-async function write(table, rows) {
+async function write(table, rows, conflictTarget = "") {
   for (let index = 0; index < rows.length; index += 100) {
-    const response = await fetch(`${process.env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${table}`, { method: "POST", headers, body: JSON.stringify(rows.slice(index, index + 100)) });
+    const query = conflictTarget ? `?on_conflict=${encodeURIComponent(conflictTarget)}` : "";
+    const response = await fetch(`${process.env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${table}${query}`, { method: "POST", headers, body: JSON.stringify(rows.slice(index, index + 100)) });
     if (!response.ok) throw new Error(`${table}: ${response.status} ${await response.text()}`);
   }
 }
@@ -25,7 +26,8 @@ async function write(table, rows) {
 (async () => {
   for (const key of Object.keys(manifest.counts)) {
     const rows = JSON.parse(fs.readFileSync(path.join(target, `${key}.json`), "utf8"));
-    await write(mapping[key] || key, rows);
+    const conflictTarget = key === "listingImages" ? "listing_id,position" : key === "participants" ? "conversation_id,user_id" : "";
+    await write(mapping[key] || key, rows, conflictTarget);
   }
   await write("migration_runs", [{ source_hash: manifest.sourceHash, source_counts: manifest.counts, target: "staging", completed_at: new Date().toISOString() }]);
   console.log("Importacion de staging completada.");
