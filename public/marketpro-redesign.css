@@ -388,6 +388,20 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
     display: none !important;
   }
 
+  /* marketpro-ui-v2.css vuelve a pegar el pie del wizard (Anterior/
+     Continuar/Publicar) con position:sticky a solo 76px del fondo,
+     que no alcanza a despejar la barra inferior + el botón circular
+     "Vender" (que sobresale por encima de la barra) — el botón queda
+     tapando el texto de "Continuar". Se saca el sticky: con el
+     padding-bottom ya reservado más abajo alcanza para verlo sin
+     scroll extra, y evita quedar pegado a un offset que no coincide
+     con el tamaño real de la barra. */
+  .app-shell.view-compose .listing-step-actions {
+    position: static !important;
+    margin: 18px 0 0 !important;
+    bottom: auto !important;
+  }
+
   /* El bottom nav es position:fixed y tapaba el contenido de cualquier
      página que terminara antes de los ~110px que ocupa (franjas de
      confianza, footer, etc). Reservamos ese espacio en todas las vistas,
