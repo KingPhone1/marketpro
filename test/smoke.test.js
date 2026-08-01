@@ -163,10 +163,15 @@ test("the PWA shell serves versioned assets and a valid manifest", async () => {
   const serviceWorker = await fetch(`${origin}/service-worker.js`);
   const manifest = await fetch(`${origin}/manifest.json`);
   assert.equal(page.status, 200);
-  assert.match(html, /studio\.css\?v=117/);
-  assert.match(html, /app\.js\?v=117/);
+  const studioVersion = html.match(/studio\.css\?v=(\d+)/)?.[1];
+  const appVersion = html.match(/app\.js\?v=(\d+)/)?.[1];
+  assert.ok(studioVersion, "La hoja de estilos Studio debe tener una version de cache.");
+  assert.ok(appVersion, "La aplicacion debe tener una version de cache.");
   assert.equal(serviceWorker.status, 200);
-  assert.match(await serviceWorker.text(), /marketpro-v117/);
+  const worker = await serviceWorker.text();
+  assert.match(worker, /marketpro-v\d+/);
+  assert.match(worker, new RegExp(`studio\\.css\\?v=${studioVersion}`));
+  assert.match(worker, new RegExp(`app\\.js\\?v=${appVersion}`));
   assert.equal(manifest.status, 200);
   assert.equal((await manifest.json()).name, "MarketPro");
 });

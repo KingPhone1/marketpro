@@ -9,7 +9,10 @@
     "test": "node --test test/*.test.js",
     "check": "node --check server.js && node --check public/app.js && node --check public/admin.js",
     "backup:audit": "node scripts/backup-store.js",
-    "backup:verify": "node scripts/verify-store-backup.js"
+    "backup:verify": "node scripts/verify-store-backup.js",
+    "migration:export": "node scripts/export-relational-store.js",
+    "migration:verify": "node scripts/verify-relational-export.js",
+    "migration:import:staging": "node scripts/import-relational-store.js"
   },
   "engines": {
     "node": "22.x"
