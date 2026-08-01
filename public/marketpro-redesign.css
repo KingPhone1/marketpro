@@ -441,24 +441,32 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
 
 /* ---------- Fase 10: reducir la escala general en mobile ---------- */
 @media (max-width: 760px) {
-  /* Topbar: 122px de alto es demasiado para una barra superior mobile.
-     Se ajustan las dos filas (logo+acciones / buscador) y sus gaps. */
-  .app-shell .topbar {
+  /* Topbar: 122-126px de alto es demasiado para una barra superior mobile.
+     marketpro-ui-v2.css define `.app-shell.view-feed .topbar` (3 clases)
+     en varios breakpoints, que le gana a un simple `.app-shell .topbar`
+     (2 clases) por especificidad — hay que igualar esa especificidad y
+     repetirlo para cada variante de vista que exista. */
+  .app-shell .topbar,
+  .app-shell.view-feed .topbar {
     min-height: calc(100px + env(safe-area-inset-top)) !important;
     grid-template-rows: 40px 46px !important;
     gap: 8px 12px !important;
     padding: calc(6px + env(safe-area-inset-top)) 14px 6px !important;
   }
-  .app-shell .topbar .brand-logo {
+  .app-shell .topbar .brand-logo,
+  .app-shell.view-feed .topbar .brand-logo {
     width: 36px !important;
     height: 36px !important;
     flex: 0 0 36px !important;
   }
-  .app-shell .topbar .brand > span {
+  .app-shell .topbar .brand > span,
+  .app-shell.view-feed .topbar .brand > span {
     font-size: 15px !important;
   }
   .app-shell .topbar .top-actions .compact-alert,
-  .app-shell .topbar .top-actions .avatar-btn {
+  .app-shell .topbar .top-actions .avatar-btn,
+  .app-shell.view-feed .topbar .top-actions .cart-nav,
+  .app-shell.view-feed .topbar .top-actions .avatar-btn {
     width: 38px !important;
     min-width: 38px !important;
     height: 38px !important;
@@ -477,17 +485,26 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
     min-height: 38px !important;
   }
 
-  /* Hero: el titular ocupaba 4 líneas a tamaño casi de afiche.
-     Se compacta a algo más cercano a una app, no a una landing. */
-  .app-shell .hero-panel {
+  /* Hero: el titular ocupaba 4 líneas a tamaño casi de afiche (hasta
+     44px en la variante .view-feed, que también le gana a un simple
+     `.app-shell .hero-panel h1` por especificidad). Se compacta a algo
+     más cercano a una app, no a una landing. */
+  .app-shell .hero-panel,
+  .app-shell.view-feed .hero-panel {
     padding: 20px 18px 100px !important;
+    min-height: 0 !important;
     border-radius: 16px !important;
   }
-  .app-shell .hero-panel h1 {
+  .app-shell .hero-panel h1,
+  .app-shell.view-feed .hero-panel h1 {
+    max-width: 100% !important;
     font-size: clamp(24px, 7.2vw, 29px) !important;
     line-height: 1.12 !important;
+    margin: 0 !important;
   }
-  .app-shell .hero-panel .eyebrow {
+  .app-shell .hero-panel .eyebrow,
+  .app-shell.view-feed .hero-panel .eyebrow {
+    display: block !important;
     font-size: 11px !important;
   }
   .app-shell .hero-cta-stack {

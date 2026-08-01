@@ -1,4 +1,4 @@
-const CACHE_NAME = "marketpro-v132";
+const CACHE_NAME = "marketpro-v133";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -8,7 +8,7 @@ const APP_SHELL = [
   "/app.js?v=120",
   "/marketpro-mockup.css?v=2",
   "/marketpro-ui-v2.css?v=8",
-  "/marketpro-redesign.css?v=9",
+  "/marketpro-redesign.css?v=10",
   "/assets/marketpro-shield.png",
   "/vendor/gsap/gsap.min.js?v=3.13.0",
   "/vendor/gsap/ScrollTrigger.min.js?v=3.13.0",
