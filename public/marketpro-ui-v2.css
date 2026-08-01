@@ -1,14 +1,14 @@
 /* MarketPro UI v2: compact visual layer. Functional markup and routes stay unchanged. */
 :root {
-  --v2-bg: #090909;
-  --v2-surface: #141414;
-  --v2-surface-raised: #1a1a1a;
-  --v2-text: #ffffff;
-  --v2-muted: #a9a9a9;
-  --v2-gold: #e8b44c;
-  --v2-gold-light: #f0c65e;
-  --v2-line: rgba(255, 255, 255, .08);
-  --v2-gold-line: rgba(232, 180, 76, .34);
+  --v2-bg: var(--mp-bg);
+  --v2-surface: var(--mp-surface);
+  --v2-surface-raised: var(--mp-surface-2);
+  --v2-text: var(--mp-text);
+  --v2-muted: var(--mp-text-2);
+  --v2-gold: var(--mp-gold);
+  --v2-gold-light: var(--mp-gold-light);
+  --v2-line: var(--mp-line);
+  --v2-gold-line: var(--mp-gold-line);
   --v2-radius: 18px;
 }
 

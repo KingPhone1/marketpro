@@ -15,6 +15,7 @@ document.addEventListener(
 let deferredInstallPrompt = null;
 let pendingChatAttachment = "";
 let pendingChatAttachmentKind = "image";
+let composePhotoFiles = [];
 let motionMatchMedia = null;
 let motionRefreshFrame = null;
 let lastAnimatedViewKey = -1;
@@ -379,6 +380,7 @@ const state = {
       : JSON.parse(localStorage.getItem("marketFiltersOpen") ?? "true"),
   profileTab: "active",
   composeStep: 1,
+  composeCategory: "",
   user: null,
   authToken: localStorage.getItem("marketAuthToken") || "",
   authenticated: false,
@@ -2223,21 +2225,50 @@ const composeView = () => {
 `;
 };
 
+const categoryIcon = (category) => ({ Vehiculos: "car-front", Inmuebles: "building-2", Electronica: "smartphone", Ropa: "shopping-bag", Hogar: "armchair", Deportes: "dumbbell", Juguetes: "gamepad-2", Entretenimiento: "clapperboard" })[category] || "tag";
+
+const photoSectionMarkup = () => {
+  const tiles = composePhotoFiles.map((file, index) => `
+    <div class="photo-tile">
+      <img src="${URL.createObjectURL(file)}" alt="Foto ${index + 1}" />
+      <button type="button" class="photo-tile-remove" data-remove-photo="${index}" aria-label="Quitar foto">&#10005;</button>
+    </div>
+  `).join("");
+  const addTile = composePhotoFiles.length >= 10 ? "" : `
+    <label class="photo-tile photo-tile-add" for="photoInput">
+      <i data-lucide="camera"></i><span>Agregar foto</span>
+    </label>
+  `;
+  const progress = composePhotoFiles.length ? `
+    <div class="photo-upload-progress">
+      <div class="row"><span>Fotos listas</span><span>${composePhotoFiles.length} de ${composePhotoFiles.length}</span></div>
+      <div class="bar"><span style="width: 100%"></span></div>
+    </div>
+  ` : "";
+  return `
+    <div class="photo-uploader" id="photoGrid">${tiles}${addTile}</div>
+    ${progress}
+  `;
+};
+
+const refreshPhotoSection = () => {
+  const section = document.querySelector("#photoSection");
+  if (!section) return;
+  section.innerHTML = photoSectionMarkup();
+  const label = document.querySelector("#photoCountLabel");
+  if (label) label.textContent = `${composePhotoFiles.length}/10`;
+  window.lucide?.createIcons({ attrs: { "stroke-width": 1.7 } });
+};
+
 const composeStudioView = () => {
   if (!isVerifiedSeller()) return composeView();
-  const steps = [
-    ["Información", "Detalles principales", "file-text"],
-    ["Fotos", "Hasta 6 imágenes", "images"],
-    ["Detalles", "Descripción y estado", "list-checks"],
-    ["Ubicación y envío", "Dónde y cómo entregas", "map-pin"],
-    ["Precio y seguridad", "Revisión final", "shield-check"]
-  ];
+  const totalSteps = 5;
   return `
     ${sellerSidebar("listings")}
     <main class="listing-studio-page">
       <header class="mobile-compose-heading">
         <button type="button" data-view="feed" aria-label="Volver"><i data-lucide="arrow-left"></i></button>
-        <div><strong>Vender producto</strong><span>Paso ${state.composeStep} de 5</span></div>
+        <div><strong>Vender producto</strong><span>Paso ${state.composeStep} de ${totalSteps}</span></div>
         <img src="/mp-logo.svg" alt="MarketPro" />
       </header>
       <form id="listingForm" novalidate>
@@ -2246,27 +2277,36 @@ const composeStudioView = () => {
           <div><button class="secondary-btn" type="button" data-save-draft>Guardar borrador</button><button class="sell-action" type="submit"><i data-lucide="rocket"></i>Publicar</button></div>
         </header>
         <section class="listing-studio-shell">
-          <aside class="listing-stepper">
-            ${steps.map((step, index) => `
-              <button type="button" data-compose-step="${index + 1}" class="${state.composeStep === index + 1 ? "active" : ""}">
-                <span>${index + 1}</span><i data-lucide="${step[2]}"></i><div><strong>${step[0]}</strong><small>${step[1]}</small></div>
-              </button>
+          <div class="step-dots" aria-hidden="true">
+            ${Array.from({ length: totalSteps }, (_, index) => index + 1).map((step) => `
+              <div class="step-dot ${step < state.composeStep ? "done" : ""} ${step === state.composeStep ? "active" : ""}">
+                <button type="button" class="step-dot-circle" data-compose-step="${step}"><span class="step-dot-num">${step}</span></button>
+                ${step < totalSteps ? `<div class="step-dot-line"></div>` : ""}
+              </div>
             `).join("")}
-          </aside>
+          </div>
           <section class="listing-stage">
             <div class="listing-step-panel" data-step-panel="1" ${state.composeStep === 1 ? "" : "hidden"}>
-              <header><span>01</span><div><h2>Información principal</h2><p>Identificá el artículo de forma clara.</p></div></header>
-              <div class="field"><label for="listingTitle">Título del artículo</label><input id="listingTitle" name="title" required maxlength="72" autocomplete="off" placeholder="Ej: Mesa de comedor moderna" /></div>
-              <div class="two-col">
-                <div class="field"><label for="listingCategory">Categoría</label><select id="listingCategory" name="category">${categories.filter((c) => c !== "Todo").map((c) => `<option>${c}</option>`).join("")}</select></div>
-                <div class="field"><label for="listingCondition">Condición</label><select id="listingCondition" name="condition"><option>Usado</option><option>Nuevo</option></select></div>
+              <header><span>01</span><div><h2>¿Qué categoría es?</h2><p>Elegí la categoría que mejor describe tu artículo.</p></div></header>
+              <input type="hidden" id="listingCategory" name="category" value="${escapeHtml(state.composeCategory)}" />
+              <div class="category-pick-grid">
+                ${categories.filter((c) => c !== "Todo").map((category) => `
+                  <button type="button" class="${state.composeCategory === category ? "active" : ""}" data-category-pick="${escapeHtml(category)}">
+                    <i data-lucide="${categoryIcon(category)}"></i><strong>${escapeHtml(category)}</strong>
+                  </button>
+                `).join("")}
               </div>
             </div>
             <div class="listing-step-panel" data-step-panel="2" ${state.composeStep === 2 ? "" : "hidden"}>
-              <header><span>02</span><div><h2>Fotografías reales</h2><p>Subí entre 2 y 6 fotos nítidas.</p></div></header>
-              <label class="listing-upload" for="photoInput"><i data-lucide="cloud-upload"></i><strong>Elegir fotografías</strong><span>JPG o PNG · máximo 10 MB por imagen</span></label>
-              <input id="photoInput" name="photos" type="file" accept="image/*" multiple />
-              <div class="photo-grid" id="photoGrid">${[1,2,3,4,5,6].map((number) => `<div class="photo-slot"><b>${number}</b><i data-lucide="image"></i><small>${number === 1 ? "Foto principal" : "Otra vista"}</small></div>`).join("")}</div>
+              <header><span>02</span><div><h2>Fotos del producto <i data-lucide="info"></i></h2><p><span id="photoCountLabel">${composePhotoFiles.length}/10</span></p></div></header>
+              <div id="photoSection">${photoSectionMarkup()}</div>
+              <input id="photoInput" name="photos" type="file" accept="image/*" multiple hidden />
+              <div class="field"><label for="listingTitle">Título del producto</label><input id="listingTitle" name="title" required maxlength="70" autocomplete="off" placeholder="Ej: Mesa de comedor moderna" /><small id="listingTitleCount">0/70</small></div>
+              <div class="field"><label>Categoría</label><div class="listing-category-chosen">${state.composeCategory ? escapeHtml(state.composeCategory) : "Elegí una categoría en el paso 1"}</div></div>
+              <div class="field"><label for="listingCondition">Estado del producto</label><select id="listingCondition" name="condition"><option>Usado</option><option>Nuevo</option></select></div>
+              <div class="field price-field"><label for="listingPrice">Precio en pesos uruguayos (SU)</label><div><span>$U</span><input id="listingPrice" name="price" required type="number" inputmode="numeric" min="1" placeholder="0" /></div></div>
+              <h3 class="listing-cobro-title">Cobro</h3>
+              <div class="field"><label for="listingPaymentLink">Enlace de pago en pesos uruguayos</label><input id="listingPaymentLink" name="paymentLink" type="url" inputmode="url" placeholder="https://link.mercadopago.com.uy/..." ${state.user?.mercadoPago?.connected ? "" : "required"} /><small><i data-lucide="lock"></i>Asegurate de que el enlace sea de Mercado Pago y esté configurado para recibir pagos en pesos uruguayos.</small></div>
             </div>
             <div class="listing-step-panel" data-step-panel="3" ${state.composeStep === 3 ? "" : "hidden"}>
               <header><span>03</span><div><h2>Descripción y estado</h2><p>Contá exactamente qué recibe el comprador.</p></div></header>
@@ -2278,16 +2318,14 @@ const composeStudioView = () => {
               <div class="delivery-options"><span><i data-lucide="map-pin-check"></i><strong>Punto seguro</strong><small>Para entregas personales.</small></span><span><i data-lucide="truck"></i><strong>Envío con rastreo</strong><small>Vinculado a la orden.</small></span></div>
             </div>
             <div class="listing-step-panel" data-step-panel="5" ${state.composeStep === 5 ? "" : "hidden"}>
-              <header><span>05</span><div><h2>Precio y protocolo</h2><p>Revisá el valor y la seguridad.</p></div></header>
-              <div class="field price-field"><label for="listingPrice">Precio en pesos uruguayos</label><div><span>$U</span><input id="listingPrice" name="price" required type="number" inputmode="numeric" min="1" placeholder="0" /></div></div>
-              <div class="field"><label for="listingPaymentLink">Enlace de Mercado Pago para este artículo</label><input id="listingPaymentLink" name="paymentLink" type="url" inputmode="url" placeholder="https://mpago.la/..." ${state.user?.mercadoPago?.connected ? "" : "required"} /><small>Crealo en pesos uruguayos con el importe exacto de esta publicación. Quedará congelado con la orden.</small></div>
+              <header><span>05</span><div><h2>Protocolo de seguridad</h2><p>Revisá y aceptá antes de publicar.</p></div></header>
               <section class="protocol-box"><h3><i data-lucide="shield-check"></i>Protocolo de seguridad</h3>${safetyRules.map((rule, index) => `<label class="check-row"><input type="checkbox" name="safety-${index}" required /><span>${rule}</span></label>`).join("")}</section>
             </div>
             <footer class="listing-step-actions">
               <button class="secondary-btn" type="button" data-compose-prev ${state.composeStep === 1 ? "disabled" : ""}><i data-lucide="arrow-left"></i>Anterior</button>
-              <span>Paso ${state.composeStep} de 5</span>
-              <button class="sell-action" type="button" data-compose-next ${state.composeStep === 5 ? "hidden" : ""}>Continuar<i data-lucide="arrow-right"></i></button>
-              <button class="sell-action" type="submit" data-compose-submit ${state.composeStep === 5 ? "" : "hidden"}><i data-lucide="rocket"></i>Publicar</button>
+              <span>Paso ${state.composeStep} de ${totalSteps}</span>
+              <button class="sell-action" type="button" data-compose-next ${state.composeStep === totalSteps ? "hidden" : ""}>Continuar<i data-lucide="arrow-right"></i></button>
+              <button class="sell-action" type="submit" data-compose-submit ${state.composeStep === totalSteps ? "" : "hidden"}><i data-lucide="rocket"></i>Publicar</button>
             </footer>
           </section>
           <aside class="listing-live-preview">
@@ -2558,7 +2596,7 @@ const profileView = () => {
       <section class="mobile-profile-summary">
         <header>
           <img src="${escapeHtml(state.user.profilePhoto || `/api/avatar/${encodeURIComponent(state.user.name)}.svg`)}" alt="Foto de ${escapeHtml(state.user.name)}" />
-          <div><strong>${escapeHtml(state.user.name)}</strong><span><i data-lucide="star"></i>${sellerHasRating(state.user) ? Number(state.user.rating).toFixed(1) : "Sin calificaciones"}</span></div>
+          <div><strong>${escapeHtml(state.user.name)}${state.user.verified ? `<span class="profile-verified-badge" aria-label="Verificado"><i data-lucide="badge-check"></i></span>` : ""}</strong><span><i data-lucide="star"></i>${sellerHasRating(state.user) ? Number(state.user.rating).toFixed(1) : "Sin calificaciones"}</span></div>
         </header>
         <div>
           <article><i data-lucide="notebook-tabs"></i><strong>${mine.length}</strong><span>Publicaciones</span></article>
@@ -2572,9 +2610,10 @@ const profileView = () => {
         <button type="button" data-view="orders"><i data-lucide="tags"></i><span>Ventas</span><i data-lucide="chevron-right"></i></button>
         <button type="button" data-view="orders"><i data-lucide="shopping-bag"></i><span>Compras</span><i data-lucide="chevron-right"></i></button>
         <button type="button" data-view="feed"><i data-lucide="heart"></i><span>Guardados</span><i data-lucide="chevron-right"></i></button>
-        <button type="button" data-scroll-payment-link><i data-lucide="badge-dollar-sign"></i><span>Mercado Pago</span><small>${paymentLinksReady ? "Cobros activos" : "Configurar cobros"}</small><i data-lucide="chevron-right"></i></button>
-        <button type="button" data-view="security"><i data-lucide="shield-check"></i><span>Verificación y seguridad</span><i data-lucide="chevron-right"></i></button>
-        <button type="button" data-view="support"><i data-lucide="settings"></i><span>Configuración y ayuda</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-scroll-payment-link><i data-lucide="badge-dollar-sign"></i><span>Mercado Pago</span><small>${paymentLinksReady ? "Cuenta de cobro conectada" : "Configurar cobros"}</small><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-addresses-soon><i data-lucide="map-pin"></i><span>Direcciones</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="security"><i data-lucide="shield-check"></i><span>Verificación</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="support"><i data-lucide="settings"></i><span>Configuración</span><i data-lucide="chevron-right"></i></button>
       </section>
 
       <section class="dashboard-metrics">
@@ -2953,8 +2992,10 @@ const bindEvents = () => {
     document.querySelectorAll("[data-step-panel]").forEach((panel) => {
       panel.hidden = Number(panel.dataset.stepPanel) !== state.composeStep;
     });
-    document.querySelectorAll("[data-compose-step]").forEach((button) => {
-      button.classList.toggle("active", Number(button.dataset.composeStep) === state.composeStep);
+    document.querySelectorAll(".step-dots .step-dot").forEach((dot) => {
+      const dotStep = Number(dot.querySelector("[data-compose-step]")?.dataset.composeStep);
+      dot.classList.toggle("done", dotStep < state.composeStep);
+      dot.classList.toggle("active", dotStep === state.composeStep);
     });
     const previous = document.querySelector("[data-compose-prev]");
     const next = document.querySelector("[data-compose-next]");
@@ -2964,6 +3005,8 @@ const bindEvents = () => {
     if (submit) submit.hidden = state.composeStep !== 5;
     const counter = document.querySelector(".listing-step-actions > span");
     if (counter) counter.textContent = `Paso ${state.composeStep} de 5`;
+    const mobileCounter = document.querySelector(".mobile-compose-heading span");
+    if (mobileCounter) mobileCounter.textContent = `Paso ${state.composeStep} de 5`;
     document.querySelector(".listing-stage")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   document.querySelectorAll("[data-compose-step]").forEach((button) => button.addEventListener("click", () => showComposeStep(button.dataset.composeStep)));
@@ -2984,8 +3027,39 @@ const bindEvents = () => {
   document.querySelector("[data-scroll-payment-link]")?.addEventListener("click", () => {
     document.querySelector("#mercadoPagoSetup")?.scrollIntoView({ behavior: "smooth", block: "center" });
   });
+  document.querySelector("[data-addresses-soon]")?.addEventListener("click", () => {
+    showToast("Muy pronto vas a poder guardar tus direcciones acá.");
+  });
   document.querySelector("#sellerPaymentConfirmForm")?.addEventListener("submit", confirmSellerPaymentLink);
   document.querySelector("#photoInput")?.addEventListener("change", previewPhotos);
+  syncPhotoInputFiles();
+  document.querySelectorAll("[data-category-pick]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.composeCategory = button.dataset.categoryPick;
+      document.querySelectorAll("[data-category-pick]").forEach((other) => {
+        other.classList.toggle("active", other.dataset.categoryPick === state.composeCategory);
+      });
+      const hidden = document.querySelector("#listingCategory");
+      if (hidden) hidden.value = state.composeCategory;
+      const chosen = document.querySelector(".listing-category-chosen");
+      if (chosen) chosen.textContent = state.composeCategory;
+    });
+  });
+  document.querySelector("#photoSection")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-remove-photo]");
+    if (!button) return;
+    composePhotoFiles.splice(Number(button.dataset.removePhoto), 1);
+    syncPhotoInputFiles();
+    refreshPhotoSection();
+  });
+  const listingTitleInput = document.querySelector("#listingTitle");
+  const listingTitleCount = document.querySelector("#listingTitleCount");
+  if (listingTitleInput && listingTitleCount) {
+    listingTitleCount.textContent = `${listingTitleInput.value.length}/70`;
+    listingTitleInput.addEventListener("input", () => {
+      listingTitleCount.textContent = `${listingTitleInput.value.length}/70`;
+    });
+  }
   document.querySelector("#authForm")?.addEventListener("submit", authenticate);
 
   document.querySelectorAll("[data-chat]").forEach((button) => {
@@ -3080,11 +3154,26 @@ const updatePreview = (event) => {
   document.querySelector("#previewCondition").textContent = data.get("condition") || "Condicion";
 };
 
+const syncPhotoInputFiles = () => {
+  const input = document.querySelector("#photoInput");
+  if (!input) return;
+  const transfer = new DataTransfer();
+  composePhotoFiles.forEach((file) => transfer.items.add(file));
+  input.files = transfer.files;
+};
+
 const previewPhotos = async (event) => {
+  const grid = document.querySelector("#photoGrid");
+  if (grid?.classList.contains("photo-uploader")) {
+    const incoming = [...event.target.files].filter((file) => file.type?.startsWith("image/"));
+    composePhotoFiles = [...composePhotoFiles, ...incoming].slice(0, 10);
+    syncPhotoInputFiles();
+    refreshPhotoSection();
+    return;
+  }
   const files = [...event.target.files]
     .filter((file) => file.type?.startsWith("image/"))
     .slice(0, 6);
-  const grid = document.querySelector("#photoGrid");
   const preview = document.querySelector("#previewImage");
   if (!grid || !preview) return;
 
@@ -3142,7 +3231,7 @@ const compressImage = (file, maxSize = 1280, quality = 0.72) =>
   });
 
 const collectPhotos = async (input) => {
-  const files = [...(input?.files || [])].slice(0, 6);
+  const files = [...(input?.files || [])].slice(0, 10);
   if (!files.length) return [`/api/demo-photo/new-${Date.now()}.svg`];
   return Promise.all(files.map((file) => compressImage(file, 1280, 0.72)));
 };
@@ -3254,6 +3343,9 @@ const publishListing = async (event) => {
   state.products = state.products.some((item) => item.id === product.id)
     ? state.products.map((item) => item.id === product.id ? product : item)
     : [product, ...state.products];
+  composePhotoFiles = [];
+  state.composeCategory = "";
+  state.composeStep = 1;
   if (created.duplicatePrevented) {
     showToast("La publicación ya existía. Evitamos crear una copia duplicada.");
   }
