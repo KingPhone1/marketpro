@@ -388,6 +388,16 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
     display: none !important;
   }
 
+  /* Sin el header viejo, el contenido quedaba pegado arriba, sin la
+     misma respiración que tiene Inicio (que abre con el hero). Se le
+     da al wizard un margen superior equivalente antes del stepper. */
+  .app-shell.view-compose .listing-studio-shell {
+    margin-top: 20px !important;
+  }
+  .app-shell.view-compose .step-dots {
+    margin: 4px 0 26px !important;
+  }
+
   /* marketpro-ui-v2.css vuelve a pegar el pie del wizard (Anterior/
      Continuar/Publicar) con position:sticky a solo 76px del fondo,
      que no alcanza a despejar la barra inferior + el botón circular
@@ -427,4 +437,86 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
 .app-shell .market-search-row .searchbox input,
 .app-shell .topbar .searchbox input {
   font-size: 16px !important;
+}
+
+/* ---------- Fase 10: reducir la escala general en mobile ---------- */
+@media (max-width: 760px) {
+  /* Topbar: 122px de alto es demasiado para una barra superior mobile.
+     Se ajustan las dos filas (logo+acciones / buscador) y sus gaps. */
+  .app-shell .topbar {
+    min-height: calc(100px + env(safe-area-inset-top)) !important;
+    grid-template-rows: 40px 46px !important;
+    gap: 8px 12px !important;
+    padding: calc(6px + env(safe-area-inset-top)) 14px 6px !important;
+  }
+  .app-shell .topbar .brand-logo {
+    width: 36px !important;
+    height: 36px !important;
+    flex: 0 0 36px !important;
+  }
+  .app-shell .topbar .brand > span {
+    font-size: 15px !important;
+  }
+  .app-shell .topbar .top-actions .compact-alert,
+  .app-shell .topbar .top-actions .avatar-btn {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+  .app-shell .topbar .searchbox {
+    height: 46px !important;
+  }
+  .app-shell .topbar .searchbox input {
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+  .app-shell .topbar .search-filter {
+    width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+
+  /* Hero: el titular ocupaba 4 líneas a tamaño casi de afiche.
+     Se compacta a algo más cercano a una app, no a una landing. */
+  .app-shell .hero-panel {
+    padding: 20px 18px 100px !important;
+    border-radius: 16px !important;
+  }
+  .app-shell .hero-panel h1 {
+    font-size: clamp(24px, 7.2vw, 29px) !important;
+    line-height: 1.12 !important;
+  }
+  .app-shell .hero-panel .eyebrow {
+    font-size: 11px !important;
+  }
+  .app-shell .hero-cta-stack {
+    margin-top: 14px !important;
+  }
+  .app-shell .hero-cta-stack button {
+    min-height: 46px !important;
+    font-size: 14.5px !important;
+  }
+
+  /* Encabezados de sección (Categorías, Alertas, Soporte, "Destacados
+     para ti") a un tamaño más acorde a una app, no a un H1 de sitio web. */
+  .categories-heading h1,
+  .notifications-panel h1,
+  .support-panel h1 {
+    font-size: 24px !important;
+    line-height: 1.15 !important;
+  }
+  .categories-heading .eyebrow,
+  .support-panel .eyebrow,
+  .notifications-panel .eyebrow {
+    font-size: 11px !important;
+  }
+
+  /* Ritmo vertical general: separaciones entre secciones más ajustadas. */
+  .app-shell .trust-feature-row {
+    margin: 0 0 16px !important;
+  }
+  .app-shell .category-showcase {
+    margin: 0 0 16px !important;
+  }
 }
