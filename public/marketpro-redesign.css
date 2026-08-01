@@ -349,4 +349,12 @@
   .app-shell.view-compose .listing-studio-header {
     display: none !important;
   }
+
+  /* El bottom nav es position:fixed y tapaba el contenido de cualquier
+     página que terminara antes de los ~110px que ocupa (franjas de
+     confianza, footer, etc). Reservamos ese espacio en todas las vistas,
+     no solo en las que ya lo hacían puntualmente (hero, wizard). */
+  .app-shell .main-layout {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom)) !important;
+  }
 }
