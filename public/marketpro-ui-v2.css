@@ -1,0 +1,515 @@
+/* MarketPro UI v2: compact visual layer. Functional markup and routes stay unchanged. */
+:root {
+  --v2-bg: #090909;
+  --v2-surface: #141414;
+  --v2-surface-raised: #1a1a1a;
+  --v2-text: #ffffff;
+  --v2-muted: #a9a9a9;
+  --v2-gold: #e8b44c;
+  --v2-gold-light: #f0c65e;
+  --v2-line: rgba(255, 255, 255, .08);
+  --v2-gold-line: rgba(232, 180, 76, .34);
+  --v2-radius: 18px;
+}
+
+.app-shell { background: var(--v2-bg) !important; color: var(--v2-text) !important; }
+.app-shell .main-layout > main { width: min(100%, 1440px); }
+
+.app-shell .panel,
+.app-shell .form-panel,
+.app-shell .preview-panel,
+.app-shell .checkout-box,
+.app-shell .orders-panel,
+.app-shell .dashboard-welcome,
+.app-shell .dashboard-mp-connect,
+.app-shell .dashboard-activity,
+.app-shell .chat-shell,
+.app-shell .order-detail-card,
+.app-shell .summary-card-v2,
+.app-shell .product-commerce-card {
+  border: 1px solid var(--v2-line) !important;
+  border-radius: var(--v2-radius) !important;
+  background: var(--v2-surface) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .22) !important;
+}
+
+.app-shell .topbar,
+.app-shell .market-search-row { background: rgba(9, 9, 9, .96) !important; }
+.app-shell .market-search-row .searchbox,
+.app-shell .topbar .searchbox {
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid var(--v2-line) !important;
+  border-radius: 16px !important;
+  background: #151515 !important;
+}
+.app-shell .searchbox input { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+.app-shell .search-filter { border-left: 1px solid var(--v2-line) !important; border-radius: 0 !important; background: transparent !important; }
+.app-shell .searchbox:focus-within { border-color: var(--v2-gold-line) !important; box-shadow: 0 0 0 3px rgba(232,180,76,.08) !important; }
+
+.app-shell .hero-panel {
+  min-height: 330px !important;
+  padding: clamp(28px, 4vw, 52px) !important;
+  border: 1px solid rgba(232,180,76,.25) !important;
+  border-radius: 24px !important;
+  background: radial-gradient(circle at 82% 26%, rgba(232,180,76,.13), transparent 28%), #11120f !important;
+}
+.app-shell .hero-panel h1 { max-width: 640px; font-size: clamp(34px, 4vw, 52px) !important; line-height: 1.08 !important; letter-spacing: 0 !important; }
+.app-shell .hero-panel p:not(.eyebrow) { max-width: 545px; }
+.app-shell .hero-cta-stack { gap: 12px !important; align-items: center; }
+
+.app-shell .hero-action,
+.app-shell .buy-action,
+.app-shell .checkout-primary,
+.app-shell .sell-action,
+.app-shell .listing-step-actions button[type="submit"] {
+  min-height: 48px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, var(--v2-gold-light), #dba43a) !important;
+  color: #17130a !important;
+  font-weight: 700 !important;
+}
+.app-shell .hero-secondary,
+.app-shell .checkout-link,
+.app-shell .secondary-action {
+  min-height: 48px !important;
+  border: 1px solid var(--v2-gold-line) !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  color: var(--v2-gold-light) !important;
+}
+
+.app-shell .trust-feature-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.app-shell .trust-feature-row article {
+  min-height: 74px;
+  padding: 14px 16px !important;
+  border: 1px solid var(--v2-line) !important;
+  border-radius: 14px !important;
+  background: var(--v2-surface) !important;
+}
+
+.app-shell .product-card {
+  overflow: hidden !important;
+  border: 1px solid var(--v2-line) !important;
+  border-radius: var(--v2-radius) !important;
+  background: var(--v2-surface) !important;
+  box-shadow: none !important;
+  text-align: left !important;
+}
+.app-shell .product-card:hover { transform: translateY(-3px) !important; border-color: var(--v2-gold-line) !important; box-shadow: 0 14px 28px rgba(0,0,0,.25) !important; }
+.app-shell .product-card .card-image { aspect-ratio: 4 / 3 !important; background: #111 !important; }
+.app-shell .product-card .card-body { padding: 16px !important; gap: 7px !important; }
+.app-shell .product-card .card-title { min-height: 42px; color: var(--v2-text) !important; font-size: 16px !important; line-height: 1.3 !important; }
+.app-shell .product-card .price { color: var(--v2-gold-light) !important; font-size: 20px !important; font-weight: 720 !important; }
+.app-shell .product-card .card-kicker { color: var(--v2-gold) !important; }
+
+.app-shell .product-gallery-v2,
+.app-shell .product-main-image,
+.app-shell .product-trust-strip,
+.app-shell .seller-summary-v2,
+.app-shell .checkout-assurance {
+  border-color: var(--v2-line) !important;
+  border-radius: var(--v2-radius) !important;
+  background: var(--v2-surface) !important;
+}
+
+.app-shell .seller-sidebar,
+.app-shell .profile-aside,
+.app-shell .chat-sidebar { border-color: var(--v2-line) !important; background: #111 !important; }
+.app-shell .dashboard-metric,
+.app-shell .order-card,
+.app-shell .cart-row-v2,
+.app-shell .activity-list button { border-color: var(--v2-line) !important; background: var(--v2-surface) !important; }
+.app-shell .listing-stepper button,
+.app-shell .order-tabs button,
+.app-shell .filter-chip,
+.app-shell .category-chip { border-radius: 999px !important; }
+
+.app-shell .chat-shell { min-height: min(720px, calc(100vh - 160px)) !important; }
+.app-shell .chat-header,
+.app-shell .message-form { border-color: var(--v2-line) !important; }
+.app-shell .bubble { border-radius: 16px !important; }
+.app-shell .bubble.mine { border-color: rgba(232,180,76,.34) !important; background: rgba(232,180,76,.17) !important; }
+
+@media (max-width: 760px) {
+  html, body, #app, .app-shell { width: 100%; max-width: 100%; overflow-x: clip; }
+  .app-shell * { min-width: 0; }
+  .app-shell .main-layout,
+  .app-shell .main-layout.filters-collapsed,
+  .app-shell .main-layout:has(.seller-sidebar) {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 16px calc(102px + env(safe-area-inset-bottom)) !important;
+  }
+  .app-shell .main-layout > main { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+
+  .app-shell .topbar {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    min-height: calc(64px + env(safe-area-inset-top)) !important;
+    gap: 8px !important;
+    padding: calc(8px + env(safe-area-inset-top)) 16px 8px !important;
+  }
+  .app-shell .topbar .brand { overflow: hidden; gap: 8px !important; }
+  .app-shell .topbar .brand-logo { flex: 0 0 38px; width: 38px !important; height: 38px !important; }
+  .app-shell .topbar .brand > span { overflow: hidden; font-size: 14px !important; letter-spacing: .1em !important; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell .topbar .top-actions { gap: 6px !important; }
+  .app-shell .topbar .nav-btn:not(.cart-nav):not(.compact-alert),
+  .app-shell .topbar .sell-btn,
+  .app-shell .topbar .install-btn,
+  .app-shell .topbar .compact-alert span { display: none !important; }
+
+  .app-shell .market-search-row { width: 100% !important; padding: 10px 16px 14px !important; }
+  .app-shell .market-search-row .searchbox {
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) 52px !important;
+    width: 100% !important;
+    height: 54px !important;
+  }
+  .app-shell .market-search-row .search-scope { display: none !important; }
+  .app-shell .market-search-row .search-filter { width: 52px !important; height: 52px !important; }
+  .app-shell .market-search-row input { width: 100% !important; font-size: 14px !important; }
+
+  .app-shell .hero-panel {
+    min-height: 202px !important;
+    margin: 0 0 18px !important;
+    padding: 22px !important;
+    border-radius: 20px !important;
+  }
+  .app-shell .hero-panel h1 { max-width: 310px; font-size: 30px !important; }
+  .app-shell .hero-panel p:not(.eyebrow) { margin: 9px 0 0 !important; font-size: 14px !important; line-height: 1.45 !important; }
+  .app-shell .hero-security-visual,
+  .app-shell .hero-product-visual,
+  .app-shell .hero-metrics { display: none !important; }
+  .app-shell .hero-cta-stack { display: flex !important; width: 100%; margin-top: 16px !important; }
+  .app-shell .hero-cta-stack button { flex: 1; min-height: 44px !important; padding-inline: 8px !important; font-size: 13px !important; }
+
+  .app-shell .trust-feature-row { display: flex !important; gap: 8px !important; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .app-shell .trust-feature-row article { flex: 0 0 145px; min-height: 64px; padding: 12px !important; }
+  .app-shell .trust-feature-row article span { display: none !important; }
+  .app-shell .category-showcase { gap: 8px !important; }
+  .app-shell .category-showcase > * { flex: 0 0 104px !important; min-height: 82px !important; }
+
+  .app-shell .grid,
+  .app-shell .view-feed .grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 12px !important; }
+  .app-shell .product-card,
+  .app-shell .view-feed .product-card { display: block !important; min-height: 0 !important; border-radius: 16px !important; }
+  .app-shell .product-card .card-image { min-height: 0 !important; height: auto !important; aspect-ratio: 1 / 1 !important; }
+  .app-shell .product-card .card-body { padding: 12px !important; gap: 5px !important; }
+  .app-shell .product-card .card-title { min-height: 34px; font-size: 13px !important; }
+  .app-shell .product-card .price { font-size: 16px !important; }
+  .app-shell .product-card .card-kicker,
+  .app-shell .product-card .rating-line,
+  .app-shell .product-card .security-strip,
+  .app-shell .product-card .card-foot { display: none !important; }
+  .app-shell .trust-badge { max-width: calc(100% - 16px); font-size: 10px !important; }
+
+  .app-shell .seller-sidebar,
+  .app-shell .profile-aside { display: none !important; }
+  .app-shell .detail-grid,
+  .app-shell .compose-grid,
+  .app-shell .cart-layout-v2,
+  .app-shell .commerce-checkout .two-col,
+  .app-shell .order-detail-grid,
+  .app-shell .dashboard-metrics,
+  .app-shell .seller-metrics,
+  .app-shell .two-col { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell .product-gallery-v2 { padding: 10px !important; }
+  .app-shell .product-main-image { aspect-ratio: 1 / 1 !important; }
+  .app-shell .product-thumbs { display: flex !important; overflow-x: auto; }
+  .app-shell .product-trust-strip,
+  .app-shell .seller-summary-v2 { display: grid !important; grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+
+  .app-shell .form-panel,
+  .app-shell .preview-panel,
+  .app-shell .checkout-box,
+  .app-shell .orders-panel { padding: 18px !important; border-radius: 16px !important; }
+  .app-shell .listing-stepper,
+  .app-shell .order-tabs { overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .app-shell .listing-stepper button { flex: 0 0 118px !important; }
+  .app-shell .checkout-primary,
+  .app-shell .checkout-link,
+  .app-shell .sell-action { width: 100%; min-height: 50px !important; }
+  .app-shell .order-card { grid-template-columns: 76px minmax(0,1fr) !important; gap: 12px !important; padding: 12px !important; }
+  .app-shell .order-card img { width: 76px !important; height: 76px !important; }
+  .app-shell .order-card > button { grid-column: 1 / -1; width: 100%; }
+
+  .app-shell .chat-shell { min-height: calc(100dvh - 150px) !important; border-radius: 16px !important; }
+  .app-shell .chat-main { min-width: 0 !important; }
+  .app-shell .chat-warning { margin: 12px !important; padding: 12px !important; font-size: 12px !important; }
+  .app-shell .messages { padding: 14px !important; }
+  .app-shell .bubble { max-width: 86% !important; padding: 10px 12px !important; font-size: 14px !important; }
+  .app-shell .message-form { margin: 10px !important; padding: 7px !important; }
+  .app-shell .message-form > input[name="message"] { font-size: 14px !important; }
+
+  .app-shell .mobile-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0,1fr)) !important;
+    min-height: 70px !important;
+    padding: 7px 8px calc(7px + env(safe-area-inset-bottom)) !important;
+    border: 1px solid var(--v2-line) !important;
+    border-radius: 18px 18px 0 0 !important;
+    background: rgba(14,14,14,.96) !important;
+  }
+  .app-shell .mobile-tabs button { min-height: 48px !important; font-size: 10px !important; }
+}
+
+@media (max-width: 359px) {
+  .app-shell .grid,
+  .app-shell .view-feed .grid { grid-template-columns: minmax(0,1fr) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell *, .app-shell *::before, .app-shell *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* --------------------------------------------------------------------------
+   Responsive shell v3
+   A single final layout layer keeps phone, tablet and desktop intentionally
+   different. It sits last so earlier legacy rules cannot compress the web
+   layout into a phone-sized page (or the other way round).
+   -------------------------------------------------------------------------- */
+.app-shell .market-search-row .search-icon::before,
+.app-shell .market-search-row .search-icon::after,
+.app-shell .market-search-row .search-filter::before {
+  content: none !important;
+  display: none !important;
+}
+
+.app-shell .market-search-row .search-icon,
+.app-shell .market-search-row .search-filter {
+  place-items: center !important;
+}
+
+.app-shell .market-search-row .search-icon svg,
+.app-shell .market-search-row .search-filter svg {
+  display: block !important;
+  pointer-events: none;
+}
+
+@media (min-width: 1100px) {
+  .app-shell .topbar {
+    grid-template-columns: 230px minmax(420px, 1fr) auto !important;
+    min-height: 76px !important;
+    padding: 10px clamp(24px, 4vw, 64px) !important;
+    gap: clamp(20px, 3vw, 48px) !important;
+  }
+
+  .app-shell .brand { min-width: 0; }
+  .app-shell .brand-logo { width: 44px !important; height: 44px !important; }
+  .app-shell .brand > span { font-size: 18px !important; letter-spacing: .11em !important; }
+  .app-shell .market-nav { justify-content: center; gap: clamp(16px, 2vw, 34px) !important; }
+  .app-shell .market-nav button { min-height: 56px !important; font-size: 14px !important; }
+  .app-shell .topbar .top-actions { gap: 6px !important; }
+
+  .app-shell .market-search-row { padding: 18px max(4vw, 54px) 10px !important; }
+  .app-shell .market-search-row .searchbox {
+    width: min(100%, 1010px) !important;
+    grid-template-columns: 54px minmax(0, 1fr) 190px 54px !important;
+    height: 52px !important;
+    margin: 0 auto !important;
+  }
+  .app-shell .market-search-row input { height: 50px !important; font-size: 15px !important; }
+  .app-shell .market-search-row .search-scope { display: flex !important; }
+  .app-shell .market-search-row .search-filter { width: 54px !important; height: 50px !important; }
+
+  .app-shell .main-layout,
+  .app-shell .main-layout.filters-collapsed {
+    width: min(100%, 1540px) !important;
+    margin: 0 auto !important;
+    padding: 14px clamp(24px, 4vw, 64px) 72px !important;
+  }
+  .app-shell .main-layout > main { max-width: none !important; }
+  .app-shell .hero-panel { min-height: 300px !important; }
+  .app-shell .grid,
+  .app-shell .view-feed .grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .app-shell .mobile-tabs { display: none !important; }
+}
+
+@media (min-width: 761px) and (max-width: 1099px) {
+  .app-shell .topbar {
+    grid-template-columns: 172px minmax(0, 1fr) auto !important;
+    min-height: 68px !important;
+    padding: 8px 24px !important;
+    gap: 18px !important;
+  }
+  .app-shell .brand-logo { width: 38px !important; height: 38px !important; }
+  .app-shell .brand > span { font-size: 15px !important; letter-spacing: .08em !important; }
+  .app-shell .market-nav { justify-content: center; gap: 16px !important; }
+  .app-shell .market-nav button { min-height: 48px !important; font-size: 13px !important; }
+  .app-shell .topbar .help-btn span { display: none !important; }
+  .app-shell .topbar .top-actions { gap: 4px !important; }
+
+  .app-shell .market-search-row { padding: 14px 24px 8px !important; }
+  .app-shell .market-search-row .searchbox {
+    width: min(100%, 880px) !important;
+    grid-template-columns: 50px minmax(0, 1fr) 160px 50px !important;
+    height: 50px !important;
+    margin: 0 auto !important;
+  }
+  .app-shell .market-search-row .search-filter { width: 50px !important; height: 48px !important; }
+  .app-shell .main-layout,
+  .app-shell .main-layout.filters-collapsed { padding: 12px 24px 64px !important; }
+  .app-shell .hero-panel { min-height: 260px !important; }
+  .app-shell .hero-panel h1 { font-size: 38px !important; }
+  .app-shell .grid,
+  .app-shell .view-feed .grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .app-shell .trust-feature-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .app-shell .mobile-tabs { display: none !important; }
+}
+
+@media (max-width: 760px) {
+  html, body, #app, .app-shell { width: 100%; max-width: 100%; overflow-x: clip !important; }
+  .app-shell { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+
+  .app-shell .topbar {
+    position: sticky !important;
+    top: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    min-height: calc(64px + env(safe-area-inset-top)) !important;
+    padding: calc(8px + env(safe-area-inset-top)) 16px 8px !important;
+    gap: 10px !important;
+  }
+  .app-shell .brand { min-width: 0 !important; gap: 9px !important; }
+  .app-shell .brand-logo { width: 38px !important; height: 38px !important; flex: 0 0 38px !important; }
+  .app-shell .brand > span { font-size: 15px !important; letter-spacing: .09em !important; }
+  .app-shell .market-nav,
+  .app-shell .topbar .help-btn,
+  .app-shell .topbar .compact-alert,
+  .app-shell .topbar .install-btn { display: none !important; }
+  .app-shell .topbar .top-actions { gap: 6px !important; }
+  .app-shell .topbar .top-actions .cart-nav,
+  .app-shell .topbar .top-actions .avatar-btn {
+    display: grid !important;
+    place-items: center !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+  }
+
+  .app-shell .market-search-row { padding: 10px 16px 14px !important; }
+  .app-shell .market-search-row .searchbox {
+    display: grid !important;
+    grid-template-columns: 46px minmax(0, 1fr) 50px !important;
+    width: 100% !important;
+    height: 52px !important;
+    min-width: 0 !important;
+    border-radius: 16px !important;
+  }
+  .app-shell .market-search-row .search-icon { grid-column: 1 !important; width: 46px !important; }
+  .app-shell .market-search-row input {
+    grid-column: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 50px !important;
+    padding: 0 4px !important;
+    font-size: 14px !important;
+  }
+  .app-shell .market-search-row .search-scope { display: none !important; }
+  .app-shell .market-search-row .search-filter {
+    display: grid !important;
+    grid-column: 3 !important;
+    width: 50px !important;
+    height: 50px !important;
+    border-left: 1px solid var(--v2-line) !important;
+  }
+
+  .app-shell .main-layout,
+  .app-shell .main-layout.filters-collapsed,
+  .app-shell .main-layout:has(.seller-sidebar) {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 16px calc(96px + env(safe-area-inset-bottom)) !important;
+  }
+  .app-shell .main-layout > main,
+  .app-shell .main-layout:has(.seller-sidebar) > main { width: 100% !important; min-width: 0 !important; margin: 0 !important; }
+
+  .app-shell .hero-panel {
+    min-height: 218px !important;
+    padding: 20px !important;
+    margin: 0 0 18px !important;
+    background: radial-gradient(circle at 92% 0%, rgba(232,180,76,.14), transparent 36%), #11120f !important;
+  }
+  .app-shell .hero-panel h1 { max-width: 290px !important; font-size: clamp(27px, 8vw, 34px) !important; line-height: 1.08 !important; }
+  .app-shell .hero-panel p:not(.eyebrow) { max-width: 300px !important; font-size: 13px !important; }
+  .app-shell .hero-security-visual,
+  .app-shell .hero-product-visual,
+  .app-shell .hero-metrics { display: none !important; }
+  .app-shell .hero-cta-stack { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; width: 100% !important; }
+  .app-shell .hero-cta-stack button { width: 100% !important; min-width: 0 !important; min-height: 44px !important; padding: 8px !important; font-size: 12px !important; }
+
+  .app-shell .trust-feature-row { display: flex !important; gap: 8px !important; overflow-x: auto !important; padding: 0 0 5px !important; scroll-snap-type: x proximity; }
+  .app-shell .trust-feature-row article { flex: 0 0 152px !important; min-height: 62px !important; padding: 11px !important; scroll-snap-align: start; }
+  .app-shell .trust-feature-row article span { display: none !important; }
+  .app-shell .category-showcase { display: flex !important; overflow-x: auto !important; gap: 9px !important; padding-bottom: 4px !important; }
+  .app-shell .category-showcase > * { flex: 0 0 102px !important; min-height: 80px !important; }
+
+  .app-shell .content-head { align-items: flex-end !important; gap: 12px !important; margin-top: 18px !important; }
+  .app-shell .content-head h2 { font-size: 20px !important; }
+  .app-shell .content-head .filter-toggle { min-height: 40px !important; padding-inline: 13px !important; }
+  .app-shell .grid,
+  .app-shell .view-feed .grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    padding: 0 0 10px !important;
+  }
+  .app-shell .product-card,
+  .app-shell .view-feed .product-card { min-width: 0 !important; border-radius: 16px !important; }
+  .app-shell .product-card .card-image { aspect-ratio: 1 / 1 !important; min-height: 0 !important; }
+  .app-shell .product-card .card-body { padding: 11px !important; gap: 5px !important; }
+  .app-shell .product-card .card-title { display: -webkit-box !important; min-height: 33px !important; overflow: hidden !important; font-size: 13px !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .app-shell .product-card .price { font-size: 16px !important; white-space: nowrap; }
+  .app-shell .product-card .card-kicker,
+  .app-shell .product-card .rating-line,
+  .app-shell .product-card .security-strip,
+  .app-shell .product-card .card-foot { display: none !important; }
+  .app-shell .product-card .card-meta { overflow: hidden; color: var(--v2-muted) !important; font-size: 11px !important; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell .trust-badge { top: 8px !important; left: 8px !important; max-width: calc(100% - 16px) !important; font-size: 9px !important; }
+  .app-shell .card-heart { top: 8px !important; right: 8px !important; width: 32px !important; height: 32px !important; }
+
+  .app-shell .detail-grid,
+  .app-shell .compose-grid,
+  .app-shell .cart-layout-v2,
+  .app-shell .commerce-checkout .two-col,
+  .app-shell .order-detail-grid,
+  .app-shell .dashboard-metrics,
+  .app-shell .seller-metrics,
+  .app-shell .two-col { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell .sidebar,
+  .app-shell .seller-sidebar,
+  .app-shell .profile-aside { display: none !important; }
+  .app-shell .form-panel,
+  .app-shell .preview-panel,
+  .app-shell .checkout-box,
+  .app-shell .orders-panel { padding: 16px !important; border-radius: 16px !important; }
+
+  .app-shell .mobile-tabs {
+    position: fixed !important;
+    z-index: 60 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    min-height: calc(70px + env(safe-area-inset-bottom)) !important;
+    padding: 7px 8px calc(7px + env(safe-area-inset-bottom)) !important;
+    border: 1px solid var(--v2-line) !important;
+    border-radius: 18px 18px 0 0 !important;
+    background: rgba(12, 12, 12, .98) !important;
+    box-shadow: 0 -14px 34px rgba(0,0,0,.32) !important;
+  }
+  .app-shell .mobile-tabs button { min-width: 0 !important; min-height: 48px !important; font-size: 10px !important; }
+}
+
+@media (max-width: 359px) {
+  .app-shell .main-layout,
+  .app-shell .main-layout.filters-collapsed { padding-inline: 12px !important; }
+  .app-shell .market-search-row { padding-inline: 12px !important; }
+  .app-shell .grid,
+  .app-shell .view-feed .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .app-shell .hero-cta-stack { grid-template-columns: 1fr !important; }
+}
