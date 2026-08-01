@@ -513,3 +513,138 @@
   .app-shell .view-feed .grid { grid-template-columns: minmax(0, 1fr) !important; }
   .app-shell .hero-cta-stack { grid-template-columns: 1fr !important; }
 }
+
+/* Mobile native composition: MarketPro reference UI. */
+.hero-mobile-shield { display: none; }
+
+@media (max-width: 760px) {
+  .app-shell.view-feed .pwa-install-card,
+  .app-shell.view-feed .app-footer { display: none !important; }
+
+  .app-shell.view-feed .market-search-row { padding-bottom: 12px !important; }
+  .app-shell.view-feed .hero-panel {
+    position: relative !important;
+    display: block !important;
+    min-height: 302px !important;
+    overflow: hidden !important;
+    padding: 28px 22px !important;
+    border-color: rgba(255,255,255,.08) !important;
+    background: radial-gradient(circle at 80% 54%, rgba(232,180,76,.16), transparent 36%), linear-gradient(135deg, #161613, #0f100e) !important;
+  }
+  .app-shell.view-feed .hero-panel > div:first-child { position: relative !important; z-index: 2 !important; width: 57% !important; }
+  .app-shell.view-feed .hero-panel .eyebrow { display: none !important; }
+  .app-shell.view-feed .hero-panel h1 { max-width: 220px !important; margin: 10px 0 !important; font-size: clamp(30px, 8.5vw, 36px) !important; }
+  .app-shell.view-feed .hero-panel p:not(.eyebrow) { max-width: 190px !important; font-size: 12px !important; line-height: 1.45 !important; }
+  .app-shell.view-feed .hero-cta-stack { display: block !important; width: 178px !important; margin-top: 18px !important; }
+  .app-shell.view-feed .hero-cta-stack .hero-secondary { display: none !important; }
+  .app-shell.view-feed .hero-cta-stack .hero-action { width: 100% !important; min-height: 46px !important; font-size: 13px !important; }
+  .app-shell.view-feed .hero-product-visual { display: none !important; }
+  .app-shell.view-feed .hero-mobile-shield {
+    position: absolute !important;
+    right: -30px !important;
+    bottom: -8px !important;
+    z-index: 1 !important;
+    display: block !important;
+    width: 56% !important;
+    height: 87% !important;
+    pointer-events: none !important;
+  }
+  .app-shell.view-feed .hero-mobile-shield::after {
+    position: absolute;
+    inset: 20% 4% 8% 10%;
+    z-index: -1;
+    border-radius: 50%;
+    background: rgba(232,180,76,.13);
+    box-shadow: 0 0 50px rgba(232,180,76,.17);
+    content: "";
+  }
+  .app-shell.view-feed .hero-mobile-shield img { width: 100%; height: 100%; object-fit: contain; object-position: bottom center; filter: drop-shadow(0 18px 26px rgba(0,0,0,.48)); }
+
+  .app-shell.view-feed .trust-feature-row {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+    align-items: center !important;
+    overflow: visible !important;
+    gap: 0 !important;
+    margin: 0 0 14px !important;
+    padding: 10px 0 !important;
+    border-top: 1px solid var(--v2-line) !important;
+    border-bottom: 1px solid var(--v2-line) !important;
+  }
+  .app-shell.view-feed .trust-feature-row article { min-width: 0 !important; min-height: 38px !important; padding: 0 8px !important; border: 0 !important; border-right: 1px solid var(--v2-line) !important; background: transparent !important; }
+  .app-shell.view-feed .trust-feature-row article:last-child { display: none !important; }
+  .app-shell.view-feed .trust-feature-row article:nth-child(3) { border-right: 0 !important; }
+  .app-shell.view-feed .trust-feature-row article svg { width: 20px !important; color: var(--v2-gold) !important; }
+  .app-shell.view-feed .trust-feature-row article strong { overflow: hidden; font-size: 12px !important; text-overflow: ellipsis; white-space: nowrap; }
+
+  .app-shell.view-feed .content-head { display: none !important; }
+  .app-shell.view-feed .grid { gap: 12px !important; padding-bottom: 16px !important; }
+  .app-shell.view-feed .product-card { border-radius: 14px !important; background: #151515 !important; }
+  .app-shell.view-feed .product-card .card-image { aspect-ratio: 1 / 1.08 !important; border-bottom: 1px solid var(--v2-line); }
+  .app-shell.view-feed .product-card .card-body { min-height: 130px !important; padding: 12px 12px 14px !important; }
+  .app-shell.view-feed .product-card .card-title { min-height: 38px !important; font-size: 14px !important; }
+  .app-shell.view-feed .product-card .price { order: -1; font-size: 19px !important; }
+  .app-shell.view-feed .product-card .card-meta { margin-top: auto !important; font-size: 11px !important; }
+  .app-shell.view-feed .product-card .trust-badge { position: static !important; display: flex !important; width: fit-content !important; max-width: 100% !important; margin: 0 0 8px !important; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--v2-gold-light) !important; font-size: 11px !important; }
+  .app-shell.view-feed .product-card .trust-badge::before { width: 14px; height: 14px; margin-right: 5px; content: "✓"; color: var(--v2-gold); }
+  .app-shell.view-feed .product-card .card-image > .trust-badge { position: absolute !important; top: 8px !important; left: 8px !important; margin: 0 !important; padding: 6px 8px !important; background: rgba(10,10,10,.78) !important; }
+  .app-shell.view-feed .product-card .card-heart { width: 38px !important; height: 38px !important; background: rgba(9,9,9,.62) !important; }
+
+  .app-shell .mobile-tabs {
+    grid-template-columns: repeat(5, minmax(0,1fr)) !important;
+    min-height: calc(76px + env(safe-area-inset-bottom)) !important;
+    padding: 6px 10px calc(7px + env(safe-area-inset-bottom)) !important;
+    border-radius: 0 !important;
+  }
+  .app-shell .mobile-tabs button { display: grid !important; place-items: center !important; gap: 3px !important; color: #aeaea9 !important; }
+  .app-shell .mobile-tabs button svg { width: 25px !important; height: 25px !important; }
+  .app-shell .mobile-tabs button small { font-size: 11px !important; }
+  .app-shell .mobile-tabs button.active { background: transparent !important; color: var(--v2-gold-light) !important; }
+  .app-shell .mobile-tabs .mobile-publish-tab { transform: translateY(-23px) !important; color: var(--v2-gold-light) !important; }
+  .app-shell .mobile-tabs .mobile-publish-tab svg { width: 52px !important; height: 52px !important; padding: 13px !important; border-radius: 50% !important; background: linear-gradient(135deg, var(--v2-gold-light), #d89f34) !important; color: #18130a !important; box-shadow: 0 10px 24px rgba(0,0,0,.45) !important; }
+  .app-shell .mobile-tabs .mobile-publish-tab small { margin-top: -2px !important; }
+
+  .app-shell.view-compose .market-search-row,
+  .app-shell.view-profile .market-search-row,
+  .app-shell.view-messages .market-search-row { display: none !important; }
+  .app-shell.view-compose .listing-studio-header { display: block !important; padding: 18px 0 10px !important; text-align: center !important; }
+  .app-shell.view-compose .listing-studio-header .eyebrow,
+  .app-shell.view-compose .listing-studio-header > div:last-child { display: none !important; }
+  .app-shell.view-compose .listing-studio-header h1 { font-size: 26px !important; }
+  .app-shell.view-compose .listing-studio-header span { color: var(--v2-gold) !important; }
+  .app-shell.view-compose .listing-studio-shell { display: block !important; }
+  .app-shell.view-compose .listing-stepper { display: flex !important; justify-content: space-between !important; overflow: visible !important; padding: 16px 8px 24px !important; background: transparent !important; }
+  .app-shell.view-compose .listing-stepper button { position: relative !important; flex: 0 0 38px !important; width: 38px !important; min-height: 38px !important; padding: 0 !important; border-radius: 50% !important; }
+  .app-shell.view-compose .listing-stepper button div,
+  .app-shell.view-compose .listing-stepper button svg { display: none !important; }
+  .app-shell.view-compose .listing-stepper button:not(:last-child)::after { position: absolute; top: 18px; left: 37px; width: calc((100vw - 112px) / 4); height: 2px; background: var(--v2-line); content: ""; }
+  .app-shell.view-compose .listing-stepper button.active { background: var(--v2-gold) !important; color: #12110d !important; }
+  .app-shell.view-compose .listing-stage { padding: 16px !important; border: 1px solid var(--v2-line) !important; border-radius: 18px !important; background: #151515 !important; }
+  .app-shell.view-compose .listing-live-preview { display: none !important; }
+  .app-shell.view-compose .listing-upload { min-height: 112px !important; }
+  .app-shell.view-compose .photo-grid { grid-template-columns: repeat(3, minmax(0,1fr)) !important; }
+  .app-shell.view-compose .listing-step-actions { position: sticky !important; bottom: calc(76px + env(safe-area-inset-bottom)) !important; z-index: 4 !important; margin: 18px -16px -16px !important; padding: 12px 16px !important; background: rgba(14,14,14,.96) !important; }
+
+  .app-shell.view-messages .main-layout { padding-inline: 0 !important; }
+  .app-shell.view-messages .chat-shell { border: 0 !important; border-radius: 0 !important; background: #090909 !important; }
+  .app-shell.view-messages .chat-header { min-height: 74px !important; padding: 12px 16px !important; }
+  .app-shell.view-messages .chat-warning { margin: 0 !important; border-radius: 0 !important; background: #171716 !important; }
+  .app-shell.view-messages .bubble { border-radius: 20px !important; font-size: 15px !important; }
+  .app-shell.view-messages .bubble.me { background: linear-gradient(135deg, rgba(132,91,18,.55), rgba(232,180,76,.2)) !important; }
+  .app-shell.view-messages .message-form { position: sticky !important; bottom: 0 !important; margin: 0 !important; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)) !important; border-radius: 0 !important; background: #101010 !important; }
+  .app-shell.view-messages .mobile-tabs { display: none !important; }
+
+  .app-shell.view-profile .main-layout { padding-top: 8px !important; }
+  .app-shell.view-profile .seller-dashboard-v2 { gap: 16px !important; }
+  .app-shell.view-profile .dashboard-welcome { display: grid !important; grid-template-columns: 1fr auto !important; padding: 0 0 12px !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+  .app-shell.view-profile .dashboard-welcome h1 { font-size: 34px !important; }
+  .app-shell.view-profile .dashboard-metrics { grid-template-columns: repeat(3, minmax(0,1fr)) !important; gap: 0 !important; padding: 18px 4px !important; border: 1px solid var(--v2-line) !important; border-radius: 18px !important; background: #151515 !important; }
+  .app-shell.view-profile .dashboard-metric { min-height: 94px !important; padding: 10px 5px !important; border: 0 !important; border-right: 1px solid var(--v2-line) !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; text-align: center !important; }
+  .app-shell.view-profile .dashboard-metric:last-child { border-right: 0 !important; }
+  .app-shell.view-profile .dashboard-metric > strong { font-size: 26px !important; }
+  .app-shell.view-profile .dashboard-mp-connect { border-radius: 16px !important; }
+  .app-shell.view-profile .dashboard-listings,
+  .app-shell.view-profile .dashboard-activity { border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+  .app-shell.view-profile .dashboard-account-actions { display: grid !important; gap: 0 !important; margin: 0 !important; border-top: 1px solid var(--v2-line) !important; }
+  .app-shell.view-profile .dashboard-account-actions button { min-height: 58px !important; border: 0 !important; border-bottom: 1px solid var(--v2-line) !important; border-radius: 0 !important; background: transparent !important; text-align: left !important; }
+}

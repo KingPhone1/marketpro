@@ -915,8 +915,8 @@ const topbar = () => `
   </div>
   <nav class="mobile-tabs">
     <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed" aria-label="Inicio"><i data-lucide="house"></i><small>Inicio</small></button>
-    <button class="${state.view === "compose" ? "active" : ""}" data-view="compose" aria-label="Vender"><i data-lucide="tag"></i><small>Vender</small></button>
-    <button class="${state.view === "orders" ? "active" : ""}" data-view="orders" aria-label="Órdenes"><i data-lucide="wallet-cards"></i><small>Órdenes</small></button>
+    <button class="mobile-search-tab" data-view="feed" data-focus-search aria-label="Buscar"><i data-lucide="search"></i><small>Buscar</small></button>
+    <button class="mobile-publish-tab ${state.view === "compose" ? "active" : ""}" data-view="compose" aria-label="Vender"><i data-lucide="plus"></i><small>Vender</small></button>
     <button class="${state.view === "messages" ? "active" : ""}" data-view="messages" aria-label="Chats"><i data-lucide="messages-square"></i><small>Chats</small></button>
     <button class="${state.view === "profile" ? "active" : ""}" data-view="profile" aria-label="Perfil"><i data-lucide="user-round"></i><small>Perfil</small></button>
   </nav>
@@ -1242,6 +1242,9 @@ const heroVisual = () => {
       <div class="hero-product-stage">
         ${visuals.map((item, index) => `<img class="hero-product hero-product-${index + 1}" src="${item.images[0]}" alt="" />`).join("")}
       </div>
+    </aside>
+    <aside class="hero-mobile-shield" aria-hidden="true">
+      <img src="/assets/marketpro-shield.png" alt="" />
     </aside>
   `;
 };
@@ -2693,6 +2696,9 @@ const bindEvents = () => {
     button.addEventListener("click", () => {
       if (button.dataset.view === "messages") state.mobileChatList = true;
       navigate(button.dataset.view);
+      if (button.dataset.focusSearch) {
+        requestAnimationFrame(() => document.querySelector("#globalSearch")?.focus({ preventScroll: true }));
+      }
     });
   });
 
@@ -3905,7 +3911,7 @@ window.addEventListener("appinstalled", () => {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register("/service-worker.js?v=120", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("/service-worker.js?v=121", { updateViaCache: "none" });
       await registration.update();
     } catch {
       showToast("La instalación sin conexión no está disponible en este momento.", "danger");
