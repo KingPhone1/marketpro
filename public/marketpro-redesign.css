@@ -4,6 +4,44 @@
    Cada bloque corresponde a una fase del plan de rediseño.
    ============================================================ */
 
+/* ---------- Fase 8: restos del tema claro original sin pasar a oscuro ---------- */
+
+/* styles.css fija estos h1/h2/h3 en --lux-ink (~negro), pensados para
+   fondo blanco del tema original. En el tema oscuro quedan invisibles
+   sobre el fondo negro. Replicamos la misma lista de selectores para
+   igualar la especificidad y ganar por orden de carga. */
+h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
+.profile-head h1, .support-panel h1, .legal-panel h1, .trust-center h1,
+.verification-gate h1, .categories-heading h1, .notifications-panel h1,
+.section-heading h1 {
+  color: var(--mp-text) !important;
+}
+
+/* Tarjetas de notificaciones y botones del footer: mismo problema,
+   fondo blanco/crema del tema claro nunca oscurecido. */
+.notification-item {
+  background: var(--mp-surface) !important;
+  color: var(--mp-text) !important;
+}
+.notification-item.unread {
+  background: var(--mp-surface-2) !important;
+}
+.notification-item.read {
+  color: var(--mp-text-2) !important;
+}
+.notification-item time {
+  color: var(--mp-text-2) !important;
+}
+.app-footer button {
+  background: var(--mp-surface) !important;
+  border: 1px solid var(--mp-gold-line) !important;
+  color: var(--mp-gold) !important;
+}
+.app-footer button:hover {
+  background: var(--mp-surface-2) !important;
+  color: var(--mp-gold-light) !important;
+}
+
 /* ---------- Fase 2: tarjetas de producto (Home vs Buscar) ---------- */
 
 .app-shell.view-feed .product-card .card-body {
