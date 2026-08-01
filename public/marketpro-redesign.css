@@ -414,3 +414,17 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
     padding-bottom: calc(112px + env(safe-area-inset-bottom)) !important;
   }
 }
+
+/* ---------- Fase 9: inputs que disparan el auto-zoom de iOS Safari ---------- */
+/* styles.css, studio.css y marketpro-ui-v2.css fijan el input de mensaje
+   del chat y el buscador en 13-15px en varios breakpoints. Por debajo de
+   16px, iOS Safari hace zoom automático de toda la página al enfocar el
+   campo — la app "salta" de tamaño al escribir o buscar. */
+.app-shell .message-form > input[name="message"],
+.app-shell .message-form input[name="message"],
+.app-shell .searchbox input,
+.app-shell .market-search-row input,
+.app-shell .market-search-row .searchbox input,
+.app-shell .topbar .searchbox input {
+  font-size: 16px !important;
+}
