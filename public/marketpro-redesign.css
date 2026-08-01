@@ -353,8 +353,12 @@
   /* El bottom nav es position:fixed y tapaba el contenido de cualquier
      página que terminara antes de los ~110px que ocupa (franjas de
      confianza, footer, etc). Reservamos ese espacio en todas las vistas,
-     no solo en las que ya lo hacían puntualmente (hero, wizard). */
-  .app-shell .main-layout {
+     no solo en las que ya lo hacían puntualmente (hero, wizard).
+     marketpro-ui-v2.css define `.main-layout.filters-collapsed` con
+     solo 64px de padding-bottom, que gana por especificidad sobre un
+     simple `.main-layout` — hay que igualar esa especificidad acá. */
+  .app-shell .main-layout,
+  .app-shell .main-layout.filters-collapsed {
     padding-bottom: calc(112px + env(safe-area-inset-bottom)) !important;
   }
 }
