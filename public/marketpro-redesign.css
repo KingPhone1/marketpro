@@ -15,6 +15,9 @@
 .app-shell.view-feed:not(.mobile-search-mode) .product-card .card-meta {
   display: none !important;
 }
+.app-shell.view-feed:not(.mobile-search-mode) .product-card .card-heart {
+  display: none !important;
+}
 .app-shell.view-feed:not(.mobile-search-mode) .product-card .card-title {
   order: 1 !important;
 }
