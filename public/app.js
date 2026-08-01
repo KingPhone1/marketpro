@@ -358,6 +358,7 @@ const state = {
   selectedOrderId: null,
   selectedChatId: null,
   mobileChatList: true,
+  mobileSearchMode: false,
   checkoutOrder: null,
   orders: [],
   notifications: [],
@@ -914,8 +915,8 @@ const topbar = () => `
     </div>
   </div>
   <nav class="mobile-tabs">
-    <button class="${state.view === "feed" || state.view === "detail" ? "active" : ""}" data-view="feed" aria-label="Inicio"><i data-lucide="house"></i><small>Inicio</small></button>
-    <button class="mobile-search-tab" data-view="feed" data-focus-search aria-label="Buscar"><i data-lucide="search"></i><small>Buscar</small></button>
+    <button class="${(state.view === "feed" || state.view === "detail") && !state.mobileSearchMode ? "active" : ""}" data-view="feed" aria-label="Inicio"><i data-lucide="house"></i><small>Inicio</small></button>
+    <button class="mobile-search-tab ${state.view === "feed" && state.mobileSearchMode ? "active" : ""}" data-view="feed" data-focus-search aria-label="Buscar"><i data-lucide="search"></i><small>Buscar</small></button>
     <button class="mobile-publish-tab ${state.view === "compose" ? "active" : ""}" data-view="compose" aria-label="Vender"><i data-lucide="plus"></i><small>Vender</small></button>
     <button class="${state.view === "messages" ? "active" : ""}" data-view="messages" aria-label="Chats"><i data-lucide="messages-square"></i><small>Chats</small></button>
     <button class="${state.view === "profile" ? "active" : ""}" data-view="profile" aria-label="Perfil"><i data-lucide="user-round"></i><small>Perfil</small></button>
@@ -1211,6 +1212,7 @@ const productCard = (item) => `
       <span class="card-heart" aria-hidden="true">♡</span>
     </div>
     <div class="card-body">
+      <div class="mobile-card-verification"><i data-lucide="shield-check"></i>${item.seller?.verified ? "Verificado" : "Vendedor nuevo"}</div>
       <div class="card-kicker">${escapeHtml(item.category)} / ${escapeHtml(item.condition)}</div>
       <div class="card-title">${escapeHtml(item.title)}</div>
       <div class="rating-line ${sellerHasRating(item.seller) ? "" : "no-rating"}">
@@ -1265,6 +1267,22 @@ const categoryShowcase = () => `
       const icon = ({ Vehiculos: "car-front", Inmuebles: "building-2", Electronica: "smartphone", Ropa: "shopping-bag", Hogar: "armchair", Deportes: "dumbbell", Juguetes: "gamepad-2", Entretenimiento: "clapperboard" })[category] || "tag";
       return `<button data-category="${escapeHtml(category)}"><span><i data-lucide="${icon}"></i></span><strong>${escapeHtml(category)}</strong><small>${count} ${count === 1 ? "publicación" : "publicaciones"}</small></button>`;
     }).join("")}
+  </section>
+`;
+
+const mobileDiscoverControls = () => `
+  <section class="mobile-discover-controls" aria-label="Explorar publicaciones">
+    <div class="mobile-discover-chips">
+      ${["Todo", "Electronica", "Vehiculos", "Ropa", "Hogar"].map((category) => `
+        <button class="${state.filters.category === category ? "active" : ""}" data-category="${category}">
+          ${category === "Todo" ? "Todo" : escapeHtml(category)}
+        </button>`).join("")}
+      <button class="nearby-chip" type="button" data-filter-toggle><i data-lucide="map-pin"></i>Cerca de mí</button>
+    </div>
+    <button class="advanced-filter-drawer" type="button" data-filter-toggle>
+      <span><i data-lucide="sliders-horizontal"></i><b>Filtros avanzados</b><small>Refina tu búsqueda</small></span>
+      <i data-lucide="chevron-up"></i>
+    </button>
   </section>
 `;
 
@@ -1797,6 +1815,7 @@ const feedView = () => {
         ${heroVisual()}
       </section>
       ${trustFeatures()}
+      ${mobileDiscoverControls()}
       <div class="content-head">
         <div>
           <h2>Destacados para ti</h2>
@@ -2198,6 +2217,11 @@ const composeStudioView = () => {
   return `
     ${sellerSidebar("listings")}
     <main class="listing-studio-page">
+      <header class="mobile-compose-heading">
+        <button type="button" data-view="feed" aria-label="Volver"><i data-lucide="arrow-left"></i></button>
+        <div><strong>Vender producto</strong><span>Paso ${state.composeStep} de 5</span></div>
+        <img src="/mp-logo.svg" alt="MarketPro" />
+      </header>
       <form id="listingForm" novalidate>
         <header class="listing-studio-header">
           <div><p class="eyebrow">Seller Center</p><h1>Nueva publicación</h1><span>Completá los datos para publicar tu artículo.</span></div>
@@ -2303,6 +2327,7 @@ const messagesView = () => {
         active
           ? (() => {
               const contact = contactFor(active);
+              const linkedProduct = state.products.find((item) => item.id === active.productId);
               return `<section class="chat-main">
               <div class="chat-header">
                 <button class="chat-back" type="button" data-chat-list aria-label="Volver a conversaciones"><i data-lucide="arrow-left"></i></button>
@@ -2315,8 +2340,12 @@ const messagesView = () => {
               </div>
               <div class="chat-warning">
                 <i data-lucide="shield-check"></i>
-                <span><strong>Conversación protegida</strong>No compartas claves, códigos ni coordines pagos externos.</span>
+                <span><strong>Conversación protegida</strong>No compartas claves, códigos ni pagos fuera de Mercado Pago.</span>
               </div>
+              ${linkedProduct ? `<button class="chat-linked-product" type="button" data-product="${linkedProduct.id}">
+                <img src="${escapeHtml(linkedProduct.images?.[0] || "")}" alt="${escapeHtml(linkedProduct.title)}" />
+                <span><strong>${escapeHtml(linkedProduct.title)}</strong><small>Ver publicación <i data-lucide="chevron-right"></i></small></span>
+              </button>` : ""}
               <div class="messages">
                 ${active.messages
                   .map(
@@ -2502,11 +2531,23 @@ const profileView = () => {
     <main class="seller-dashboard-v2">
       <header class="dashboard-welcome">
         <div>
-          <h1>Hola, ${escapeHtml(state.user.name.split(" ")[0])} <i data-lucide="sparkles"></i></h1>
+          <h1><span class="desktop-profile-title">Hola, ${escapeHtml(state.user.name.split(" ")[0])}</span><span class="mobile-profile-title">Mi perfil</span> <i data-lucide="sparkles"></i></h1>
           <p>Bienvenido a tu panel de control</p>
         </div>
         <button class="dashboard-account" type="button" data-account-menu><span>${escapeHtml(state.user.name[0])}</span><i data-lucide="chevron-down"></i></button>
       </header>
+
+      <section class="mobile-profile-summary">
+        <header>
+          <img src="${escapeHtml(state.user.profilePhoto || `/api/avatar/${encodeURIComponent(state.user.name)}.svg`)}" alt="Foto de ${escapeHtml(state.user.name)}" />
+          <div><strong>${escapeHtml(state.user.name)}</strong><span><i data-lucide="star"></i>${sellerHasRating(state.user) ? Number(state.user.rating).toFixed(1) : "Sin calificaciones"}</span></div>
+        </header>
+        <div>
+          <article><i data-lucide="notebook-tabs"></i><strong>${mine.length}</strong><span>Publicaciones</span></article>
+          <article><i data-lucide="tags"></i><strong>${stats.sold || 0}</strong><span>Ventas</span></article>
+          <article><i data-lucide="shopping-bag"></i><strong>${state.orders.filter((order) => order.buyerId === state.user.id).length}</strong><span>Compras</span></article>
+        </div>
+      </section>
 
       <section class="dashboard-metrics">
         <article class="dashboard-metric mp-status">
@@ -2651,7 +2692,7 @@ const render = () => {
     return;
   }
   app.innerHTML = `
-    <div class="app-shell view-${state.view}">
+    <div class="app-shell view-${state.view} ${state.mobileSearchMode && state.view === "feed" ? "mobile-search-mode" : ""}">
       ${topbar()}
       ${["feed", "detail"].includes(state.view) ? pwaInstallCard() : ""}
       <div class="main-layout view-surface ${state.filtersOpen ? "" : "filters-collapsed"} ${state.view === "messages" ? "focus-layout" : ""}" data-view-key="${state.viewKey}">${view()}</div>
@@ -2695,6 +2736,8 @@ const bindEvents = () => {
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       if (button.dataset.view === "messages") state.mobileChatList = true;
+      if (button.dataset.view === "feed" && !button.dataset.focusSearch) state.mobileSearchMode = false;
+      if (button.dataset.focusSearch) state.mobileSearchMode = true;
       navigate(button.dataset.view);
       if (button.dataset.focusSearch) {
         requestAnimationFrame(() => document.querySelector("#globalSearch")?.focus({ preventScroll: true }));
@@ -3911,7 +3954,7 @@ window.addEventListener("appinstalled", () => {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register("/service-worker.js?v=121", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("/service-worker.js?v=122", { updateViaCache: "none" });
       await registration.update();
     } catch {
       showToast("La instalación sin conexión no está disponible en este momento.", "danger");

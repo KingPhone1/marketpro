@@ -516,6 +516,12 @@
 
 /* Mobile native composition: MarketPro reference UI. */
 .hero-mobile-shield { display: none; }
+.mobile-discover-controls,
+.mobile-compose-heading,
+.mobile-card-verification,
+.chat-linked-product,
+.mobile-profile-title,
+.mobile-profile-summary { display: none; }
 
 @media (max-width: 760px) {
   .app-shell.view-feed .pwa-install-card,
@@ -585,9 +591,13 @@
   .app-shell.view-feed .product-card .card-title { min-height: 38px !important; font-size: 14px !important; }
   .app-shell.view-feed .product-card .price { order: -1; font-size: 19px !important; }
   .app-shell.view-feed .product-card .card-meta { margin-top: auto !important; font-size: 11px !important; }
-  .app-shell.view-feed .product-card .trust-badge { position: static !important; display: flex !important; width: fit-content !important; max-width: 100% !important; margin: 0 0 8px !important; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--v2-gold-light) !important; font-size: 11px !important; }
-  .app-shell.view-feed .product-card .trust-badge::before { width: 14px; height: 14px; margin-right: 5px; content: "✓"; color: var(--v2-gold); }
-  .app-shell.view-feed .product-card .card-image > .trust-badge { position: absolute !important; top: 8px !important; left: 8px !important; margin: 0 !important; padding: 6px 8px !important; background: rgba(10,10,10,.78) !important; }
+  .app-shell.view-feed .product-card .card-kicker,
+  .app-shell.view-feed .product-card .rating-line,
+  .app-shell.view-feed .product-card .security-strip,
+  .app-shell.view-feed .product-card .card-foot { display: none !important; }
+  .app-shell.view-feed .product-card .trust-badge { display: none !important; }
+  .app-shell.view-feed .product-card .mobile-card-verification { display: inline-flex !important; align-items: center !important; gap: 5px !important; margin: 0 0 7px !important; color: var(--v2-gold-light) !important; font-size: 11px !important; }
+  .app-shell.view-feed .product-card .mobile-card-verification svg { width: 15px !important; height: 15px !important; color: var(--v2-gold) !important; }
   .app-shell.view-feed .product-card .card-heart { width: 38px !important; height: 38px !important; background: rgba(9,9,9,.62) !important; }
 
   .app-shell .mobile-tabs {
@@ -629,6 +639,12 @@
   .app-shell.view-messages .chat-shell { border: 0 !important; border-radius: 0 !important; background: #090909 !important; }
   .app-shell.view-messages .chat-header { min-height: 74px !important; padding: 12px 16px !important; }
   .app-shell.view-messages .chat-warning { margin: 0 !important; border-radius: 0 !important; background: #171716 !important; }
+  .app-shell.view-messages .chat-linked-product { display: flex !important; align-items: center !important; gap: 12px !important; width: calc(100% - 32px) !important; min-height: 88px !important; margin: 16px !important; padding: 8px !important; overflow: hidden !important; border: 1px solid var(--v2-line) !important; border-radius: 14px !important; background: #111 !important; color: var(--v2-text) !important; text-align: left !important; }
+  .app-shell.view-messages .chat-linked-product img { width: 72px !important; height: 70px !important; flex: 0 0 72px !important; border-radius: 10px !important; object-fit: cover !important; }
+  .app-shell.view-messages .chat-linked-product span { display: grid !important; min-width: 0 !important; gap: 6px !important; }
+  .app-shell.view-messages .chat-linked-product strong { overflow: hidden; font-size: 15px !important; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell.view-messages .chat-linked-product small { display: inline-flex !important; align-items: center !important; gap: 2px !important; color: var(--v2-gold-light) !important; }
+  .app-shell.view-messages .chat-linked-product small svg { width: 15px !important; height: 15px !important; }
   .app-shell.view-messages .bubble { border-radius: 20px !important; font-size: 15px !important; }
   .app-shell.view-messages .bubble.me { background: linear-gradient(135deg, rgba(132,91,18,.55), rgba(232,180,76,.2)) !important; }
   .app-shell.view-messages .message-form { position: sticky !important; bottom: 0 !important; margin: 0 !important; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)) !important; border-radius: 0 !important; background: #101010 !important; }
@@ -638,6 +654,23 @@
   .app-shell.view-profile .seller-dashboard-v2 { gap: 16px !important; }
   .app-shell.view-profile .dashboard-welcome { display: grid !important; grid-template-columns: 1fr auto !important; padding: 0 0 12px !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
   .app-shell.view-profile .dashboard-welcome h1 { font-size: 34px !important; }
+  .app-shell.view-profile .desktop-profile-title { display: none !important; }
+  .app-shell.view-profile .mobile-profile-title { display: inline !important; }
+  .app-shell.view-profile .dashboard-welcome p,
+  .app-shell.view-profile .dashboard-welcome .dashboard-account { display: none !important; }
+  .app-shell.view-profile .mobile-profile-summary { display: block !important; overflow: hidden !important; border: 1px solid var(--v2-line) !important; border-radius: 20px !important; background: linear-gradient(135deg, #191916, #111) !important; }
+  .app-shell.view-profile .mobile-profile-summary > header { display: flex !important; align-items: center !important; gap: 16px !important; padding: 20px !important; }
+  .app-shell.view-profile .mobile-profile-summary > header img { width: 84px !important; height: 84px !important; border: 2px solid var(--v2-gold) !important; border-radius: 50% !important; object-fit: cover !important; }
+  .app-shell.view-profile .mobile-profile-summary > header div { display: grid !important; gap: 8px !important; min-width: 0 !important; }
+  .app-shell.view-profile .mobile-profile-summary > header strong { overflow: hidden; font-size: 26px !important; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell.view-profile .mobile-profile-summary > header span { display: inline-flex !important; align-items: center !important; gap: 7px !important; color: var(--v2-text-muted) !important; }
+  .app-shell.view-profile .mobile-profile-summary > header span svg { width: 20px !important; color: var(--v2-gold) !important; fill: currentColor; }
+  .app-shell.view-profile .mobile-profile-summary > div { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; margin: 0 20px 18px !important; padding-top: 18px !important; border-top: 1px solid var(--v2-line) !important; }
+  .app-shell.view-profile .mobile-profile-summary article { display: grid !important; justify-items: center !important; gap: 6px !important; min-width: 0 !important; padding: 0 4px !important; border-right: 1px solid var(--v2-line) !important; text-align: center !important; }
+  .app-shell.view-profile .mobile-profile-summary article:last-child { border-right: 0 !important; }
+  .app-shell.view-profile .mobile-profile-summary article svg { width: 21px !important; color: var(--v2-gold) !important; }
+  .app-shell.view-profile .mobile-profile-summary article strong { font-size: 25px !important; }
+  .app-shell.view-profile .mobile-profile-summary article span { color: var(--v2-muted) !important; font-size: 11px !important; }
   .app-shell.view-profile .dashboard-metrics { grid-template-columns: repeat(3, minmax(0,1fr)) !important; gap: 0 !important; padding: 18px 4px !important; border: 1px solid var(--v2-line) !important; border-radius: 18px !important; background: #151515 !important; }
   .app-shell.view-profile .dashboard-metric { min-height: 94px !important; padding: 10px 5px !important; border: 0 !important; border-right: 1px solid var(--v2-line) !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; text-align: center !important; }
   .app-shell.view-profile .dashboard-metric:last-child { border-right: 0 !important; }
@@ -647,4 +680,57 @@
   .app-shell.view-profile .dashboard-activity { border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
   .app-shell.view-profile .dashboard-account-actions { display: grid !important; gap: 0 !important; margin: 0 !important; border-top: 1px solid var(--v2-line) !important; }
   .app-shell.view-profile .dashboard-account-actions button { min-height: 58px !important; border: 0 !important; border-bottom: 1px solid var(--v2-line) !important; border-radius: 0 !important; background: transparent !important; text-align: left !important; }
+
+  /* Buscar es una pantalla propia en móvil, no una home encogida. */
+  .app-shell.mobile-search-mode .hero-panel,
+  .app-shell.mobile-search-mode .trust-feature-row { display: none !important; }
+  .app-shell.mobile-search-mode .mobile-discover-controls { display: block !important; margin: 4px 0 16px !important; }
+  .app-shell.mobile-search-mode .mobile-discover-chips { display: flex !important; gap: 9px !important; overflow-x: auto !important; padding: 2px 0 12px !important; scrollbar-width: none; }
+  .app-shell.mobile-search-mode .mobile-discover-chips::-webkit-scrollbar { display: none; }
+  .app-shell.mobile-search-mode .mobile-discover-chips button { display: inline-flex !important; align-items: center !important; justify-content: center !important; flex: 0 0 auto !important; min-height: 40px !important; padding: 0 16px !important; border: 1px solid var(--v2-line) !important; border-radius: 12px !important; background: #151515 !important; color: var(--v2-muted) !important; font-size: 13px !important; }
+  .app-shell.mobile-search-mode .mobile-discover-chips button.active { border-color: var(--v2-gold) !important; color: var(--v2-gold-light) !important; }
+  .app-shell.mobile-search-mode .mobile-discover-chips .nearby-chip { gap: 6px !important; }
+  .app-shell.mobile-search-mode .advanced-filter-drawer { display: flex !important; align-items: center !important; justify-content: space-between !important; width: 100% !important; min-height: 70px !important; padding: 12px 16px !important; border: 1px solid var(--v2-line) !important; border-radius: 18px !important; background: #151515 !important; color: var(--v2-text) !important; text-align: left !important; }
+  .app-shell.mobile-search-mode .advanced-filter-drawer span { display: grid !important; grid-template-columns: 24px 1fr !important; column-gap: 10px !important; align-items: center !important; }
+  .app-shell.mobile-search-mode .advanced-filter-drawer span > svg { grid-row: 1 / 3; color: var(--v2-gold); }
+  .app-shell.mobile-search-mode .advanced-filter-drawer b { font-size: 14px !important; }
+  .app-shell.mobile-search-mode .advanced-filter-drawer small { color: var(--v2-muted) !important; font-size: 12px !important; }
+  .app-shell.mobile-search-mode .content-head { display: none !important; }
+  .app-shell.mobile-search-mode .grid { padding-top: 2px !important; }
+
+  /* La misma barra de filtros se convierte en una hoja inferior táctil. */
+  .app-shell .main-layout > .sidebar.open {
+    position: fixed !important;
+    z-index: 75 !important;
+    right: 0 !important;
+    bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+    left: 0 !important;
+    display: block !important;
+    max-height: min(66dvh, 580px) !important;
+    padding: 18px 16px 20px !important;
+    overflow: auto !important;
+    border: 1px solid var(--v2-line) !important;
+    border-radius: 24px 24px 0 0 !important;
+    background: #151515 !important;
+    box-shadow: 0 -20px 60px rgba(0,0,0,.5) !important;
+  }
+  .app-shell .main-layout > .sidebar.open::before { display: block; width: 42px; height: 4px; margin: 0 auto 16px; border-radius: 999px; background: #76736c; content: ""; }
+  .app-shell .main-layout > .sidebar.open .side-block { padding: 0 !important; border: 0 !important; background: transparent !important; }
+  .app-shell .main-layout > .sidebar.open .safety-card { display: none !important; }
+
+  .app-shell.view-compose .topbar { display: none !important; }
+  .app-shell.view-compose .main-layout { padding-top: 0 !important; }
+  .app-shell.view-compose .mobile-compose-heading { display: grid !important; grid-template-columns: 44px minmax(0,1fr) 44px !important; align-items: center !important; min-height: 78px !important; padding: calc(10px + env(safe-area-inset-top)) 4px 8px !important; }
+  .app-shell.view-compose .mobile-compose-heading button { display: grid !important; place-items: center !important; width: 44px !important; height: 44px !important; padding: 0 !important; background: transparent !important; color: var(--v2-gold) !important; }
+  .app-shell.view-compose .mobile-compose-heading div { display: grid !important; gap: 3px !important; text-align: center !important; }
+  .app-shell.view-compose .mobile-compose-heading strong { font-size: 21px !important; }
+  .app-shell.view-compose .mobile-compose-heading span { color: var(--v2-gold) !important; font-size: 13px !important; }
+  .app-shell.view-compose .mobile-compose-heading img { width: 42px !important; height: 42px !important; }
+
+  .app-shell.view-messages > .topbar { display: none !important; }
+  .app-shell.view-messages .main-layout { min-height: 100dvh !important; padding-top: env(safe-area-inset-top) !important; }
+  .app-shell.view-messages .chat-sidebar-head { padding: 20px 16px 12px !important; }
+  .app-shell.view-messages .chat-sidebar-head span { font-size: 26px !important; }
+  .app-shell.view-messages .chat-row { min-height: 74px !important; padding: 10px 14px !important; border-radius: 0 !important; border-bottom: 1px solid var(--v2-line) !important; }
+  .app-shell.view-messages .chat-row.active { border-left: 2px solid var(--v2-gold) !important; background: rgba(232,180,76,.06) !important; }
 }
