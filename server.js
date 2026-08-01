@@ -63,6 +63,10 @@ const SUPABASE_ORIGIN = (() => {
 })();
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM = process.env.EMAIL_FROM || "MarketPro <no-reply@marketpro.uy>";
+// Staging can temporarily route new identities to an administrator when the
+// transactional email provider has not been configured yet. Production keeps
+// email ownership verification enabled by default.
+const MANUAL_EMAIL_VERIFICATION_FALLBACK = process.env.MANUAL_EMAIL_VERIFICATION_FALLBACK === "true";
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
@@ -2217,14 +2221,25 @@ app.post("/api/user", rateLimit({ windowMs: 15 * 60 * 1000, max: 8, key: "regist
     subject: "Verifica tu correo en MarketPro",
     html: `<p>Hola ${String(user.name).replace(/[<>]/g, "")},</p><p>Tu codigo para verificar el correo es:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${emailCode}</p><p>Vence en 20 minutos. MarketPro nunca te pedira este codigo por chat.</p>`
   });
+  const manualReviewFallback = !emailResult.sent && MANUAL_EMAIL_VERIFICATION_FALLBACK;
+  if (manualReviewFallback) {
+    user.emailVerified = true;
+    user.verificationStatus = "Pendiente de revision";
+    user.updatedAt = new Date().toISOString();
+    store.emailVerifications = (store.emailVerifications || []).filter((item) => item.email !== user.email);
+    store.verificationRequests = store.verificationRequests.map((request) =>
+      request.userId === user.id ? { ...request, status: "Pendiente", emailVerifiedAt: user.updatedAt, emailVerification: "revision-manual-staging" } : request
+    );
+  }
   notifyUser(user.email, "Verifica tu correo", "Ingresa el codigo enviado a tu email para pasar a revision de identidad.", "verification", "/?page=profile");
   writeStore();
   setPrivateCookie(res, USER_SESSION_COOKIE, session.token);
   res.status(201).json({
     ...publicUser(user),
     authenticated: true,
-    emailVerificationRequired: true,
-    emailDelivery: emailResult.sent ? "sent" : "not-configured",
+    emailVerificationRequired: !user.emailVerified,
+    emailDelivery: emailResult.sent ? "sent" : (manualReviewFallback ? "manual-review" : "not-configured"),
+    manualReviewRequired: manualReviewFallback,
     ...(!IS_PRODUCTION ? { demoCode: emailCode } : {})
   });
 });

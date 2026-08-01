@@ -3677,6 +3677,9 @@ const authenticate = async (event) => {
   state.authToken = "";
   localStorage.removeItem("marketAuthToken");
   localStorage.removeItem("marketUser");
+  if (result.manualReviewRequired) {
+    showToast("Cuenta creada. Tu identidad quedó pendiente de revisión manual.", "success");
+  }
   await refreshLiveData();
   await refreshSellerDashboard();
   render();
