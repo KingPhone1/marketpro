@@ -233,7 +233,13 @@
   .app-shell .order-card img { width: 76px !important; height: 76px !important; }
   .app-shell .order-card > button { grid-column: 1 / -1; width: 100%; }
 
-  .app-shell .chat-shell { min-height: calc(100dvh - 150px) !important; border-radius: 16px !important; }
+  /* Debe usar exactamente la misma fórmula que .chat-main en mobile.css
+     (100dvh - 132px - safe-area top/bottom). Antes este archivo pisaba
+     solo la tarjeta exterior con "100dvh - 150px" (sin restar safe-area),
+     mientras el contenido interior (.chat-main) seguía con la fórmula
+     completa — en un iPhone con notch eso deja la tarjeta más alta que
+     su contenido real, con una franja vacía abajo. */
+  .app-shell .chat-shell { min-height: calc(100dvh - 132px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important; border-radius: 16px !important; }
   .app-shell .chat-main { min-width: 0 !important; }
   .app-shell .chat-warning { margin: 12px !important; padding: 12px !important; font-size: 12px !important; }
   .app-shell .messages { padding: 14px !important; }
@@ -241,16 +247,7 @@
   .app-shell .message-form { margin: 10px !important; padding: 7px !important; }
   .app-shell .message-form > input[name="message"] { font-size: 14px !important; }
 
-  .app-shell .mobile-tabs {
-    display: grid !important;
-    grid-template-columns: repeat(5, minmax(0,1fr)) !important;
-    min-height: 70px !important;
-    padding: 7px 8px calc(7px + env(safe-area-inset-bottom)) !important;
-    border: 1px solid var(--v2-line) !important;
-    border-radius: 18px 18px 0 0 !important;
-    background: rgba(14,14,14,.96) !important;
-  }
-  .app-shell .mobile-tabs button { min-height: 48px !important; font-size: 10px !important; }
+  /* .mobile-tabs consolidado más abajo (única fuente de verdad). */
 }
 
 @media (max-width: 359px) {
@@ -487,22 +484,8 @@
   .app-shell .checkout-box,
   .app-shell .orders-panel { padding: 16px !important; border-radius: 16px !important; }
 
-  .app-shell .mobile-tabs {
-    position: fixed !important;
-    z-index: 60 !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    display: grid !important;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    width: 100% !important;
-    min-height: calc(70px + env(safe-area-inset-bottom)) !important;
-    padding: 7px 8px calc(7px + env(safe-area-inset-bottom)) !important;
-    border: 1px solid var(--v2-line) !important;
-    border-radius: 18px 18px 0 0 !important;
-    background: rgba(12, 12, 12, .98) !important;
-    box-shadow: 0 -14px 34px rgba(0,0,0,.32) !important;
-  }
-  .app-shell .mobile-tabs button { min-width: 0 !important; min-height: 48px !important; font-size: 10px !important; }
+  /* .mobile-tabs consolidado más abajo (única fuente de verdad). */
+  .app-shell .mobile-tabs button { min-width: 0 !important; }
 }
 
 @media (max-width: 359px) {
@@ -601,18 +584,34 @@
   .app-shell.view-feed .product-card .mobile-card-verification svg { width: 15px !important; height: 15px !important; color: var(--v2-gold) !important; }
   .app-shell.view-feed .product-card .card-heart { width: 38px !important; height: 38px !important; background: rgba(9,9,9,.62) !important; }
 
+  /* Definición única y completa del bottom nav mobile. Las variantes
+     parciales que existían en otros dos bloques @media (max-width:760px)
+     de este mismo archivo quedaron neutralizadas más abajo — esta es la
+     única fuente de verdad para posición, tamaño y grilla. */
   .app-shell .mobile-tabs {
-    grid-template-columns: repeat(5, minmax(0,1fr)) !important;
-    min-height: calc(76px + env(safe-area-inset-bottom)) !important;
-    padding: 6px 10px calc(7px + env(safe-area-inset-bottom)) !important;
-    border-radius: 0 !important;
+    position: fixed !important;
+    z-index: 160 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    align-items: center !important;
+    gap: 2px !important;
+    width: 100% !important;
+    min-height: calc(64px + env(safe-area-inset-bottom)) !important;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom)) !important;
+    border: 1px solid var(--v2-line) !important;
+    border-radius: 18px 18px 0 0 !important;
+    background: rgba(12, 12, 12, .98) !important;
+    box-shadow: 0 -14px 34px rgba(0,0,0,.32) !important;
   }
-  .app-shell .mobile-tabs button { display: grid !important; place-items: center !important; gap: 3px !important; color: #aeaea9 !important; }
-  .app-shell .mobile-tabs button svg { width: 25px !important; height: 25px !important; }
-  .app-shell .mobile-tabs button small { font-size: 11px !important; }
+  .app-shell .mobile-tabs button { display: grid !important; place-items: center !important; min-height: 0 !important; gap: 3px !important; color: #aeaea9 !important; }
+  .app-shell .mobile-tabs button svg { width: 20px !important; height: 20px !important; }
+  .app-shell .mobile-tabs button small { font-size: 10px !important; }
   .app-shell .mobile-tabs button.active { background: transparent !important; color: var(--v2-gold-light) !important; }
-  .app-shell .mobile-tabs .mobile-publish-tab { transform: translateY(-23px) !important; color: var(--v2-gold-light) !important; }
-  .app-shell .mobile-tabs .mobile-publish-tab svg { width: 52px !important; height: 52px !important; padding: 13px !important; border-radius: 50% !important; background: linear-gradient(135deg, var(--v2-gold-light), #d89f34) !important; color: #18130a !important; box-shadow: 0 10px 24px rgba(0,0,0,.45) !important; }
+  .app-shell .mobile-tabs .mobile-publish-tab { transform: translateY(-14px) !important; color: var(--v2-gold-light) !important; }
+  .app-shell .mobile-tabs .mobile-publish-tab svg { width: 42px !important; height: 42px !important; padding: 10px !important; border-radius: 50% !important; background: linear-gradient(135deg, var(--v2-gold-light), #d89f34) !important; color: #18130a !important; box-shadow: 0 8px 18px rgba(0,0,0,.4) !important; }
   .app-shell .mobile-tabs .mobile-publish-tab small { margin-top: -2px !important; }
 
   .app-shell.view-compose .market-search-row,
