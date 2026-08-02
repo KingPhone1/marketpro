@@ -610,8 +610,12 @@
   .app-shell .mobile-tabs button svg { width: 20px !important; height: 20px !important; }
   .app-shell .mobile-tabs button small { font-size: 10px !important; }
   .app-shell .mobile-tabs button.active { background: transparent !important; color: var(--v2-gold-light) !important; }
-  .app-shell .mobile-tabs .mobile-publish-tab { transform: translateY(-14px) !important; color: var(--v2-gold-light) !important; }
-  .app-shell .mobile-tabs .mobile-publish-tab svg { width: 42px !important; height: 42px !important; padding: 10px !important; border-radius: 50% !important; background: linear-gradient(135deg, var(--v2-gold-light), #d89f34) !important; color: #18130a !important; box-shadow: 0 8px 18px rgba(0,0,0,.4) !important; }
+  /* Antes el translateY se aplicaba al botón entero, así que el texto
+     "Vender" quedaba más arriba que las demás etiquetas (Inicio,
+     Buscar, Chats, Perfil) — desalineado. Ahora solo se eleva el
+     ícono; el texto se queda en la misma fila que el resto. */
+  .app-shell .mobile-tabs .mobile-publish-tab { color: var(--v2-gold-light) !important; }
+  .app-shell .mobile-tabs .mobile-publish-tab svg { width: 42px !important; height: 42px !important; padding: 10px !important; border-radius: 50% !important; background: linear-gradient(135deg, var(--v2-gold-light), #d89f34) !important; color: #18130a !important; box-shadow: 0 8px 18px rgba(0,0,0,.4) !important; transform: translateY(-14px) !important; }
   .app-shell .mobile-tabs .mobile-publish-tab small { margin-top: -2px !important; }
 
   .app-shell.view-compose .market-search-row,
@@ -648,7 +652,13 @@
   .app-shell.view-messages .bubble { border-radius: 20px !important; font-size: 15px !important; }
   .app-shell.view-messages .bubble.me { background: linear-gradient(135deg, rgba(132,91,18,.55), rgba(232,180,76,.2)) !important; }
   .app-shell.view-messages .message-form { position: sticky !important; bottom: 0 !important; margin: 0 !important; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)) !important; border-radius: 0 !important; background: #101010 !important; }
-  .app-shell.view-messages .mobile-tabs { display: none !important; }
+  /* Antes se ocultaba el nav inferior en TODA la sección de Chats,
+     incluida la lista de conversaciones — que no tiene botón de
+     "volver", así que quedaba sin ninguna forma de salir de Chats.
+     Ahora solo se oculta dentro de una conversación abierta (que sí
+     tiene su propia flecha .chat-back); la lista conserva el nav. */
+  .app-shell.view-messages:has(.messages-page.show-active-chat) .mobile-tabs { display: none !important; }
+  .app-shell.view-messages .messages-page.show-chat-list { padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
 
   .app-shell.view-profile .main-layout { padding-top: 8px !important; }
   .app-shell.view-profile .seller-dashboard-v2 { gap: 16px !important; }
