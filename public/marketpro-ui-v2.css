@@ -616,7 +616,6 @@
      ícono; el texto se queda en la misma fila que el resto. */
   .app-shell .mobile-tabs .mobile-publish-tab { color: var(--v2-gold-light) !important; }
   .app-shell .mobile-tabs .mobile-publish-tab svg { width: 42px !important; height: 42px !important; padding: 10px !important; border-radius: 50% !important; background: linear-gradient(135deg, var(--v2-gold-light), #d89f34) !important; color: #18130a !important; box-shadow: 0 8px 18px rgba(0,0,0,.4) !important; transform: translateY(-14px) !important; }
-  .app-shell .mobile-tabs .mobile-publish-tab small { margin-top: -2px !important; }
 
   .app-shell.view-compose .market-search-row,
   .app-shell.view-profile .market-search-row,
