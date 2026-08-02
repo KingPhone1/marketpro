@@ -1285,7 +1285,7 @@ const categoryShowcase = (list = categories.filter((category) => category !== "T
     ${list.map((category) => {
       const count = state.products.filter((item) => item.category === category).length;
       const icon = ({ Vehiculos: "car-front", Inmuebles: "building-2", Electronica: "smartphone", Ropa: "shopping-bag", Hogar: "armchair", Deportes: "dumbbell", Juguetes: "gamepad-2", Entretenimiento: "clapperboard" })[category] || "tag";
-      const label = ({ Ropa: "Moda", Juguetes: "Videojuegos" })[category] || category;
+      const label = ({ Ropa: "Moda", Juguetes: "Videojuegos", Electronica: "Electrónica" })[category] || category;
       return `<button data-category="${escapeHtml(category)}"><span><i data-lucide="${icon}"></i></span><strong>${escapeHtml(label)}</strong><small>${count} ${count === 1 ? "publicación" : "publicaciones"}</small></button>`;
     }).join("")}
   </section>
