@@ -1280,12 +1280,13 @@ const trustFeatures = () => `
   </section>
 `;
 
-const categoryShowcase = () => `
+const categoryShowcase = (list = categories.filter((category) => category !== "Todo").slice(0, 5)) => `
   <section class="category-showcase" aria-label="Categorías principales">
-    ${categories.filter((category) => category !== "Todo").slice(0, 5).map((category) => {
+    ${list.map((category) => {
       const count = state.products.filter((item) => item.category === category).length;
       const icon = ({ Vehiculos: "car-front", Inmuebles: "building-2", Electronica: "smartphone", Ropa: "shopping-bag", Hogar: "armchair", Deportes: "dumbbell", Juguetes: "gamepad-2", Entretenimiento: "clapperboard" })[category] || "tag";
-      return `<button data-category="${escapeHtml(category)}"><span><i data-lucide="${icon}"></i></span><strong>${escapeHtml(category)}</strong><small>${count} ${count === 1 ? "publicación" : "publicaciones"}</small></button>`;
+      const label = ({ Ropa: "Moda", Juguetes: "Videojuegos" })[category] || category;
+      return `<button data-category="${escapeHtml(category)}"><span><i data-lucide="${icon}"></i></span><strong>${escapeHtml(label)}</strong><small>${count} ${count === 1 ? "publicación" : "publicaciones"}</small></button>`;
     }).join("")}
   </section>
 `;
@@ -1835,13 +1836,21 @@ const feedView = () => {
         ${heroVisual()}
       </section>
       ${trustFeatures()}
+      <section class="home-categories-row">
+        <div class="content-head">
+          <div><h2>Categorías populares</h2></div>
+          <button type="button" class="filter-toggle" data-view="categories">Ver todas</button>
+        </div>
+        ${categoryShowcase(["Electronica", "Ropa", "Hogar", "Juguetes", "Deportes"])}
+      </section>
       ${mobileDiscoverControls()}
       <div class="content-head">
         <div>
-          <h2>Destacados para ti</h2>
+          <h2>Productos destacados</h2>
           <div class="muted">${products.length} publicaciones verificadas</div>
         </div>
-        <button type="button" class="filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Filtros"}</button>
+        <button type="button" class="filter-toggle desktop-filter-toggle" data-filter-toggle>${state.filtersOpen ? "Ocultar filtros" : "Filtros"}</button>
+        <button type="button" class="filter-toggle mobile-view-all" data-scroll-products>Ver todos</button>
       </div>
       ${
         products.length
@@ -2838,8 +2847,10 @@ const bindEvents = () => {
     });
   });
 
-  document.querySelector("[data-scroll-products]")?.addEventListener("click", () => {
-    document.querySelector(".content-head")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.querySelectorAll("[data-scroll-products]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelector(".grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   });
 
   document.querySelector("[data-install-dismiss]")?.addEventListener("click", () => {

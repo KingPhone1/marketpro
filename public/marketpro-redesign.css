@@ -537,3 +537,35 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
     margin: 0 0 16px !important;
   }
 }
+
+/* ---------- Fase 11: "Categorías populares" en Inicio (mobile) ---------- */
+@media (max-width: 760px) {
+  /* En el mockup de Inicio la franja de confianza (Personas verificadas /
+     Pagos seguros / Soporte 24/7) se reemplaza por una fila de categorías
+     con acceso directo. El componente .category-showcase ya existía en el
+     código con su CSS de scroll horizontal, pero nunca se llamaba desde
+     Inicio — solo faltaba conectarlo. */
+  .app-shell.view-feed .trust-feature-row {
+    display: none !important;
+  }
+  .app-shell.view-feed .home-categories-row .content-head {
+    margin-bottom: 10px !important;
+  }
+  .app-shell.view-feed .home-categories-row .content-head h2 {
+    font-size: 18px !important;
+  }
+  .app-shell.view-feed .category-showcase small {
+    display: none !important;
+  }
+  .app-shell .desktop-filter-toggle {
+    display: none !important;
+  }
+}
+@media (min-width: 761px) {
+  .app-shell .home-categories-row {
+    display: none !important;
+  }
+  .app-shell .mobile-view-all {
+    display: none !important;
+  }
+}
