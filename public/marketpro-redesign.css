@@ -462,6 +462,10 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
   .app-shell .topbar .brand > span,
   .app-shell.view-feed .topbar .brand > span {
     font-size: 15px !important;
+    font-weight: 780 !important;
+    letter-spacing: 0.03em !important;
+    -webkit-font-smoothing: antialiased !important;
+    text-rendering: optimizeLegibility !important;
   }
   .app-shell .topbar .top-actions .compact-alert,
   .app-shell .topbar .top-actions .avatar-btn,
