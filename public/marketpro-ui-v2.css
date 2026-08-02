@@ -606,7 +606,7 @@
     background: rgba(12, 12, 12, .98) !important;
     box-shadow: 0 10px 30px rgba(0,0,0,.45) !important;
   }
-  .app-shell .mobile-tabs button { display: grid !important; place-items: center !important; min-height: 0 !important; gap: 3px !important; padding: 6px 8px !important; border: 1px solid transparent !important; border-radius: 14px !important; color: #aeaea9 !important; }
+  .app-shell .mobile-tabs button { display: grid !important; grid-template-rows: auto auto !important; place-items: center !important; min-height: 0 !important; gap: 3px !important; padding: 6px 8px !important; border: 1px solid transparent !important; border-radius: 14px !important; color: #aeaea9 !important; }
   .app-shell .mobile-tabs button svg { width: 20px !important; height: 20px !important; }
   .app-shell .mobile-tabs button small { font-size: 10px !important; }
   .app-shell .mobile-tabs button.active:not(.mobile-publish-tab) { border: 1px solid var(--v2-gold-line) !important; border-radius: 14px !important; background: rgba(232, 180, 76, 0.08) !important; color: var(--v2-gold-light) !important; }
