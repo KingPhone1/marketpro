@@ -573,3 +573,17 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
     display: none !important;
   }
 }
+
+/* ---------- Fase 12: botón del asistente pegado al nav flotante ---------- */
+@media (max-width: 760px) {
+  /* El launcher del asistente estaba calibrado para el nav inferior
+     pegado al borde (bottom:0). Ahora el nav flota con un margen de
+     10px, así que el launcher quedaba encimado sobre el círculo de
+     Vender. Se sube por encima del nav flotante con espacio real. */
+  .app-shell .ai-agent-launcher {
+    bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+  }
+  .app-shell .ai-agent-panel {
+    bottom: calc(150px + env(safe-area-inset-bottom)) !important;
+  }
+}
