@@ -14,7 +14,7 @@ Variables obligatorias:
 
 - `ADMIN_PASSWORD`: contrasena privada del panel admin.
 - `HOST`: usa `0.0.0.0` en hosting publico.
-- `DATA_DIR`: respaldo local. En Render puede usar `/var/data`, pero la memoria final debe estar en Supabase.
+- `DATA_DIR`: respaldo local. En Railway puede usar un volumen persistente, pero la memoria final debe estar en Supabase.
 - `SUPABASE_URL`: URL del proyecto Supabase.
 - `SUPABASE_SERVICE_ROLE_KEY`: clave privada service role de Supabase. No debe estar en el frontend.
 - `SUPABASE_STORE_TABLE`: usa `marketpro_store`.
@@ -60,18 +60,18 @@ Para que usuarios, aprobaciones, publicaciones, chats, ordenes y anuncios no se 
 4. Copia `Project URL` como `SUPABASE_URL`.
 5. Copia `service_role key` como `SUPABASE_SERVICE_ROLE_KEY`.
 
-El script crea la memoria principal, copias de recuperacion y almacenamiento separado para documentos privados y fotos publicas. El servidor usa la clave solo desde Render. Nunca la pongas en archivos publicos ni en el navegador.
+El script crea la memoria principal, copias de recuperacion y almacenamiento separado para documentos privados y fotos publicas. El servidor usa la clave solo desde Railway. Nunca la pongas en archivos publicos ni en el navegador.
 
 ## 4. Mejor opcion para que funcione todo
 
-Para MarketPro completo usa Render, Railway, Fly.io o un VPS. Vercel no es la mejor opcion para esta app porque los chats usan WebSockets.
+Para MarketPro completo usa Railway, Fly.io o un VPS. Vercel no es la mejor opcion para esta app porque los chats usan WebSockets.
 
-Este proyecto ya incluye `render.yaml`. En Render:
+Este proyecto ya incluye `railway.toml` (build con `Dockerfile`, health check en `/healthz`). En Railway:
 
 1. Sube el proyecto a GitHub.
-2. En Render elige **New > Blueprint**.
-3. Selecciona este repositorio.
-4. Completa las variables marcadas como privadas:
+2. En Railway elige **New Project > Deploy from GitHub repo**.
+3. Selecciona este repositorio y la rama `main`.
+4. Completa las variables privadas en la pestaña **Variables** del servicio:
    - `APP_BASE_URL`
    - `ADMIN_PASSWORD`
    - `ADMIN_TOTP_SECRET`
@@ -83,11 +83,13 @@ Este proyecto ya incluye `render.yaml`. En Render:
    - `MERCADO_PAGO_ACCESS_TOKEN`
    - `MERCADO_PAGO_PUBLIC_KEY`
    - `MERCADO_PAGO_WEBHOOK_SECRET`
-5. Render va a crear un link publico tipo:
+5. En **Settings > Networking** genera un dominio publico tipo:
 
 ```text
-https://marketpro.onrender.com
+https://tu-proyecto.up.railway.app
 ```
+
+6. Activa **Auto deploy** para que cada push a `main` despliegue automaticamente.
 
 Cuando tengas ese link, ponlo tambien como `APP_BASE_URL`.
 
@@ -102,7 +104,7 @@ npm install
 npm start
 ```
 
-El proyecto tambien incluye `Procfile`, `Dockerfile` y `render.yaml`.
+El proyecto tambien incluye `Dockerfile` y `railway.toml`.
 
 ## 6. Seguridad minima antes de lanzar
 
@@ -141,7 +143,7 @@ El proyecto tambien incluye `Procfile`, `Dockerfile` y `render.yaml`.
 ## 9. Limitaciones externas reales
 
 MarketPro no puede activar por si solo servicios que requieren cuentas y secretos del propietario.
-El lanzamiento comercial queda condicionado a completar en Render:
+El lanzamiento comercial queda condicionado a completar en Railway:
 
 - Credenciales OAuth y webhook productivo de Mercado Pago.
 - Dominio y correo remitente verificado en Resend.

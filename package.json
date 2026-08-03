@@ -14,7 +14,6 @@
     "migration:verify": "node scripts/verify-relational-export.js",
     "migration:import:staging": "node scripts/import-relational-store.js",
     "migration:verify:staging": "node scripts/verify-relational-destination.js",
-    "migration:sync-public-catalog:staging": "node scripts/sync-public-render-catalog.js",
     "migration:approve-latest-user:staging": "node scripts/approve-latest-staging-user.js"
   },
   "engines": {

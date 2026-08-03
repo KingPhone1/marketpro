@@ -253,7 +253,7 @@ const launchReadinessView = () => {
           <article class="${check.ready ? "ok" : check.required ? "missing" : ""}">
             <span>${check.ready ? "OK" : check.required ? "Bloquea" : "Opcional"}</span>
             <strong>${escapeHtml(check.label)}</strong>
-            <small>${check.ready ? "Configuración activa." : "Completa esta variable en Render."}</small>
+            <small>${check.ready ? "Configuración activa." : "Completa esta variable en Railway."}</small>
           </article>
         `).join("")}
       </div>

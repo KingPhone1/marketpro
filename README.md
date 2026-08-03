@@ -36,7 +36,7 @@ Variables principales:
 ## Memoria en la nube
 
 Para produccion usa Supabase. Crea un proyecto en Supabase, abre el editor SQL y ejecuta `supabase.sql`.
-Luego agrega estas variables privadas en Render:
+Luego agrega estas variables privadas en Railway:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -57,4 +57,4 @@ Desde el admin puedes revisar usuarios, corroborar identidad, aprobar vendedores
 
 Lee [PRODUCCION.md](./PRODUCCION.md) antes de publicar.
 
-La opcion recomendada para que funcione todo es Render + Supabase, porque Render mantiene el servidor Node activo y Supabase conserva la memoria aunque Render reinicie o despliegue una version nueva.
+La opcion recomendada para que funcione todo es Railway + Supabase, porque Railway mantiene el servidor Node activo y Supabase conserva la memoria aunque Railway reinicie o despliegue una version nueva.
