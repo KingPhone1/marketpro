@@ -1856,8 +1856,8 @@ const feedView = () => {
         products.length
           ? `<section class="grid">${products.map(productCard).join("")}</section>`
           : filtering
-            ? `<div class="empty real-listings-empty"><strong>No encontramos coincidencias.</strong><span>Prueba con otra palabra o ajusta los filtros.</span><button class="secondary-btn" data-clear-filters>Limpiar búsqueda</button></div>`
-            : `<div class="empty real-listings-empty"><strong>Aún no hay publicaciones reales.</strong><span>Se mostrarán aquí cuando un usuario verificado publique su artículo.</span><button class="sell-action" data-view="compose">Publicar el primero</button></div>`
+            ? `<div class="empty real-listings-empty"><i data-lucide="search-x"></i><strong>No encontramos coincidencias.</strong><span>Prueba con otra palabra o ajusta los filtros.</span><button class="secondary-btn" data-clear-filters>Limpiar búsqueda</button></div>`
+            : `<div class="empty real-listings-empty"><i data-lucide="package-search"></i><strong>Aún no hay publicaciones reales.</strong><span>Se mostrarán aquí cuando un usuario verificado publique su artículo.</span><button class="sell-action" data-view="compose">Publicar el primero</button></div>`
       }
     </main>
   `;

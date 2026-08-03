@@ -707,3 +707,30 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
   outline: 2px solid var(--v2-gold-line, rgba(232, 180, 76, .5)) !important;
   outline-offset: 2px !important;
 }
+
+/* ---------- Fase 17: estados vacíos (sin resultados / sin publicaciones) ---------- */
+/* .real-listings-empty strong quedaba en #11120f (casi negro, restos del
+   tema claro original) sobre fondo oscuro -- practicamente invisible. Se
+   corrige el color y se agrega un icono, con el mismo lenguaje visual que
+   ya usa .chat-empty-state (icono dorado + titulo claro + texto muted). */
+.app-shell .real-listings-empty {
+  gap: 12px !important;
+}
+.app-shell .real-listings-empty > svg {
+  width: 40px !important;
+  height: 40px !important;
+  color: var(--mp-gold, #e8b44c) !important;
+}
+.app-shell .real-listings-empty strong {
+  color: var(--mp-text, #f4f1e8) !important;
+  font-size: 18px !important;
+}
+.app-shell .real-listings-empty span {
+  max-width: 280px !important;
+  color: var(--mp-text-2, #b8b5ad) !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+.app-shell .empty {
+  color: var(--mp-text-2, #b8b5ad) !important;
+}
