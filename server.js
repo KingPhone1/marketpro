@@ -1172,6 +1172,71 @@ const migrateListingImagesToObjectStorage = async () => {
   return migrated;
 };
 
+// Imagenes copiadas desde otro proyecto (ej. una sincronizacion anterior desde
+// otro entorno) que siguen apuntando al bucket publico de ese otro proyecto de
+// Supabase en vez del propio. /api/public-image solo permite el origen propio
+// (SUPABASE_ORIGIN) por seguridad, asi que esas imagenes nunca cargan. Se
+// vuelven a subir al bucket propio y se reemplaza la referencia.
+const isForeignPublicImage = (value) => {
+  try {
+    const parsed = new URL(String(value || ""));
+    if (parsed.protocol !== "https:") return false;
+    if (SUPABASE_ORIGIN && parsed.origin === SUPABASE_ORIGIN) return false;
+    if (parsed.hostname === "images.unsplash.com") return false;
+    return /\/storage\/v1\/object\/public\//.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+};
+
+const rehostForeignImage = async (ownerId, kind, url) => {
+  if (!hasSupabaseStore || !publicBucketReady) return "";
+  try {
+    const response = await fetch(url, { redirect: "error" });
+    const contentType = String(response.headers.get("content-type") || "");
+    if (!response.ok || !["image/jpeg", "image/png", "image/webp"].includes(contentType)) return "";
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length > 8 * 1024 * 1024) return "";
+    const extension = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+    const objectPath = `${safeObjectSegment(ownerId)}/${safeObjectSegment(kind)}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${extension}`;
+    const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_PUBLIC_BUCKET}/${objectPath}`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": contentType, "x-upsert": "false" },
+      body: bytes
+    });
+    if (!uploadResponse.ok) return "";
+    return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_PUBLIC_BUCKET}/${objectPath}`;
+  } catch {
+    return "";
+  }
+};
+
+const rehostForeignListingImages = async () => {
+  if (!publicBucketReady) return 0;
+  let migrated = 0;
+  for (const product of listings) {
+    if (!isRealListing(product) || !Array.isArray(product.images)) continue;
+    const nextImages = [];
+    for (let index = 0; index < product.images.length; index += 1) {
+      const image = product.images[index];
+      if (!isForeignPublicImage(image)) {
+        nextImages.push(image);
+        continue;
+      }
+      const rehosted = await rehostForeignImage(
+        product.seller?.email || product.seller?.name || product.id,
+        `rehost-${product.id}-${index + 1}`,
+        image
+      );
+      nextImages.push(rehosted || image);
+      if (rehosted) migrated += 1;
+    }
+    product.images = nextImages;
+  }
+  if (migrated) store.products = listings;
+  return migrated;
+};
+
 const privateMediaReference = (media) => {
   if (!media) return "";
   if (media.provider === "encrypted") return decryptSecret(media.encrypted);
@@ -1435,6 +1500,8 @@ const initializePersistentStore = async () => {
     cloudStoreReady = true;
     const migratedImages = await migrateListingImagesToObjectStorage();
     if (migratedImages) console.log(`[MarketPro] ${migratedImages} imagenes migradas a almacenamiento publico.`);
+    const rehostedImages = await rehostForeignListingImages();
+    if (rehostedImages) console.log(`[MarketPro] ${rehostedImages} imagenes de otro proyecto re-subidas al bucket propio.`);
     persistentStoreError = "";
     writeStore();
   } catch (error) {
