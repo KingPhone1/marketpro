@@ -616,11 +616,15 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
   }
 }
 
-/* ---------- Fase 14: brillo del texto "MarketPro" (a pedido: era el texto, no el logo) ---------- */
+/* ---------- Fase 14: brillo del texto "MarketPro" y del icono del carrito (a pedido) ---------- */
 @media (max-width: 760px) {
   .app-shell .topbar .brand > span,
   .app-shell.view-feed .topbar .brand > span {
     text-shadow: 0 0 14px rgba(232, 180, 76, .45), 0 0 2px rgba(255, 224, 160, .35) !important;
+  }
+  .app-shell .topbar .top-actions .cart-nav svg,
+  .app-shell.view-feed .topbar .top-actions .cart-nav svg {
+    filter: drop-shadow(0 0 8px rgba(232, 180, 76, .55)) drop-shadow(0 0 2px rgba(255, 224, 160, .45)) !important;
   }
 }
 
