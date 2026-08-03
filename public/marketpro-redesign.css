@@ -587,3 +587,31 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
     bottom: calc(150px + env(safe-area-inset-bottom)) !important;
   }
 }
+
+/* ---------- Fase 13: barra de búsqueda de Inicio con zoom excesivo ---------- */
+/* marketpro-ui-v2.css fija .app-shell.view-feed .market-search-row .searchbox
+   en 82px de alto con texto de 18px (calibrado para una versión anterior,
+   mucho más grande que el resto del rediseño compacto). Se iguala esa misma
+   especificidad de 3 clases para poder reducirla de verdad. */
+@media (max-width: 760px) {
+  .app-shell.view-feed .market-search-row {
+    padding: 8px 16px 14px !important;
+  }
+  .app-shell.view-feed .market-search-row .searchbox {
+    grid-template-columns: 46px minmax(0, 1fr) 0 !important;
+    height: 50px !important;
+    border-radius: 14px !important;
+  }
+  .app-shell.view-feed .market-search-row .search-icon {
+    width: 46px !important;
+  }
+  .app-shell.view-feed .market-search-row .search-icon svg {
+    width: 19px !important;
+    height: 19px !important;
+  }
+  .app-shell.view-feed .market-search-row input {
+    height: 48px !important;
+    padding: 0 8px !important;
+    font-size: 16px !important;
+  }
+}
