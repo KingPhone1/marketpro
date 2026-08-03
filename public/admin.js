@@ -8,7 +8,8 @@ const state = {
   mercadoPago: null,
   mercadoPagoTest: null,
   error: "",
-  csrfToken: ""
+  csrfToken: "",
+  page: sessionStorage.getItem("mpAdminPage") || "dashboard"
 };
 
 const money = (value) =>
@@ -187,49 +188,37 @@ const mercadoPagoView = () => {
   `;
 };
 
-const dashboardView = () => {
-  const overview = state.overview || { users: [], products: [], conversations: [], memory: {} };
+const overviewData = () => state.overview || { users: [], products: [], conversations: [], memory: {} };
+
+const summaryMetricsView = () => {
+  const overview = overviewData();
   const reviewableUsers = overview.users.filter((user) => !isRejected(user));
   const pendingUsers = reviewableUsers.filter((user) => !user.verified && user.emailVerified);
   const awaitingEmailUsers = reviewableUsers.filter((user) => !user.verified && !user.emailVerified);
   const approvedUsers = reviewableUsers.filter((user) => user.verified);
   const orders = overview.orders || [];
   const reports = overview.reports || [];
-  const chatAlerts = overview.chatAlerts || [];
-  const conversations = overview.conversations || [];
   const supportTickets = overview.supportTickets || [];
-  const blockedPairs = overview.blockedPairs || [];
-  const adminAudit = overview.adminAudit || [];
-  const security = overview.security || {};
-  const metrics = overview.metrics || {};
-  const launch = overview.launch || { ready: false, checks: [], blockers: [] };
   const disputes = orders.flatMap((order) => (order.disputes || []).map((dispute) => ({ ...dispute, order })));
-  const pending = pendingUsers.length;
-  const verified = approvedUsers.length;
   return `
-    <header class="admin-header">
-      <div class="admin-brand">
-        <img class="brand-logo" src="/mp-logo.svg" alt="MP" />
-        <div>
-          <strong>MarketPro Admin</strong>
-          <span>Memoria actualizada: ${escapeHtml(overview.memory?.updatedAt || "Sin datos")}</span>
-        </div>
-      </div>
-      <button class="secondary-btn" id="logoutAdmin">Salir</button>
-    </header>
-
     <section class="seller-metrics admin-metrics">
       <div class="metric-card"><span>Vendedores</span><strong>${reviewableUsers.length}</strong></div>
-      <div class="metric-card"><span>Pendientes</span><strong>${pending}</strong></div>
+      <div class="metric-card"><span>Pendientes</span><strong>${pendingUsers.length}</strong></div>
       <div class="metric-card"><span>Esperando email</span><strong>${awaitingEmailUsers.length}</strong></div>
-      <div class="metric-card"><span>Verificados</span><strong>${verified}</strong></div>
+      <div class="metric-card"><span>Verificados</span><strong>${approvedUsers.length}</strong></div>
       <div class="metric-card"><span>Publicaciones</span><strong>${overview.products.length}</strong></div>
       <div class="metric-card"><span>Ordenes</span><strong>${orders.length}</strong></div>
       <div class="metric-card"><span>Disputas</span><strong>${disputes.filter((item) => item.status !== "Cerrada").length}</strong></div>
       <div class="metric-card"><span>Reportes</span><strong>${reports.length}</strong></div>
       <div class="metric-card"><span>Soporte</span><strong>${supportTickets.length}</strong></div>
     </section>
+  `;
+};
 
+const healthMetricsView = () => {
+  const overview = overviewData();
+  const metrics = overview.metrics || {};
+  return `
     <section class="panel">
       <div class="admin-section-head">
         <div><p class="eyebrow">Operación en tiempo real</p><h1>Salud de MarketPro</h1></div>
@@ -243,7 +232,13 @@ const dashboardView = () => {
         <div class="metric-card"><span>Errores de interfaz</span><strong>${(overview.clientErrors || []).length}</strong></div>
       </div>
     </section>
+  `;
+};
 
+const launchReadinessView = () => {
+  const overview = overviewData();
+  const launch = overview.launch || { ready: false, checks: [], blockers: [] };
+  return `
     <section class="panel launch-readiness ${launch.ready ? "ready" : "blocked"}">
       <div class="admin-section-head">
         <div>
@@ -263,9 +258,14 @@ const dashboardView = () => {
         `).join("")}
       </div>
     </section>
+  `;
+};
 
-    ${mercadoPagoView()}
-
+const securityAuditView = () => {
+  const overview = overviewData();
+  const security = overview.security || {};
+  const adminAudit = overview.adminAudit || [];
+  return `
     <section class="panel">
       <div class="admin-section-head">
         <div><p class="eyebrow">Control interno</p><h1>Seguridad y auditoria</h1></div>
@@ -279,9 +279,14 @@ const dashboardView = () => {
         ${adminAudit.slice(0, 12).map((item) => `<article class="admin-order"><div><strong>${escapeHtml(item.action)}</strong><span>${escapeHtml(item.createdAt)}</span></div><div><small>Origen</small><b>${escapeHtml(item.ip || "Privado")}</b></div></article>`).join("") || `<div class="empty">La auditoria comenzara con el proximo acceso.</div>`}
       </div>
     </section>
+  `;
+};
 
-    ${privateRoadmapView()}
-
+const chatsVaultView = () => {
+  const overview = overviewData();
+  const chatAlerts = overview.chatAlerts || [];
+  const conversations = overview.conversations || [];
+  return `
     <section class="panel admin-chat-vault">
       <div class="admin-section-head">
         <div>
@@ -308,7 +313,15 @@ const dashboardView = () => {
         }).join("") : `<div class="empty">Aún no hay conversaciones guardadas.</div>`}
       </div>
     </section>
+  `;
+};
 
+const moderationView = () => {
+  const overview = overviewData();
+  const reports = overview.reports || [];
+  const supportTickets = overview.supportTickets || [];
+  const blockedPairs = overview.blockedPairs || [];
+  return `
     <section class="panel">
       <div class="admin-section-head">
         <div>
@@ -349,7 +362,13 @@ const dashboardView = () => {
         ` : ""}
       </div>
     </section>
+  `;
+};
 
+const ordersView = () => {
+  const overview = overviewData();
+  const orders = overview.orders || [];
+  return `
     <section class="panel">
       <div class="admin-section-head">
         <div>
@@ -373,7 +392,14 @@ const dashboardView = () => {
         `).join("") : `<div class="empty">Todavía no hay órdenes.</div>`}
       </div>
     </section>
+  `;
+};
 
+const pendingUsersView = () => {
+  const overview = overviewData();
+  const reviewableUsers = overview.users.filter((user) => !isRejected(user));
+  const pendingUsers = reviewableUsers.filter((user) => !user.verified && user.emailVerified);
+  return `
     <section class="panel">
       <div class="admin-section-head">
         <div>
@@ -412,7 +438,14 @@ const dashboardView = () => {
           .join("") : `<div class="empty">No hay vendedores pendientes para revisar.</div>`}
       </div>
     </section>
+  `;
+};
 
+const approvedUsersView = () => {
+  const overview = overviewData();
+  const reviewableUsers = overview.users.filter((user) => !isRejected(user));
+  const approvedUsers = reviewableUsers.filter((user) => user.verified);
+  return `
     <section class="panel">
       <div class="admin-section-head">
         <div>
@@ -443,12 +476,59 @@ const dashboardView = () => {
   `;
 };
 
+const PAGES = [
+  { key: "dashboard", label: "Panel", render: () => `${healthMetricsView()}${launchReadinessView()}` },
+  { key: "vendedores", label: "Vendedores", render: () => `${pendingUsersView()}${approvedUsersView()}` },
+  { key: "ordenes", label: "Órdenes", render: ordersView },
+  { key: "moderacion", label: "Moderación", render: moderationView },
+  { key: "chats", label: "Chats", render: chatsVaultView },
+  { key: "pagos", label: "Pagos", render: mercadoPagoView },
+  { key: "seguridad", label: "Seguridad", render: securityAuditView },
+  { key: "sistema", label: "Sistema", render: privateRoadmapView }
+];
+
+const currentPage = () => PAGES.find((page) => page.key === state.page) || PAGES[0];
+
+const dashboardView = () => {
+  const overview = overviewData();
+  return `
+    <header class="admin-header">
+      <div class="admin-brand">
+        <img class="brand-logo" src="/mp-logo.svg" alt="MP" />
+        <div>
+          <strong>MarketPro Admin</strong>
+          <span>Memoria actualizada: ${escapeHtml(overview.memory?.updatedAt || "Sin datos")}</span>
+        </div>
+      </div>
+      <button class="secondary-btn" id="logoutAdmin">Salir</button>
+    </header>
+
+    ${summaryMetricsView()}
+
+    <nav class="admin-nav">
+      ${PAGES.map((page) => `<button type="button" class="${page.key === state.page ? "active" : ""}" data-admin-page="${page.key}">${escapeHtml(page.label)}</button>`).join("")}
+    </nav>
+
+    <div class="admin-page">
+      ${currentPage().render()}
+    </div>
+  `;
+};
+
 const render = () => {
   adminApp.innerHTML = state.token && state.overview ? dashboardView() : loginView();
   bindEvents();
 };
 
 const bindEvents = () => {
+  document.querySelectorAll("[data-admin-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.page = button.dataset.adminPage;
+      sessionStorage.setItem("mpAdminPage", state.page);
+      render();
+    });
+  });
+
   document.querySelector("#adminLoginForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const password = new FormData(event.currentTarget).get("password");
