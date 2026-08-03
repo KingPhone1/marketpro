@@ -448,10 +448,10 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
      repetirlo para cada variante de vista que exista. */
   .app-shell .topbar,
   .app-shell.view-feed .topbar {
-    min-height: calc(114px + env(safe-area-inset-top)) !important;
-    grid-template-rows: 54px 46px !important;
-    gap: 8px 12px !important;
-    padding: calc(6px + env(safe-area-inset-top)) 14px 6px !important;
+    min-height: calc(76px + env(safe-area-inset-top)) !important;
+    grid-template-rows: 1fr !important;
+    gap: 0 12px !important;
+    padding: calc(11px + env(safe-area-inset-top)) 14px 11px !important;
   }
   .app-shell .topbar .brand-logo,
   .app-shell.view-feed .topbar .brand-logo {
