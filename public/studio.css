@@ -897,78 +897,12 @@ textarea:focus-visible {
   gap: 18px;
 }
 
-.listing-stepper,
 .listing-stage,
 .listing-live-preview {
   border: 1px solid var(--mp-line);
   border-radius: 18px;
   background: rgba(21, 22, 18, .9);
   box-shadow: var(--mp-shadow);
-}
-
-.listing-stepper {
-  padding: 10px;
-}
-
-.listing-stepper button {
-  width: 100%;
-  min-height: 66px;
-  padding: 10px;
-  display: grid;
-  grid-template-columns: 28px 20px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  color: var(--mp-muted);
-  text-align: left;
-  background: transparent;
-}
-
-.listing-stepper button > span {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--mp-line);
-  border-radius: 50%;
-  font-size: 11px;
-}
-
-.listing-stepper button svg {
-  width: 18px;
-}
-
-.listing-stepper button div {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.listing-stepper button strong {
-  color: var(--mp-text-2);
-  font-size: 13px;
-}
-
-.listing-stepper button small {
-  color: var(--mp-muted);
-  font-size: 10px;
-}
-
-.listing-stepper button.active {
-  border-color: var(--mp-gold-line);
-  color: var(--mp-gold-light);
-  background: linear-gradient(90deg, rgba(215,174,85,.1), transparent);
-}
-
-.listing-stepper button.active > span {
-  border-color: var(--mp-gold);
-  color: #11110f;
-  background: var(--mp-gold-light);
-}
-
-.listing-stepper button.active strong {
-  color: var(--mp-text);
 }
 
 .listing-stage {
@@ -2107,36 +2041,6 @@ textarea:focus-visible {
     flex-direction: column;
     width: 100%;
     gap: 14px;
-  }
-
-  .listing-stepper {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    padding: 6px;
-    overflow: hidden;
-  }
-
-  .listing-stepper button {
-    min-width: 0;
-    min-height: 58px;
-    padding: 6px 3px;
-    display: grid;
-    grid-template-columns: 1fr;
-    justify-items: center;
-    gap: 3px;
-    text-align: center;
-  }
-
-  .listing-stepper button > i,
-  .listing-stepper button > svg,
-  .listing-stepper button div {
-    display: none;
-  }
-
-  .listing-stepper button > span {
-    width: 30px;
-    height: 30px;
   }
 
   .listing-stage,
@@ -3558,7 +3462,6 @@ textarea:focus-visible {
   }
 
   .app-shell .listing-studio-header { margin-bottom: 14px !important; }
-  .app-shell .listing-stepper { margin: 0 !important; }
   .app-shell .listing-stage { min-height: 0 !important; padding: 18px !important; }
   .app-shell .listing-step-actions { bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
   .app-shell .protocol-box { overflow: visible !important; }

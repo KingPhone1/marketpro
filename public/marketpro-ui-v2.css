@@ -120,7 +120,6 @@
 .app-shell .order-card,
 .app-shell .cart-row-v2,
 .app-shell .activity-list button { border-color: var(--v2-line) !important; background: var(--v2-surface) !important; }
-.app-shell .listing-stepper button,
 .app-shell .order-tabs button,
 .app-shell .filter-chip,
 .app-shell .category-chip { border-radius: 999px !important; }
@@ -223,9 +222,7 @@
   .app-shell .preview-panel,
   .app-shell .checkout-box,
   .app-shell .orders-panel { padding: 18px !important; border-radius: 16px !important; }
-  .app-shell .listing-stepper,
   .app-shell .order-tabs { overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
-  .app-shell .listing-stepper button { flex: 0 0 118px !important; }
   .app-shell .checkout-primary,
   .app-shell .checkout-link,
   .app-shell .sell-action { width: 100%; min-height: 50px !important; }
@@ -634,12 +631,6 @@
   .app-shell.view-compose .listing-studio-header h1 { font-size: 26px !important; }
   .app-shell.view-compose .listing-studio-header span { color: var(--v2-gold) !important; }
   .app-shell.view-compose .listing-studio-shell { display: block !important; }
-  .app-shell.view-compose .listing-stepper { display: flex !important; justify-content: space-between !important; overflow: visible !important; padding: 16px 8px 24px !important; background: transparent !important; }
-  .app-shell.view-compose .listing-stepper button { position: relative !important; flex: 0 0 38px !important; width: 38px !important; min-height: 38px !important; padding: 0 !important; border-radius: 50% !important; }
-  .app-shell.view-compose .listing-stepper button div,
-  .app-shell.view-compose .listing-stepper button svg { display: none !important; }
-  .app-shell.view-compose .listing-stepper button:not(:last-child)::after { position: absolute; top: 18px; left: 37px; width: calc((100vw - 112px) / 4); height: 2px; background: var(--v2-line); content: ""; }
-  .app-shell.view-compose .listing-stepper button.active { background: var(--v2-gold) !important; color: #12110d !important; }
   .app-shell.view-compose .listing-stage { padding: 16px !important; border: 1px solid var(--v2-line) !important; border-radius: 18px !important; background: #151515 !important; }
   .app-shell.view-compose .listing-live-preview { display: none !important; }
   .app-shell.view-compose .listing-upload { min-height: 112px !important; }

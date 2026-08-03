@@ -731,34 +731,6 @@
     gap: 14px !important;
   }
 
-  .app-shell .listing-stepper {
-    display: flex !important;
-    justify-content: space-between !important;
-    padding: 12px 10px !important;
-    overflow-x: auto !important;
-  }
-
-  .app-shell .listing-stepper button {
-    width: auto !important;
-    min-height: 0 !important;
-    grid-template-columns: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    gap: 4px !important;
-    padding: 4px 6px !important;
-  }
-
-  /* En mobile solo hace falta ver el numero de paso y si esta activo;
-     el titulo/descripcion de cada paso ya aparece arriba del formulario. */
-  .app-shell .listing-stepper button div {
-    display: none !important;
-  }
-
-  .app-shell .listing-stepper button svg {
-    display: none !important;
-  }
-
   .app-shell .listing-live-preview {
     order: 3 !important;
   }
@@ -1097,16 +1069,6 @@
      abajo con blur, como un asistente premium. */
   .app-shell .listing-studio-page {
     padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
-  }
-
-  .app-shell .listing-stepper {
-    border-radius: var(--mp-r-md) !important;
-    box-shadow: var(--mp-shadow-card) !important;
-  }
-
-  .app-shell .listing-stepper button.active {
-    transform: scale(1.06);
-    transition: transform var(--mp-fast) !important;
   }
 
   .app-shell .form-panel {
