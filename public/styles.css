@@ -1403,9 +1403,6 @@ button {
 }
 
 @media (max-width: 580px) {
-  .topbar {
-    grid-template-columns: auto 1fr;
-  }
 
   .top-actions {
     grid-column: 1 / -1;
@@ -2320,9 +2317,6 @@ body {
 }
 
 @media (max-width: 580px) {
-  .topbar {
-    min-height: 92px;
-  }
 
   .category-strip {
     top: 132px;
@@ -2698,11 +2692,6 @@ body {
     gap: 9px !important;
   }
 
-  .app-shell .topbar .brand-logo {
-    width: 42px !important;
-    height: 42px !important;
-  }
-
   .app-shell .topbar .brand > span {
     overflow: hidden !important;
     font-size: 17px !important;
@@ -2741,10 +2730,6 @@ body {
 
   .app-shell .topbar .top-actions .compact-alert::before {
     content: none !important;
-  }
-
-  .app-shell .topbar .compact-alert span {
-    display: none !important;
   }
 
   .app-shell .topbar .compact-alert svg {
@@ -3289,12 +3274,6 @@ body {
     grid-row: 1;
     justify-self: start;
     gap: 9px !important;
-  }
-
-  .topbar .brand-logo {
-    width: 42px !important;
-    height: 42px !important;
-    flex: 0 0 42px;
   }
 
   .topbar .brand > span {
@@ -4077,9 +4056,6 @@ body {
 }
 
 @media (max-width: 359px) {
-  .topbar {
-    padding-inline: 12px !important;
-  }
 
   .topbar .brand > span {
     max-width: 112px;
@@ -4430,9 +4406,6 @@ body {
 }
 
 @media (max-width: 580px) {
-  .topbar {
-    min-height: 92px;
-  }
 
   .category-strip {
     top: 132px;
@@ -6463,13 +6436,6 @@ body {
     background: #f4f4f1 !important;
   }
 
-  .topbar {
-    min-height: 112px !important;
-    grid-template-columns: auto 1fr auto !important;
-    gap: 8px !important;
-    padding: 8px 10px !important;
-  }
-
   .brand-logo {
     width: 48px !important;
     height: 42px !important;
@@ -8284,9 +8250,6 @@ body,
 }
 
 @media (max-width: 700px) {
-  .topbar {
-    padding: 10px 12px 8px;
-  }
 
   .top-actions {
     display: none;
@@ -9417,13 +9380,6 @@ body {
     background:
       radial-gradient(circle at 50% -4%, rgba(230, 184, 79, 0.16), transparent 26%),
       linear-gradient(180deg, #11120f 0, #11120f 116px, #ede5d8 116px, #f8f5ee 100%);
-  }
-
-  .topbar {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 8px;
-    min-height: 56px;
-    padding: 7px 10px 8px;
   }
 
   .brand {
@@ -10920,13 +10876,6 @@ body {
 
   body {
     background: linear-gradient(180deg, #0a0b09 0, #11130f 136px, #e8ddca 136px, #efe7d9 100%);
-  }
-
-  .topbar {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 9px;
-    min-height: 74px;
-    padding: 8px 10px 10px;
   }
 
   .brand span {
@@ -12689,9 +12638,6 @@ body,
 }
 
 @media (max-width: 700px) {
-  .topbar {
-    min-height: 112px !important;
-  }
 
   .hero-panel {
     height: auto !important;
@@ -12973,7 +12919,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--border-gold) !im
 .ai-agent-panel { border: 1px solid var(--border-gold) !important; border-radius: var(--radius-lg) !important; color: var(--color-text) !important; background: #151612 !important; box-shadow: var(--shadow-lg) !important; }
 
 @media (max-width: 760px) {
-  .topbar { min-height: 124px !important; padding: max(12px, env(safe-area-inset-top)) 20px 10px !important; gap: 10px !important; }
   .brand { min-height: 38px; }
   .brand-logo { width: 38px !important; height: 38px !important; }
   .brand > span { font-size: 16px !important; }
@@ -13058,7 +13003,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--border-gold) !im
 .category-showcase small { color: var(--color-text-muted); font-size: 12px; }
 
 @media (max-width: 760px) {
-  .topbar { display: grid !important; grid-template-columns: auto minmax(0, 1fr) auto !important; }
   .brand { width: auto !important; max-width: none !important; overflow: visible !important; }
   .brand > span { display: block !important; width: auto !important; max-width: none !important; overflow: visible !important; text-overflow: clip !important; white-space: nowrap; }
   .top-actions { display: flex !important; align-items: center; gap: 7px !important; }
@@ -13825,13 +13769,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--border-gold) !im
 @media (max-width: 760px) {
   .topbar .brand {
     min-width: 0;
-  }
-  .topbar .brand-logo {
-    width: 42px !important;
-    height: 42px !important;
-  }
-  .topbar .brand > span {
-    font-size: 18px !important;
   }
   .topbar .searchbox {
     width: 100% !important;
