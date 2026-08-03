@@ -2819,11 +2819,12 @@ const bindEvents = () => {
   });
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
+      const focusSearch = "focusSearch" in button.dataset;
       if (button.dataset.view === "messages") state.mobileChatList = true;
-      if (button.dataset.view === "feed" && !button.dataset.focusSearch) state.mobileSearchMode = false;
-      if (button.dataset.focusSearch) state.mobileSearchMode = true;
+      if (button.dataset.view === "feed" && !focusSearch) state.mobileSearchMode = false;
+      if (focusSearch) state.mobileSearchMode = true;
       navigate(button.dataset.view);
-      if (button.dataset.focusSearch) {
+      if (focusSearch) {
         requestAnimationFrame(() => document.querySelector("#globalSearch")?.focus({ preventScroll: true }));
       }
     });
