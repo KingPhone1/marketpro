@@ -616,12 +616,8 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
   }
 }
 
-/* ---------- Fase 14: brillo del logo/wordmark (a pedido, captura anotada) ---------- */
+/* ---------- Fase 14: brillo del texto "MarketPro" (a pedido: era el texto, no el logo) ---------- */
 @media (max-width: 760px) {
-  .app-shell .topbar .brand-logo,
-  .app-shell.view-feed .topbar .brand-logo {
-    filter: drop-shadow(0 0 10px rgba(232, 180, 76, .55)) drop-shadow(0 0 2px rgba(255, 224, 160, .5)) !important;
-  }
   .app-shell .topbar .brand > span,
   .app-shell.view-feed .topbar .brand > span {
     text-shadow: 0 0 14px rgba(232, 180, 76, .45), 0 0 2px rgba(255, 224, 160, .35) !important;
@@ -694,4 +690,16 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
   .app-shell.view-feed .product-card .mobile-card-verification {
     font-size: 10px !important;
   }
+}
+
+/* ---------- Fase 16: icono de la lupa ahora dispara la búsqueda ---------- */
+/* Antes era un <span aria-hidden> puramente decorativo, sin click handler.
+   Ahora es focuseable (role=button/tabindex) y app.js le agrega un listener
+   que llama a applySearch() con el valor actual del input. */
+.app-shell .market-search-row .search-icon {
+  cursor: pointer !important;
+}
+.app-shell .market-search-row .search-icon:focus-visible {
+  outline: 2px solid var(--v2-gold-line, rgba(232, 180, 76, .5)) !important;
+  outline-offset: 2px !important;
 }

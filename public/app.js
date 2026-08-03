@@ -910,7 +910,7 @@ const topbar = () => `
   </header>
   <div class="market-search-row">
     <div class="searchbox" role="search">
-      <span class="search-icon" aria-hidden="true"><i data-lucide="search"></i></span>
+      <span class="search-icon" data-search-submit role="button" tabindex="0" aria-label="Buscar"><i data-lucide="search"></i></span>
       <input id="globalSearch" value="${escapeHtml(state.query)}" aria-label="Buscar artículos, usuarios o marcas" placeholder="Buscar productos, usuarios o categorías..." />
       <button class="search-scope" type="button">Todas las categorías <i data-lucide="chevron-down"></i></button>
       <button class="search-filter" type="button" data-filter-toggle aria-label="Mostrar u ocultar filtros"><i data-lucide="sliders-horizontal"></i></button>
@@ -2886,6 +2886,18 @@ const bindEvents = () => {
     event.preventDefault();
     window.clearTimeout(searchRenderTimer);
     applySearch();
+  });
+  document.querySelectorAll("[data-search-submit]").forEach((icon) => {
+    icon.addEventListener("click", () => {
+      window.clearTimeout(searchRenderTimer);
+      applySearch();
+    });
+    icon.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      window.clearTimeout(searchRenderTimer);
+      applySearch();
+    });
   });
 
   document.querySelectorAll("[data-category]").forEach((button) => {
