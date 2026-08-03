@@ -615,3 +615,79 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
     font-size: 16px !important;
   }
 }
+
+/* ---------- Fase 14: brillo del logo/wordmark (a pedido, captura anotada) ---------- */
+@media (max-width: 760px) {
+  .app-shell .topbar .brand-logo,
+  .app-shell.view-feed .topbar .brand-logo {
+    filter: drop-shadow(0 0 10px rgba(232, 180, 76, .55)) drop-shadow(0 0 2px rgba(255, 224, 160, .5));
+  }
+  .app-shell .topbar .brand > span,
+  .app-shell.view-feed .topbar .brand > span {
+    text-shadow: 0 0 14px rgba(232, 180, 76, .45), 0 0 2px rgba(255, 224, 160, .35);
+  }
+}
+
+/* ---------- Fase 15: hero, categorías y tarjetas de producto más chicas (a pedido) ---------- */
+@media (max-width: 760px) {
+  .app-shell.view-feed .hero-panel {
+    min-height: 226px !important;
+    margin-bottom: 14px !important;
+    padding: 22px 18px !important;
+    border-radius: 16px !important;
+  }
+  .app-shell.view-feed .hero-panel h1 {
+    max-width: 190px !important;
+    margin: 6px 0 16px !important;
+    font-size: clamp(26px, 8vw, 34px) !important;
+    line-height: 1.1 !important;
+  }
+  .app-shell.view-feed .hero-cta-stack {
+    width: 148px !important;
+  }
+  .app-shell.view-feed .hero-cta-stack .hero-action {
+    min-height: 46px !important;
+    padding: 0 10px !important;
+    font-size: 13px !important;
+  }
+  .app-shell.view-feed .hero-mobile-shield {
+    right: -14px !important;
+    bottom: 2px !important;
+    width: 48% !important;
+    height: 76% !important;
+  }
+
+  .app-shell .category-showcase button {
+    min-width: 110px !important;
+    min-height: 86px !important;
+    padding: 10px !important;
+    gap: 5px !important;
+  }
+  .app-shell .category-showcase button > span {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 9px !important;
+  }
+  .app-shell .category-showcase strong {
+    font-size: 12px !important;
+  }
+
+  .app-shell.view-feed .grid {
+    gap: 10px !important;
+  }
+  .app-shell.view-feed .product-card .card-body {
+    min-height: 104px !important;
+    padding: 10px !important;
+  }
+  .app-shell.view-feed .product-card .card-title {
+    min-height: 30px !important;
+    font-size: 13px !important;
+  }
+  .app-shell.view-feed .product-card .price {
+    font-size: 17px !important;
+  }
+  .app-shell.view-feed .product-card .card-meta,
+  .app-shell.view-feed .product-card .mobile-card-verification {
+    font-size: 10px !important;
+  }
+}

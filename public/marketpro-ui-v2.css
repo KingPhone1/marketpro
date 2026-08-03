@@ -758,8 +758,15 @@
   .app-shell.view-feed .topbar .top-actions .cart-nav,
   .app-shell.view-feed .topbar .top-actions .avatar-btn { width: 46px !important; min-width: 46px !important; height: 46px !important; min-height: 46px !important; }
   .app-shell.view-feed .topbar .top-actions .cart-nav svg { width: 29px !important; height: 29px !important; }
-  .app-shell.view-feed .topbar .top-actions .avatar-btn { border: 0 !important; background: transparent !important; font-size: 0 !important; }
-  .app-shell.view-feed .topbar .top-actions .avatar-btn::before { width: 33px; height: 33px; border: 2px solid #f4f1e8; border-radius: 50%; content: ""; }
+  .app-shell.view-feed .topbar .top-actions .avatar-btn {
+    display: grid !important;
+    place-items: center !important;
+    border: 2px solid var(--v2-gold-line) !important;
+    background: linear-gradient(135deg, rgba(232,180,76,.22), rgba(232,180,76,.06)) !important;
+    color: var(--v2-gold-light) !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+  }
 
   .app-shell.view-feed .market-search-row { padding: 10px 20px 22px !important; }
   .app-shell.view-feed .market-search-row .searchbox { grid-template-columns: 64px minmax(0, 1fr) 0 !important; height: 82px !important; border-radius: 17px !important; }
