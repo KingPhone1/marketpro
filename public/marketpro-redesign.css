@@ -620,41 +620,45 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
 @media (max-width: 760px) {
   .app-shell .topbar .brand-logo,
   .app-shell.view-feed .topbar .brand-logo {
-    filter: drop-shadow(0 0 10px rgba(232, 180, 76, .55)) drop-shadow(0 0 2px rgba(255, 224, 160, .5));
+    filter: drop-shadow(0 0 10px rgba(232, 180, 76, .55)) drop-shadow(0 0 2px rgba(255, 224, 160, .5)) !important;
   }
   .app-shell .topbar .brand > span,
   .app-shell.view-feed .topbar .brand > span {
-    text-shadow: 0 0 14px rgba(232, 180, 76, .45), 0 0 2px rgba(255, 224, 160, .35);
+    text-shadow: 0 0 14px rgba(232, 180, 76, .45), 0 0 2px rgba(255, 224, 160, .35) !important;
   }
 }
 
 /* ---------- Fase 15: hero, categorías y tarjetas de producto más chicas (a pedido) ---------- */
 @media (max-width: 760px) {
   .app-shell.view-feed .hero-panel {
-    min-height: 226px !important;
+    min-height: 176px !important;
     margin-bottom: 14px !important;
-    padding: 22px 18px !important;
+    padding: 16px 16px !important;
     border-radius: 16px !important;
   }
+  .app-shell.view-feed .hero-panel .eyebrow {
+    font-size: 10px !important;
+    margin: 0 0 4px !important;
+  }
   .app-shell.view-feed .hero-panel h1 {
-    max-width: 190px !important;
-    margin: 6px 0 16px !important;
-    font-size: clamp(26px, 8vw, 34px) !important;
-    line-height: 1.1 !important;
+    max-width: 170px !important;
+    margin: 4px 0 10px !important;
+    font-size: clamp(21px, 6.4vw, 26px) !important;
+    line-height: 1.08 !important;
   }
   .app-shell.view-feed .hero-cta-stack {
-    width: 148px !important;
+    width: 134px !important;
   }
   .app-shell.view-feed .hero-cta-stack .hero-action {
-    min-height: 46px !important;
+    min-height: 40px !important;
     padding: 0 10px !important;
-    font-size: 13px !important;
+    font-size: 12px !important;
   }
   .app-shell.view-feed .hero-mobile-shield {
-    right: -14px !important;
+    right: -10px !important;
     bottom: 2px !important;
-    width: 48% !important;
-    height: 76% !important;
+    width: 40% !important;
+    height: 62% !important;
   }
 
   .app-shell .category-showcase button {
