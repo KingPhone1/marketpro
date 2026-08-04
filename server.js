@@ -2600,7 +2600,7 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-app.post("/api/admin/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 8, key: "admin-login" }), (req, res) => {
+app.post("/api/admin/login", rateLimit({ windowMs: 5 * 60 * 1000, max: 30, key: "admin-login" }), (req, res) => {
   if (!ADMIN_PASSWORD) {
     return res.status(503).json({ error: "El acceso administrativo todavía no está configurado." });
   }
