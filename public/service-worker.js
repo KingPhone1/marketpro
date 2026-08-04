@@ -1,4 +1,4 @@
-const CACHE_NAME = "marketpro-v166";
+const CACHE_NAME = "marketpro-v167";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -36,6 +36,8 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
+
+  if (url.origin !== self.location.origin) return;
 
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(fetch(request));
