@@ -9,9 +9,17 @@
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "orientation": "portrait-primary",
   "background_color": "#0b0c0b",
   "theme_color": "#0b0c0b",
   "categories": ["shopping", "business", "finance"],
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "id": "com.marketpro.uy"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Vender",
