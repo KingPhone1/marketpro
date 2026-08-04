@@ -3860,6 +3860,34 @@ app.post("/api/payments/mercadopago/webhook", async (req, res) => {
       ...(order.security.auditTrail || []),
       { event: `Webhook firmado de Mercado Pago: ${order.paymentNotification.status}`, at: order.paymentNotification.receivedAt }
     ];
+    if (paymentVerified && payment.status === "approved" && order.chatId) {
+      const chat = chats.find((item) => item.id === order.chatId);
+      if (chat) {
+        const receiptMessage = {
+          id: `msg-${Date.now()}-mp-receipt`,
+          from: "system",
+          senderId: "system",
+          senderName: "Mercado Pago",
+          text: `Pago confirmado automaticamente por Mercado Pago: ${order.amount} ${order.currency || ""}. ID de pago ${paymentId}. Este comprobante fue verificado directamente con Mercado Pago, no depende de una captura manual.`,
+          attachmentKind: "mercadopago-receipt",
+          time: new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }),
+          createdAt: new Date().toISOString()
+        };
+        chats = chats.map((item) => item.id === chat.id
+          ? { ...item, lastMessageAt: receiptMessage.createdAt, messages: [...item.messages, receiptMessage] }
+          : item
+        );
+        store.conversations = chats;
+        const allowedIds = participantIds(chat);
+        wss.clients.forEach((client) => {
+          const clientId = String(client.identity?.id || "");
+          const clientEmail = String(client.identity?.email || "");
+          if (client.readyState === 1 && (allowedIds.has(clientId) || allowedIds.has(clientEmail))) {
+            client.send(JSON.stringify({ type: "message", chatId: chat.id, message: receiptMessage }));
+          }
+        });
+      }
+    }
     writeStore();
   }
 
