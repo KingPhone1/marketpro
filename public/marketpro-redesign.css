@@ -53,9 +53,6 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
 .app-shell.view-feed:not(.mobile-search-mode) .product-card .card-meta {
   display: none !important;
 }
-.app-shell.view-feed:not(.mobile-search-mode) .product-card .card-heart {
-  display: none !important;
-}
 .app-shell.view-feed:not(.mobile-search-mode) .product-card .card-title {
   order: 1 !important;
 }
@@ -857,4 +854,57 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
     display: block !important;
     margin-top: 10px !important;
   }
+}
+
+/* ---------- Fase 19: Guardados y Direcciones (antes eran botones "proximamente") ---------- */
+.app-shell .card-heart,
+.app-shell .product-main-image > button {
+  cursor: pointer !important;
+}
+.app-shell .card-heart:focus-visible,
+.app-shell .product-main-image > button:focus-visible {
+  outline: 2px solid var(--mp-gold-line, rgba(232, 180, 76, .5)) !important;
+  outline-offset: 2px !important;
+}
+.app-shell .card-heart.active,
+.app-shell .product-main-image > button.active {
+  color: var(--mp-gold, #e8b44c) !important;
+  border-color: var(--mp-gold-line, rgba(232, 180, 76, .5)) !important;
+}
+.app-shell .product-main-image > button.active svg {
+  fill: var(--mp-gold, #e8b44c) !important;
+  stroke: var(--mp-gold, #e8b44c) !important;
+}
+
+.app-shell .address-form-panel {
+  max-width: 640px;
+  margin: 0 auto 28px;
+}
+.app-shell .address-form-panel .field {
+  margin-bottom: 14px;
+}
+.app-shell .address-list {
+  display: grid;
+  gap: 14px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.app-shell .address-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.app-shell .address-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-shell .address-card-info strong {
+  color: var(--mp-text, #f4f1e8);
+  font-size: 15px;
+}
+.app-shell .address-card-info span {
+  color: var(--mp-text-2, #b8b5ad);
+  font-size: 13px;
 }

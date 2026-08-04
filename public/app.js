@@ -348,7 +348,7 @@ const initialView = () => {
   if (location.pathname === "/support") return "support";
   if (location.pathname === "/security") return "security";
   const page = new URLSearchParams(location.search).get("page");
-  return ["legal", "support", "security", "orders", "profile", "compose", "messages", "notifications", "categories", "cart"].includes(page) ? page : "feed";
+  return ["legal", "support", "security", "orders", "profile", "compose", "messages", "notifications", "categories", "cart", "saved", "addresses"].includes(page) ? page : "feed";
 };
 
 const state = {
@@ -363,6 +363,8 @@ const state = {
   checkoutOrder: null,
   orders: [],
   notifications: [],
+  savedProducts: [],
+  savedAddresses: [],
   orderTab: "all",
   paymentMethod: "mercadopago",
   galleryIndex: 0,
@@ -436,6 +438,33 @@ const removeFromCart = (id) => {
   state.cart = state.cart.filter((row) => row.id !== id);
   saveCart();
   render();
+};
+
+const isProductSaved = (id) => state.savedProducts.some((item) => item.id === id);
+const toggleSavedProduct = async (id) => {
+  if (!state.user) {
+    showToast("Inicia sesion para guardar publicaciones.");
+    return;
+  }
+  const saved = isProductSaved(id);
+  if (saved) {
+    state.savedProducts = state.savedProducts.filter((item) => item.id !== id);
+    render();
+    const result = await api(`/api/saved-products/${id}`, { method: "DELETE" });
+    if (result?.error) showToast(result.error);
+  } else {
+    const product = state.products.find((item) => item.id === id) || state.savedProducts.find((item) => item.id === id);
+    if (product) state.savedProducts = [product, ...state.savedProducts];
+    render();
+    const result = await api(`/api/saved-products/${id}`, { method: "POST" });
+    if (result?.error) {
+      state.savedProducts = state.savedProducts.filter((item) => item.id !== id);
+      showToast(result.error);
+      render();
+    } else {
+      showToast("Guardado en tus favoritos", "success");
+    }
+  }
 };
 
 const escapeHtml = (value = "") =>
@@ -784,17 +813,21 @@ const loadData = async () => {
   if (state.user && !state.user.admin && !state.authToken && !state.authenticated) {
     state.user = null;
   }
-  const [products, conversations, savedUser, orders, notifications] = await Promise.all([
+  const [products, conversations, savedUser, orders, notifications, savedProducts, savedAddresses] = await Promise.all([
     api("/api/products"),
     api("/api/conversations"),
     api("/api/user"),
     api("/api/orders"),
-    api("/api/notifications")
+    api("/api/notifications"),
+    api("/api/saved-products"),
+    api("/api/addresses")
   ]);
   state.products = products.map(normalizeProduct);
   state.conversations = conversations;
   state.orders = Array.isArray(orders) ? orders : [];
   state.notifications = Array.isArray(notifications) ? notifications : [];
+  state.savedProducts = Array.isArray(savedProducts) ? savedProducts.map(normalizeProduct) : [];
+  state.savedAddresses = Array.isArray(savedAddresses) ? savedAddresses : [];
   if (savedUser?.email) state.authenticated = true;
   if (savedUser?.email && (!state.user?.email || state.user.email === savedUser.email)) {
     state.user = savedUser;
@@ -995,7 +1028,7 @@ const sellerSidebar = (active = "summary") => `
       <button class="${active === "listings" ? "active" : ""}" data-view="compose"><i data-lucide="notebook-tabs"></i>Publicaciones</button>
       <button class="${active === "orders" ? "active" : ""}" data-view="orders"><i data-lucide="package-check"></i>Órdenes</button>
       <button data-view="messages"><i data-lucide="messages-square"></i>Mensajes</button>
-      <button data-view="feed"><i data-lucide="heart"></i>Favoritos</button>
+      <button data-view="saved"><i data-lucide="heart"></i>Favoritos</button>
       <button data-view="profile"><i data-lucide="settings"></i>Configuración</button>
       <button class="seller-help-link" data-view="support"><i data-lucide="circle-help"></i>Ayuda</button>
     </nav>
@@ -1229,7 +1262,7 @@ const productCard = (item) => `
     <div class="card-image">
       ${productImage(item)}
       ${trustBadge(item)}
-      <span class="card-heart" aria-hidden="true">♡</span>
+      <span class="card-heart ${isProductSaved(item.id) ? "active" : ""}" role="button" tabindex="0" aria-label="${isProductSaved(item.id) ? "Quitar de guardados" : "Guardar"}" data-toggle-save="${item.id}">${isProductSaved(item.id) ? "♥" : "♡"}</span>
     </div>
     <div class="card-body">
       <div class="mobile-card-verification"><i data-lucide="shield-check"></i>${item.seller?.verified ? "Verificado" : "Vendedor nuevo"}</div>
@@ -1881,6 +1914,56 @@ const categoriesView = () => `
   </main>
 `;
 
+const savedView = () => `
+  <main class="categories-page">
+    <section class="categories-heading">
+      <p class="eyebrow">Tu lista</p>
+      <h1>Guardados</h1>
+      <p>Publicaciones que marcaste para revisar más tarde.</p>
+    </section>
+    ${state.savedProducts.length
+      ? `<section class="grid">${state.savedProducts.map(productCard).join("")}</section>`
+      : `<div class="empty real-listings-empty"><i data-lucide="heart"></i><strong>Todavía no guardaste nada.</strong><span>Tocá el corazón de una publicación para guardarla acá.</span><button class="sell-action" data-view="feed">Explorar productos</button></div>`}
+  </main>
+`;
+
+const addressesView = () => `
+  <main class="categories-page">
+    <section class="categories-heading">
+      <p class="eyebrow">Entregas más rápidas</p>
+      <h1>Direcciones guardadas</h1>
+      <p>Guarda tus direcciones frecuentes para completarlas más rápido al comprar.</p>
+    </section>
+    <section class="panel address-form-panel">
+      <form id="addAddressForm" novalidate>
+        <div class="two-col">
+          <div class="field"><label>Etiqueta</label><input name="label" required maxlength="40" placeholder="Casa, Trabajo..." /></div>
+          <div class="field"><label>Teléfono</label><input name="phone" required type="tel" placeholder="Teléfono de contacto" /></div>
+        </div>
+        <div class="field"><label>Dirección</label><input name="address" required placeholder="Calle, número, referencia" /></div>
+        <div class="field"><label>Ciudad</label><input name="city" required placeholder="Ciudad" /></div>
+        <div class="field"><label>Nota (opcional)</label><input name="note" placeholder="Entre calles, timbre, horario..." /></div>
+        <button class="buy-action" type="submit">Guardar dirección</button>
+      </form>
+    </section>
+    ${state.savedAddresses.length ? `
+      <section class="address-list">
+        ${state.savedAddresses.map((addr) => `
+          <article class="panel address-card">
+            <div class="address-card-info">
+              <strong>${escapeHtml(addr.label)}</strong>
+              <span>${escapeHtml(addr.address)}, ${escapeHtml(addr.city)}</span>
+              <span>${escapeHtml(addr.phone)}</span>
+              ${addr.note ? `<span class="muted">${escapeHtml(addr.note)}</span>` : ""}
+            </div>
+            <button type="button" class="secondary-btn" data-delete-address="${addr.id}"><i data-lucide="trash-2"></i>Eliminar</button>
+          </article>
+        `).join("")}
+      </section>
+    ` : `<div class="empty real-listings-empty"><i data-lucide="map-pin"></i><strong>Todavía no guardaste direcciones.</strong><span>Agrega una arriba para usarla en tus próximas compras.</span></div>`}
+  </main>
+`;
+
 const cartView = () => {
   const rows = state.cart
     .map((row) => ({ row, product: state.products.find((item) => item.id === row.id) }))
@@ -2052,7 +2135,7 @@ const detailStudioView = () => {
       <section class="product-studio-shell">
         <section class="product-gallery-v2">
           <div class="product-thumbs">${item.images.map((src, index) => `<button class="${index === state.galleryIndex ? "active" : ""}" data-thumb="${index}"><img src="${src}" alt="Vista ${index + 1}" /></button>`).join("")}</div>
-          <div class="product-main-image"><img src="${currentImage}" alt="${escapeHtml(item.title)}" /><button type="button" aria-label="Agregar a favoritos"><i data-lucide="heart"></i></button></div>
+          <div class="product-main-image"><img src="${currentImage}" alt="${escapeHtml(item.title)}" /><button type="button" class="${isProductSaved(item.id) ? "active" : ""}" aria-label="${isProductSaved(item.id) ? "Quitar de guardados" : "Agregar a favoritos"}" data-toggle-save="${item.id}"><i data-lucide="heart"></i></button></div>
           <div class="product-trust-strip">
             <span><i data-lucide="shield-check"></i><b>Compra protegida</b><small>Operación registrada</small></span>
             <span><i data-lucide="lock-keyhole"></i><b>Pago seguro</b><small>Por Mercado Pago</small></span>
@@ -2618,9 +2701,9 @@ const profileView = () => {
         <button type="button" data-dashboard-listings><i data-lucide="notebook-tabs"></i><span>Mis publicaciones</span><i data-lucide="chevron-right"></i></button>
         <button type="button" data-view="orders" data-order-tab="selling"><i data-lucide="tags"></i><span>Ventas</span><i data-lucide="chevron-right"></i></button>
         <button type="button" data-view="orders" data-order-tab="buying"><i data-lucide="shopping-bag"></i><span>Compras</span><i data-lucide="chevron-right"></i></button>
-        <button type="button" data-saved-soon><i data-lucide="heart"></i><span>Guardados</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="saved"><i data-lucide="heart"></i><span>Guardados</span><i data-lucide="chevron-right"></i></button>
         <button type="button" data-mercadopago-quick-connect><i data-lucide="badge-dollar-sign"></i><span>Mercado Pago</span><small>${paymentLinksReady ? "Cuenta de cobro conectada" : "Configurar cobros"}</small><i data-lucide="chevron-right"></i></button>
-        <button type="button" data-addresses-soon><i data-lucide="map-pin"></i><span>Direcciones</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="addresses"><i data-lucide="map-pin"></i><span>Direcciones</span><i data-lucide="chevron-right"></i></button>
         <button type="button" data-view="security"><i data-lucide="shield-check"></i><span>Verificación</span><i data-lucide="chevron-right"></i></button>
         <button type="button" data-view="support"><i data-lucide="settings"></i><span>Configuración</span><i data-lucide="chevron-right"></i></button>
       </section>
@@ -2752,6 +2835,8 @@ const view = () =>
     orderDetail: orderDetailView,
     security: securityView,
     support: supportView,
+    saved: savedView,
+    addresses: addressesView,
     legal: legalView
   })[state.view]();
 
@@ -2921,6 +3006,19 @@ const bindEvents = () => {
     button.addEventListener("click", () => navigate("detail", { selectedProductId: button.dataset.product, galleryIndex: 0 }));
   });
 
+  document.querySelectorAll("[data-toggle-save]").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleSavedProduct(el.dataset.toggleSave);
+    });
+    el.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      event.stopPropagation();
+      toggleSavedProduct(el.dataset.toggleSave);
+    });
+  });
+
   document.querySelectorAll("[data-thumb]").forEach((button) => {
     button.addEventListener("click", () => {
       state.galleryIndex = Number(button.dataset.thumb);
@@ -2988,9 +3086,6 @@ const bindEvents = () => {
   document.querySelectorAll("[data-dashboard-listings]").forEach((button) => button.addEventListener("click", () => {
     document.querySelector("[data-dashboard-listings-section]")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }));
-  document.querySelectorAll("[data-saved-soon]").forEach((button) => button.addEventListener("click", () => {
-    showToast("Muy pronto vas a poder guardar tus publicaciones favoritas acá.");
-  }));
   document.querySelectorAll("[data-mercadopago-quick-connect]").forEach((button) => button.addEventListener("click", () => {
     if (state.user?.mercadoPago?.connected) {
       document.querySelector("#mercadoPagoSetup")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -3056,9 +3151,31 @@ const bindEvents = () => {
   document.querySelector("[data-scroll-payment-link]")?.addEventListener("click", () => {
     document.querySelector("#mercadoPagoSetup")?.scrollIntoView({ behavior: "smooth", block: "center" });
   });
-  document.querySelector("[data-addresses-soon]")?.addEventListener("click", () => {
-    showToast("Muy pronto vas a poder guardar tus direcciones acá.");
+  document.querySelector("#addAddressForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
+    const result = await api("/api/addresses", { method: "POST", body: JSON.stringify(data) });
+    if (result?.error) {
+      showToast(result.error);
+      return;
+    }
+    state.savedAddresses = result.savedAddresses;
+    showToast("Dirección guardada", "success");
+    render();
   });
+  document.querySelectorAll("[data-delete-address]").forEach((button) => button.addEventListener("click", async () => {
+    const id = button.dataset.deleteAddress;
+    const previous = state.savedAddresses;
+    state.savedAddresses = state.savedAddresses.filter((item) => item.id !== id);
+    render();
+    const result = await api(`/api/addresses/${id}`, { method: "DELETE" });
+    if (result?.error) {
+      state.savedAddresses = previous;
+      showToast(result.error);
+      render();
+    }
+  }));
   document.querySelector("#sellerPaymentConfirmForm")?.addEventListener("submit", confirmSellerPaymentLink);
   document.querySelector("#photoInput")?.addEventListener("change", previewPhotos);
   syncPhotoInputFiles();

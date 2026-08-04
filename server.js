@@ -2183,6 +2183,87 @@ app.get("/api/user", (req, res) => {
   res.json(publicUser(authenticatedUser(req)));
 });
 
+app.get("/api/saved-products", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.json([]);
+  const savedIds = new Set(user.savedProductIds || []);
+  res.json(listings.filter((product) => savedIds.has(product.id) && isPublicListing(product)));
+});
+
+app.post("/api/saved-products/:id", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Inicia sesion para guardar publicaciones." });
+  const product = listings.find((item) => item.id === req.params.id);
+  if (!product || !isPublicListing(product)) return res.status(404).json({ error: "Publicacion no encontrada" });
+  const savedIds = new Set(user.savedProductIds || []);
+  savedIds.add(product.id);
+  user.savedProductIds = [...savedIds];
+  writeStore();
+  res.status(201).json({ savedProductIds: user.savedProductIds });
+});
+
+app.delete("/api/saved-products/:id", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Inicia sesion para modificar tus guardados." });
+  user.savedProductIds = (user.savedProductIds || []).filter((id) => id !== req.params.id);
+  writeStore();
+  res.json({ savedProductIds: user.savedProductIds });
+});
+
+app.get("/api/addresses", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.json([]);
+  res.json(user.savedAddresses || []);
+});
+
+app.post("/api/addresses", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Inicia sesion para guardar una direccion." });
+  const required = ["label", "address", "city", "phone"];
+  const missing = required.filter((field) => !String(req.body?.[field] || "").trim());
+  if (missing.length) return res.status(400).json({ error: "Completa la etiqueta, direccion, ciudad y telefono.", fields: missing });
+  const address = {
+    id: `address-${Date.now()}`,
+    label: boundedText(req.body.label, 40),
+    address: boundedText(req.body.address, 180),
+    city: boundedText(req.body.city, 100),
+    phone: boundedText(req.body.phone, 32),
+    note: boundedText(req.body.note, 200, { multiline: true }),
+    createdAt: new Date().toISOString()
+  };
+  user.savedAddresses = [address, ...(user.savedAddresses || [])].slice(0, 20);
+  writeStore();
+  res.status(201).json({ savedAddresses: user.savedAddresses });
+});
+
+app.put("/api/addresses/:id", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Inicia sesion para modificar tus direcciones." });
+  const index = (user.savedAddresses || []).findIndex((item) => item.id === req.params.id);
+  if (index === -1) return res.status(404).json({ error: "Direccion no encontrada" });
+  const required = ["label", "address", "city", "phone"];
+  const missing = required.filter((field) => !String(req.body?.[field] || "").trim());
+  if (missing.length) return res.status(400).json({ error: "Completa la etiqueta, direccion, ciudad y telefono.", fields: missing });
+  user.savedAddresses[index] = {
+    ...user.savedAddresses[index],
+    label: boundedText(req.body.label, 40),
+    address: boundedText(req.body.address, 180),
+    city: boundedText(req.body.city, 100),
+    phone: boundedText(req.body.phone, 32),
+    note: boundedText(req.body.note, 200, { multiline: true })
+  };
+  writeStore();
+  res.json({ savedAddresses: user.savedAddresses });
+});
+
+app.delete("/api/addresses/:id", (req, res) => {
+  const user = authenticatedUser(req);
+  if (!user) return res.status(401).json({ error: "Inicia sesion para modificar tus direcciones." });
+  user.savedAddresses = (user.savedAddresses || []).filter((item) => item.id !== req.params.id);
+  writeStore();
+  res.json({ savedAddresses: user.savedAddresses });
+});
+
 app.delete("/api/user", async (req, res) => {
   const user = authenticatedUser(req);
   if (!user) return res.status(401).json({ error: "Sesion requerida" });
