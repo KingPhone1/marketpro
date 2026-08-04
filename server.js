@@ -4050,6 +4050,24 @@ app.post("/api/conversations/:id/messages", rateLimit({ windowMs: 10 * 60 * 1000
         }
       : null;
 
+  if (attachmentKind === "mercadopago-receipt" && attachment) {
+    const linkedOrder = (store.orders || []).find((item) => item.chatId === chat.id);
+    if (linkedOrder) {
+      linkedOrder.paymentProof = {
+        attachment,
+        uploadedBy: sender.id,
+        uploadedByName: sender.name,
+        messageId: message.id,
+        uploadedAt: message.createdAt
+      };
+      linkedOrder.security = linkedOrder.security || {};
+      linkedOrder.security.auditTrail = [
+        ...(linkedOrder.security.auditTrail || []),
+        { event: `Comprobante de pago cargado por ${sender.name}`, at: message.createdAt }
+      ];
+    }
+  }
+
   chats = chats.map((item) => item.id === chat.id
     ? {
         ...item,

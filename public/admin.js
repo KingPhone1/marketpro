@@ -386,6 +386,7 @@ const ordersView = () => {
             <div><small>Entrega</small><b>${escapeHtml(order.delivery?.status || "")}</b></div>
             <div><small>Huella</small><b>${escapeHtml(order.security?.stamp?.productFingerprint || "")}</b></div>
             <div><small>Evidencia vendedor</small><b>${order.delivery?.sellerProof ? "Cargada" : "Pendiente"}</b></div>
+            <div><small>Comprobante de pago</small><b>${order.paymentProof ? `Cargado por ${escapeHtml(order.paymentProof.uploadedByName || "")}` : "Sin comprobante"}</b></div>
             <div><small>Disputas</small><b>${order.disputes?.length || 0}</b></div>
             ${(order.disputes || []).filter((dispute) => dispute.status !== "Cerrada").map((dispute) => `<button class="secondary-btn" data-resolve-dispute="${order.id}" data-dispute-id="${dispute.id}">Cerrar disputa</button>`).join("")}
           </article>
