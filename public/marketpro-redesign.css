@@ -745,17 +745,21 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
 @media (min-width: 761px) {
   .app-shell .entry-shell.entry-v2 {
     padding: 48px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
     background:
       radial-gradient(circle at 18% 20%, rgba(215, 174, 85, 0.1), transparent 34rem),
       radial-gradient(circle at 82% 78%, rgba(215, 174, 85, 0.06), transparent 30rem),
       #080908 !important;
   }
   .app-shell .entry-v2-inner {
-    width: min(100%, 980px) !important;
+    width: min(92vw, 1100px) !important;
+    margin: 0 auto !important;
     display: grid !important;
-    grid-template-columns: 1fr 430px !important;
+    grid-template-columns: 1fr 460px !important;
     grid-template-rows: auto auto 1fr auto auto !important;
-    column-gap: 80px !important;
+    column-gap: 96px !important;
     row-gap: 0 !important;
     align-items: stretch !important;
   }
@@ -837,5 +841,20 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
   .app-shell .entry-legal-links {
     grid-column: 2 !important;
     grid-row: 5 !important;
+  }
+
+  /* La tarjeta ahora tiene un ancho fijo (460px): sin minmax(0, ...) los
+     campos de .two-col (cedula/telefono, gmail/contraseña) empujaban el
+     formulario de "Crear cuenta" fuera de la tarjeta en vez de achicarse. */
+  .app-shell .entry-register-form .two-col,
+  .app-shell .entry-v2-form .two-col {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  }
+
+  /* Mismo motivo: .private-note es un <small> inline que quedaba
+     flotando al lado del boton de submit en vez de debajo. */
+  .app-shell .entry-register-form .private-note {
+    display: block !important;
+    margin-top: 10px !important;
   }
 }
