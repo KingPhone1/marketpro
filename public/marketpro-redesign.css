@@ -734,3 +734,108 @@ h1, h2, h3, .panel-title, .content-head h2, .card-title, .detail-title,
 .app-shell .empty {
   color: var(--mp-text-2, #b8b5ad) !important;
 }
+
+/* ---------- Fase 18: pantalla de entrada (login/crear cuenta) en escritorio ---------- */
+/* En mobile, .entry-v2-inner es una columna centrada de 500px de ancho.
+   En escritorio esa misma columna quedaba flotando en un mar de fondo
+   negro vacío. Acá no se toca el markup (todos los elementos ya son
+   hijos directos de .entry-v2-inner): solo se reubican por CSS Grid en
+   dos columnas -- relato de marca a la izquierda, formulario compacto
+   y sin fricción extra a la derecha -- y se agranda el ancho útil. */
+@media (min-width: 761px) {
+  .app-shell .entry-shell.entry-v2 {
+    padding: 48px !important;
+    background:
+      radial-gradient(circle at 18% 20%, rgba(215, 174, 85, 0.1), transparent 34rem),
+      radial-gradient(circle at 82% 78%, rgba(215, 174, 85, 0.06), transparent 30rem),
+      #080908 !important;
+  }
+  .app-shell .entry-v2-inner {
+    width: min(100%, 980px) !important;
+    display: grid !important;
+    grid-template-columns: 1fr 430px !important;
+    grid-template-rows: auto auto 1fr auto auto !important;
+    column-gap: 80px !important;
+    row-gap: 0 !important;
+    align-items: stretch !important;
+  }
+
+  .app-shell .entry-v2-brand {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    justify-items: start !important;
+    text-align: left !important;
+    justify-self: start !important;
+  }
+  .app-shell .entry-v2-brand img {
+    width: 96px !important;
+    height: 96px !important;
+  }
+  .app-shell .entry-v2-brand strong {
+    font-size: 26px !important;
+  }
+
+  .app-shell .entry-v2-welcome {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    text-align: left !important;
+    margin-top: 36px !important;
+  }
+  .app-shell .entry-v2-welcome h1 {
+    font-size: 44px !important;
+    letter-spacing: -0.01em;
+  }
+  .app-shell .entry-v2-welcome p {
+    font-size: 16px !important;
+    max-width: 380px;
+  }
+
+  .app-shell .entry-v2-trust {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    align-self: end !important;
+    grid-template-columns: 1fr !important;
+    gap: 22px !important;
+    padding-bottom: 8px;
+  }
+  .app-shell .entry-v2-trust article {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-items: normal !important;
+    align-items: center !important;
+    gap: 16px;
+    text-align: left !important;
+  }
+  .app-shell .entry-v2-trust svg {
+    flex: none;
+    width: 20px !important;
+    height: 20px;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(215, 174, 85, 0.09);
+    box-sizing: content-box;
+  }
+  .app-shell .entry-v2-trust strong {
+    display: block;
+    font-size: 13px !important;
+  }
+  .app-shell .entry-v2-trust span {
+    font-size: 12px !important;
+  }
+
+  .app-shell .entry-v2-card {
+    grid-column: 2 !important;
+    grid-row: 1 / span 3 !important;
+    align-self: center !important;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  }
+
+  .app-shell .admin-entry {
+    grid-column: 2 !important;
+    grid-row: 4 !important;
+  }
+  .app-shell .entry-legal-links {
+    grid-column: 2 !important;
+    grid-row: 5 !important;
+  }
+}
