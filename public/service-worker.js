@@ -1,11 +1,11 @@
-const CACHE_NAME = "marketpro-v164";
+const CACHE_NAME = "marketpro-v165";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/styles.css?v=115",
   "/mobile.css?v=111",
   "/studio.css?v=119",
-  "/app.js?v=126",
+  "/app.js?v=127",
   "/marketpro-mockup.css?v=2",
   "/marketpro-ui-v2.css?v=19",
   "/marketpro-redesign.css?v=24",

@@ -477,10 +477,49 @@ const approvedUsersView = () => {
   `;
 };
 
+const transactionsView = () => {
+  const overview = overviewData();
+  const orders = overview.orders || [];
+  const isLinkPayment = (order) => String(order.mercadoPago?.preferenceId || "").startsWith("seller-link-");
+  const paymentStatus = (order) => {
+    if (order.paymentNotification?.status) return order.paymentNotification.status;
+    if (order.paymentProof) return "Comprobante subido (sin verificar por webhook)";
+    return "Sin confirmacion registrada";
+  };
+  return `
+    <section class="panel">
+      <div class="admin-section-head">
+        <div>
+          <p class="eyebrow">Registro completo</p>
+          <h1>Transacciones</h1>
+          <p class="muted">Todas las ordenes, sea que el vendedor cobre por enlace propio o por cuenta conectada con OAuth.</p>
+        </div>
+        <strong class="vault-count">${orders.length} ordenes</strong>
+      </div>
+      <div class="admin-orders">
+        ${orders.length ? orders.map((order) => `
+          <article class="admin-order">
+            <div>
+              <strong>${escapeHtml(order.productTitle || "Publicacion")}</strong>
+              <span>${escapeHtml(order.id)} - ${escapeHtml(order.createdAt || "")}</span>
+            </div>
+            <div><small>Monto</small><b>${money(order.amount)} ${escapeHtml(order.currency || "")}</b></div>
+            <div><small>Metodo de cobro</small><b>${isLinkPayment(order) ? "Enlace del vendedor" : "Cuenta conectada (OAuth)"}</b></div>
+            <div><small>Estado del pago</small><b>${escapeHtml(paymentStatus(order))}</b></div>
+            <div><small>Comprobante</small><b>${order.paymentProof ? `Cargado por ${escapeHtml(order.paymentProof.uploadedByName || "")}` : (isLinkPayment(order) ? "Pendiente" : "Verificado por webhook")}</b></div>
+            <div><small>Comprador / Vendedor</small><b>${escapeHtml(order.buyer?.name || "")} / ${escapeHtml(order.seller?.name || "")}</b></div>
+          </article>
+        `).join("") : `<div class="empty">Todavía no hay transacciones.</div>`}
+      </div>
+    </section>
+  `;
+};
+
 const PAGES = [
   { key: "dashboard", label: "Panel", render: () => `${healthMetricsView()}${launchReadinessView()}` },
   { key: "vendedores", label: "Vendedores", render: () => `${pendingUsersView()}${approvedUsersView()}` },
   { key: "ordenes", label: "Órdenes", render: ordersView },
+  { key: "transacciones", label: "Transacciones", render: transactionsView },
   { key: "moderacion", label: "Moderación", render: moderationView },
   { key: "chats", label: "Chats", render: chatsVaultView },
   { key: "pagos", label: "Pagos", render: mercadoPagoView },

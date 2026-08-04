@@ -2616,10 +2616,10 @@ const profileView = () => {
 
       <section class="mobile-profile-actions" aria-label="Accesos de mi cuenta">
         <button type="button" data-dashboard-listings><i data-lucide="notebook-tabs"></i><span>Mis publicaciones</span><i data-lucide="chevron-right"></i></button>
-        <button type="button" data-view="orders"><i data-lucide="tags"></i><span>Ventas</span><i data-lucide="chevron-right"></i></button>
-        <button type="button" data-view="orders"><i data-lucide="shopping-bag"></i><span>Compras</span><i data-lucide="chevron-right"></i></button>
-        <button type="button" data-view="feed"><i data-lucide="heart"></i><span>Guardados</span><i data-lucide="chevron-right"></i></button>
-        <button type="button" data-scroll-payment-link><i data-lucide="badge-dollar-sign"></i><span>Mercado Pago</span><small>${paymentLinksReady ? "Cuenta de cobro conectada" : "Configurar cobros"}</small><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="orders" data-order-tab="selling"><i data-lucide="tags"></i><span>Ventas</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-view="orders" data-order-tab="buying"><i data-lucide="shopping-bag"></i><span>Compras</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-saved-soon><i data-lucide="heart"></i><span>Guardados</span><i data-lucide="chevron-right"></i></button>
+        <button type="button" data-mercadopago-quick-connect><i data-lucide="badge-dollar-sign"></i><span>Mercado Pago</span><small>${paymentLinksReady ? "Cuenta de cobro conectada" : "Configurar cobros"}</small><i data-lucide="chevron-right"></i></button>
         <button type="button" data-addresses-soon><i data-lucide="map-pin"></i><span>Direcciones</span><i data-lucide="chevron-right"></i></button>
         <button type="button" data-view="security"><i data-lucide="shield-check"></i><span>Verificación</span><i data-lucide="chevron-right"></i></button>
         <button type="button" data-view="support"><i data-lucide="settings"></i><span>Configuración</span><i data-lucide="chevron-right"></i></button>
@@ -2985,9 +2985,19 @@ const bindEvents = () => {
     const recovery = document.querySelector(".entry-recovery");
     if (recovery) recovery.hidden = !recovery.hidden;
   });
-  document.querySelector("[data-dashboard-listings]")?.addEventListener("click", () => {
+  document.querySelectorAll("[data-dashboard-listings]").forEach((button) => button.addEventListener("click", () => {
     document.querySelector("[data-dashboard-listings-section]")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  }));
+  document.querySelectorAll("[data-saved-soon]").forEach((button) => button.addEventListener("click", () => {
+    showToast("Muy pronto vas a poder guardar tus publicaciones favoritas acá.");
+  }));
+  document.querySelectorAll("[data-mercadopago-quick-connect]").forEach((button) => button.addEventListener("click", () => {
+    if (state.user?.mercadoPago?.connected) {
+      document.querySelector("#mercadoPagoSetup")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      connectMercadoPago();
+    }
+  }));
   document.querySelector("[data-account-menu]")?.addEventListener("click", () => {
     document.querySelector(".dashboard-account-actions")?.scrollIntoView({ behavior: "smooth", block: "center" });
   });
