@@ -1330,11 +1330,7 @@
 }
 
 @media (max-width: 760px) {
-  /* ---- Seguridad (Centro de confianza) y Centro de ayuda (Soporte) ----
-     Configuración, Direcciones y Métodos de pago todavía no existen como
-     pantallas propias en la app (los accesos del perfil apuntan a otras
-     vistas) — por eso no se listan acá; se puede armar esas pantallas
-     como paso siguiente si querés. */
+  /* ---- Seguridad (Centro de confianza) y Centro de ayuda (Soporte) ---- */
   .app-shell .trust-center,
   .app-shell .support-panel,
   .app-shell .legal-panel {
