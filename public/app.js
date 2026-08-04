@@ -1221,7 +1221,7 @@ const fallbackProductImage = (category = "") => {
 const productImage = (item, index = 0, extra = "") => {
   const fallback = fallbackProductImage(item.category);
   const source = item.images?.[index] || fallback;
-  return `<img ${extra} data-product-image data-fallback="${escapeHtml(fallback)}" src="${escapeHtml(source)}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async" />`;
+  return `<img ${extra} data-product-image data-fallback="${escapeHtml(fallback)}" src="${escapeHtml(source)}" alt="${escapeHtml(item.title)}" decoding="async" />`;
 };
 
 const productCard = (item) => `
@@ -1695,7 +1695,7 @@ const featuredRail = () => `
         .map(
           (item) => `
           <button class="featured-item" data-product="${item.id}">
-            <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async" />
+            <img src="${item.images[0]}" alt="${escapeHtml(item.title)}" decoding="async" />
             <span>${escapeHtml(item.category)}</span>
             <strong>${escapeHtml(item.title)}</strong>
             <b>${money(item.price)}</b>
